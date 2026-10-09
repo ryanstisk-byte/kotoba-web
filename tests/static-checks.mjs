@@ -44,6 +44,9 @@ const noClip = [];
 for (const [text, voice] of collected.clips) {
   for (const key of [`${text}#${voice}`, `${text}#${voice}#slow`]) if (!clipKeys.has(key)) noClip.push(key);
 }
+// The Japanese voices can't read English, so no line without Japanese should be spoken.
+const english = collected.clips.filter(([text]) => !/[ぁ-ゖァ-ヺ一-鿿]/.test(text)).map(([text]) => text);
+if (english.length) errors.push(`${english.length} spoken lines have no Japanese in them: ${english.slice(0, 5).join(' | ')}`);
 if (noClip.length) {
   errors.push(`${noClip.length} spoken lines have no clip in js/clips.js (run tools/build_assets.py, see README): `
     + noClip.slice(0, 10).join(' | ') + (noClip.length > 10 ? ' …' : ''));

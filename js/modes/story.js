@@ -9,6 +9,8 @@ import { esc, delegate, shuffle } from '../ui.js';
 import * as fx from '../fx.js';
 import { mountMine } from './story-mine.js';
 
+const HAS_JP = /[ぁ-ゖァ-ヺ一-鿿]/;
+
 export function mount(el, ctx) {
   let chapter = null;
   let index = 0;
@@ -317,7 +319,8 @@ export function mount(el, ctx) {
       if (i === ch.answer) {
         wrongReply = null;
         choiceSolved = true;
-        speaker.speak(ch.options[i], { mps: 4, voice: CAST.ren.voice });
+        // Only Japanese answers are spoken; an English answer would be read out in Ren's Japanese voice.
+        if (HAS_JP.test(ch.options[i])) speaker.speak(ch.options[i], { mps: 4, voice: CAST.ren.voice });
         if (!choiceMissed) store.log(true);
         store.grade({ skill: 'grammar', id: `${chapter.id}:${index}`, ok: true, firstTry: !choiceMissed });
       } else {
