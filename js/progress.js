@@ -25,7 +25,7 @@ export function barChart(rows, { label, ref = null, labelW = 128 } = {}) {
   const rowH = 28;
   const top = ref != null ? 18 : 4;
   const x0 = labelW + 4;
-  const x1 = W - 68;
+  const x1 = W - 76;
   const h = top + rows.length * rowH;
   const span = x1 - x0;
   const parts = rows.map((r, i) => {
@@ -61,7 +61,9 @@ export function columnChart(cols, { label, ref = null } = {}) {
     const v = c.value == null ? null : Math.max(0, Math.min(1, c.value));
     return `<g class="ch-row"><title>${esc(c.title || `${c.label}: ${c.text}`)}</title>
       ${v == null ? '' : `<rect class="ch-bar" x="${cx - bw / 2}" y="${y(v)}" width="${bw}" height="${Math.max(2, plotH * v)}" rx="4"/>`}
-      <text class="ch-val" x="${cx}" y="${v == null ? y(0) - 6 : y(v) - 6}" text-anchor="middle">${esc(c.text)}</text>
+      ${v != null && v >= 0.15
+        ? `<text class="ch-inval" x="${cx}" y="${y(v) + 15}" text-anchor="middle">${esc(c.text)}</text>`
+        : `<text class="ch-val" x="${cx}" y="${v == null ? y(0) - 6 : y(v) - 6}" text-anchor="middle">${esc(c.text)}</text>`}
       <text class="ch-label" x="${cx}" y="${h - 10}" text-anchor="middle">${esc(c.label)}</text></g>`;
   }).join('');
   return `<svg class="chart" viewBox="0 0 ${W} ${h}" role="img" aria-label="${esc(label)}">${grid}${refLine}${bars}</svg>`;

@@ -778,6 +778,7 @@ p:has(> .jr), .small:has(> .jr), .lead:has(> .jr), .strong:has(> .jr), span:has(
 .chart .ch-label { fill: var(--ink); font-weight: 600; }
 .chart .ch-val { fill: var(--dim); font-family: var(--font-mono); font-size: 12px; }
 .chart .ch-note { fill: var(--dim); font-size: 10.5px; }
+.chart .ch-inval { fill: var(--accent-ink); font-family: var(--font-mono); font-size: 12px; font-weight: 800; }
 .chart .ch-track { fill: var(--surface-2); }
 .chart .ch-bar { fill: var(--accent); }
 .chart .ch-grid { stroke: var(--line); stroke-width: 1; }
