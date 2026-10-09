@@ -30,6 +30,13 @@ export function mount(el, ctx) {
   const byId = (id) => CHAPTERS.find((c) => c.id === id);
   /** In a challenge replay the whole screen skips reading help (furigana and romaji). */
   const noRuby = () => (challenge ? ' data-noruby' : '');
+  // A course unit can play just a scene of a chapter (ctx.beats = [first, last], 0-based). Otherwise the whole chapter.
+  const ranged = () => !!(ctx.beats && chapter && chapter.id === ctx.chapterId);
+  const firstBeat = () => (ranged() ? Math.max(0, Math.min(ctx.beats[0], chapter.beats.length - 1)) : 0);
+  const lastBeat = () => (ranged() ? Math.max(firstBeat(), Math.min(ctx.beats[1], chapter.beats.length - 1)) : chapter.beats.length - 1);
+  const partial = () => firstBeat() > 0 || lastBeat() < chapter.beats.length - 1;
+  const sceneLen = () => lastBeat() - firstBeat() + 1;
+  const sceneAt = () => index - firstBeat() + 1;
 
   // ---------- chapter map ----------
   function renderList() {
@@ -86,7 +93,7 @@ export function mount(el, ctx) {
   // ---------- reading ----------
   function open(ch, { asChallenge = false } = {}) {
     chapter = ch;
-    index = 0;
+    index = firstBeat();
     finished = false;
     quiz = null;
     // Furigana starts on for a new chapter and off on replays of cleared ones; the challenge forces it off.
@@ -114,10 +121,17 @@ export function mount(el, ctx) {
   }
 
   function advance() {
-    if (index + 1 < chapter.beats.length) {
+    if (index < lastBeat()) {
       index++;
-      if (ctx.today) ctx.today.report(`${index + 1}/${chapter.beats.length}`);
+      if (ctx.today) ctx.today.report(`${sceneAt()}/${sceneLen()}`);
       enterBeat();
+      return;
+    }
+    if (partial()) {
+      // A scene that stops short of the chapter's end: studied, but the chapter isn't cleared (and no questions yet).
+      store.markStudied();
+      speaker.stop();
+      finish();
       return;
     }
     store.clearChapter(chapter.id);
@@ -149,7 +163,7 @@ export function mount(el, ctx) {
     if (quiz) return renderQuiz();
     const b = beat();
     const c = b.speaker;
-    const pct = ((index + 1) / chapter.beats.length) * 100;
+    const pct = (sceneAt() / sceneLen()) * 100;
     el.innerHTML = `
       <div class="stack"${noRuby()}>
         <div class="row-between"><span class="small dim">${chapter.number}. ${esc(chapter.title)}</span>
@@ -237,7 +251,21 @@ export function mount(el, ctx) {
     }
   }
 
+  function renderSceneDone() {
+    const words = chapter.beats.slice(firstBeat(), lastBeat() + 1).flatMap((b) => b.words);
+    el.innerHTML = `
+      <div class="stack">
+        <h2 class="accent-c title-jp" data-noruby>シーン クリア！</h2>
+        <p>Scene from chapter ${chapter.number} done. ${words.length ? 'These words are now growing in your garden:' : ''}</p>
+        ${words.length ? `<div class="panel word-list">${words.map((w) => `
+          <div class="word-row"><span class="strong" lang="ja">${esc(w.jp)}</span><span class="dim" lang="ja">${esc(w.reading)}</span><span class="small dim grow right">${esc(w.en)}</span></div>`).join('')}
+        </div>` : ''}
+        ${ctx.today ? '' : '<button class="btn primary wide" data-act="list">Back to chapters</button>'}
+      </div>`;
+  }
+
   function renderFinished() {
+    if (partial()) return renderSceneDone();
     const words = chapter.beats.flatMap((b) => b.words);
     const n = quiz ? quiz.qs.length : 0;
     const ok = quiz ? quiz.ok : 0;
@@ -308,7 +336,7 @@ export function mount(el, ctx) {
 
   if (ctx.chapterId) {
     open(byId(ctx.chapterId) || CHAPTERS[0]);
-    if (ctx.today) ctx.today.report(`1/${chapter.beats.length}`);
+    if (ctx.today) ctx.today.report(`1/${sceneLen()}`);
   } else {
     render();
   }

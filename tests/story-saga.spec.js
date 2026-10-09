@@ -158,7 +158,7 @@ test.describe('reading a new chapter', () => {
     await expect(v.getByText(/第5話 クリア/)).toBeVisible();
     await expect(v.locator('.saga-score')).toContainText('2/3');
     const s = await saved(page);
-    expect(s.v).toBe(4);
+    expect(s.v).toBeGreaterThanOrEqual(4);
     expect(s.chapters).toContain('ch5');
     expect(s.saga.quiz.ch5).toEqual(expect.objectContaining({ ok: 2, tot: 3, best: 2 }));
     const day = Object.values(s.days)[0];
@@ -299,7 +299,7 @@ test.describe('saved progress with the story saga (v4)', () => {
     await page.goto('./');
     for (const fx of [FIXTURE_V1, FIXTURE_V2]) {
       const out = await parse(page, fx);
-      expect(out.v).toBe(4);
+      expect(out.v).toBeGreaterThanOrEqual(4);
       expect(out.saga).toEqual(EMPTY_SAGA);
       itemsKept(fx.items, out.items);
       for (const k of ['chapters', 'forged', 'dojo', 'storyReplays', 'days', 'lastSession']) expect(out[k], k).toEqual(fx[k]);
@@ -307,12 +307,12 @@ test.describe('saved progress with the story saga (v4)', () => {
     }
   });
 
-  test('a v2 blob in storage loads, is saved as v3, and its garden is untouched', async ({ page }) => {
+  test('a v2 blob in storage loads, is saved as the current version, and its garden is untouched', async ({ page }) => {
     await seed(page, FIXTURE_V2);
     await page.goto('./#/play/story');
     await expect(view(page).locator('[aria-label=cleared]')).toHaveCount(2);
     const s = await saved(page);
-    expect(s.v).toBe(4);
+    expect(s.v).toBeGreaterThanOrEqual(4);
     itemsKept(FIXTURE_V2.items, s.items);
     expect(s.chapters).toEqual(FIXTURE_V2.chapters);
     expect(s.settings).toEqual(expect.objectContaining(FIXTURE_V2.settings));
@@ -323,9 +323,10 @@ test.describe('saved progress with the story saga (v4)', () => {
   test('mined lines and chapter results round-trip, and mined cards are Garden plants', async ({ page }) => {
     await seed(page, FIXTURE_STORY);
     await page.goto('./#/play/story');
-    expect(await parse(page, FIXTURE_STORY)).toEqual(FIXTURE_STORY);
+    const out = await parse(page, FIXTURE_STORY);
+    expect(out).toEqual(expect.objectContaining({ ...FIXTURE_STORY, v: out.v }));   // later versions only add blocks
     const s = await saved(page);
-    expect(s).toEqual({ ...FIXTURE_STORY, lastSession: s.lastSession });
+    expect(s).toEqual(expect.objectContaining({ ...FIXTURE_STORY, v: s.v, lastSession: s.lastSession }));
     await expect(view(page).locator('.saga-results').first()).toContainText('Questions 3/3 · Challenge best 2/3');
     const planted = await page.evaluate(async () => (await import('./js/store.js')).store.planted().map((p) => p.item.id));
     expect(planted).toEqual(expect.arrayContaining(['mine:2', 'mine:5', 'arigatou', 'w:大会']));

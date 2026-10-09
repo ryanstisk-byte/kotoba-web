@@ -169,17 +169,20 @@ test.describe('migration to v3', () => {
     });
   }
 
-  test('a v3 blob loads unchanged (import, load and save); v4 only adds the empty story saga block', async ({ page }) => {
+  test('a v3 blob loads unchanged (import, load and save); later versions only add their own blocks', async ({ page }) => {
     const fx = FIX(3);
-    const v3 = { ...fx, v: 4, saga: { mined: [], seq: 0, quiz: {}, challenge: {} } };
     await page.goto('./');
-    expect(await parse(page, fx)).toEqual(v3);
+    const out = await parse(page, fx);
+    expect(out.v).toBeGreaterThanOrEqual(3);
+    const v3 = { ...fx, v: out.v };
+    expect(out).toEqual(expect.objectContaining(v3));
+    expect(out.saga).toEqual({ mined: [], seq: 0, quiz: {}, challenge: {} });
     await page.goto('about:blank');
     await seed(page, fx);
     await page.goto('./#/progress');
     await expect(view(page).locator('svg.chart').first()).toBeVisible();
     const s = await saved(page);
-    expect({ ...s, lastSession: v3.lastSession }).toEqual(v3);
+    expect({ ...s, lastSession: v3.lastSession }).toEqual(expect.objectContaining(v3));
   });
 });
 

@@ -2,15 +2,20 @@
 import { test, expect, seed, saved, readerState, view } from './helpers.js';
 
 // Week of Monday 5 October 2026. Odd dates get Rhythm for speaking, even dates Speak Slice.
+// skill: the standard plan. courseSkill: with the course on (the default) and its first unit current, which has
+// Particle Train practice but no Shopkeeper practice, so Thursday's skill block practises the unit's trains.
 const WEEK = [
-  { day: 'Monday', date: '2026-10-05', speak: 'Rhythm', skill: 'Particle Train' },
-  { day: 'Tuesday', date: '2026-10-06', speak: 'Speak Slice', skill: 'Pitch Duel' },
-  { day: 'Wednesday', date: '2026-10-07', speak: 'Rhythm', skill: 'Kanji Forge' },
-  { day: 'Thursday', date: '2026-10-08', speak: 'Speak Slice', skill: 'Shopkeeper' },
-  { day: 'Friday', date: '2026-10-09', speak: 'Rhythm', skill: 'Particle Train' },
-  { day: 'Saturday', date: '2026-10-10', speak: 'Speak Slice', skill: 'Free choice' },
-  { day: 'Sunday', date: '2026-10-11', speak: 'Rhythm', skill: null },
+  { day: 'Monday', date: '2026-10-05', speak: 'Rhythm', skill: 'Particle Train', courseSkill: 'Particle Train' },
+  { day: 'Tuesday', date: '2026-10-06', speak: 'Speak Slice', skill: 'Pitch Duel', courseSkill: 'Pitch Duel' },
+  { day: 'Wednesday', date: '2026-10-07', speak: 'Rhythm', skill: 'Kanji Forge', courseSkill: 'Kanji Forge' },
+  { day: 'Thursday', date: '2026-10-08', speak: 'Speak Slice', skill: 'Shopkeeper', courseSkill: 'Particle Train' },
+  { day: 'Friday', date: '2026-10-09', speak: 'Rhythm', skill: 'Particle Train', courseSkill: 'Particle Train' },
+  { day: 'Saturday', date: '2026-10-10', speak: 'Speak Slice', skill: 'Free choice', courseSkill: 'Free choice' },
+  { day: 'Sunday', date: '2026-10-11', speak: 'Rhythm', skill: null, courseSkill: null },
 ];
+/** With the course on, the Input block is the current unit's lesson (the first unit for a new course). */
+const LESSON = 'Lesson · Say hello and introduce yourself';
+const COURSE_OFF = { course: { on: false } };
 
 const blockTitles = (page) => view(page).locator('.block-row .strong').allInnerTexts();
 
@@ -24,8 +29,20 @@ async function openHomeOn(page, date, extra) {
 
 test.describe('Today plan (reader who finished the Dojo)', () => {
   for (const w of WEEK) {
-    test(`${w.day}: standard session`, async ({ page }) => {
+    test(`${w.day}: standard session following the course`, async ({ page }) => {
       await openHomeOn(page, w.date);
+      const want = ['Garden review', LESSON, `Speaking · ${w.speak}`];
+      if (w.courseSkill) want.push(`Skill focus · ${w.courseSkill}`);
+      expect(await blockTitles(page)).toEqual(want);
+      if (['Monday', 'Thursday', 'Friday'].includes(w.day)) {
+        await expect(view(page).locator('.block-row', { hasText: 'Skill focus' })).toContainText('Unit 0.1 practice');
+      }
+      const sundayNote = view(page).getByText('Sunday: review only.', { exact: false });
+      if (w.day === 'Sunday') await expect(sundayNote).toBeVisible(); else await expect(sundayNote).toHaveCount(0);
+    });
+
+    test(`${w.day}: standard session with the course off`, async ({ page }) => {
+      await openHomeOn(page, w.date, COURSE_OFF);
       const want = ['Garden review', 'Story', `Speaking · ${w.speak}`];
       if (w.skill) want.push(`Skill focus · ${w.skill}`);
       expect(await blockTitles(page)).toEqual(want);
@@ -42,9 +59,9 @@ test.describe('Today plan (reader who finished the Dojo)', () => {
       await expect(page.locator('#quiet-badge')).toBeVisible();
     });
 
-    test(`${w.day}: short session is review and story only`, async ({ page }) => {
+    test(`${w.day}: short session is review and input only`, async ({ page }) => {
       await openHomeOn(page, w.date, { settings: { length: 'short', hideIosHint: true } });
-      expect(await blockTitles(page)).toEqual(['Garden review', 'Story']);
+      expect(await blockTitles(page)).toEqual(['Garden review', LESSON]);
       await expect(view(page).getByRole('radio', { name: /Short/ })).toHaveAttribute('aria-checked', 'true');
     });
   }
@@ -63,7 +80,7 @@ test.describe('Today plan (reader who finished the Dojo)', () => {
   test('Session length switch on the home screen', async ({ page }) => {
     await openHomeOn(page, '2026-10-05');
     await view(page).getByRole('radio', { name: /Short/ }).click();
-    expect(await blockTitles(page)).toEqual(['Garden review', 'Story']);
+    expect(await blockTitles(page)).toEqual(['Garden review', LESSON]);
     await view(page).getByRole('radio', { name: /Standard/ }).click();
     expect(await blockTitles(page)).toHaveLength(4);
     expect((await saved(page)).settings.length).toBe('standard');
@@ -81,7 +98,7 @@ test.describe('Today plan (beginner)', () => {
   test('a new learner starts with the Reading Dojo and no skill block', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-10-05T10:00:00'));
     await page.goto('./#/');
-    expect(await blockTitles(page)).toEqual(['Reading Dojo', 'Garden review', 'Story', 'Speaking · Rhythm']);
+    expect(await blockTitles(page)).toEqual(['Reading Dojo', 'Garden review', LESSON, 'Speaking · Rhythm']);
     await expect(view(page).locator('.block-row').getByText(/Next lesson: Hiragana/)).toBeVisible();
   });
 
@@ -96,7 +113,7 @@ test.describe('Today plan (beginner)', () => {
 test.describe('running the plan', () => {
   test('every block of a standard day can be started, and the day finishes with a summary', async ({ page }) => {
     test.setTimeout(60_000);
-    await openHomeOn(page, '2026-10-07');   // Wednesday: Garden, Story, Rhythm, Kanji Forge
+    await openHomeOn(page, '2026-10-07');   // Wednesday: Garden, the course lesson, Rhythm, Kanji Forge
     const n = (await blockTitles(page)).length;
     for (let i = 0; i < n; i++) {
       const row = view(page).locator('.block-row').nth(i);
