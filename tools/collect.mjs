@@ -20,7 +20,8 @@ for (const ch of CHAPTERS) {
     add(b.jp, b.speaker.voice);
     pairs.push([b.jp, b.reading]);
     for (const w of b.words) { add(w.reading); pairs.push([w.jp, w.reading]); }
-    if (b.choice) for (const o of b.choice.options) add(o, CAST.ren.voice);
+    // English answers are never spoken, so they get no clip.
+    if (b.choice) for (const o of b.choice.options) if (/[ぁ-ゖァ-ヺ一-鿿]/.test(o)) add(o, CAST.ren.voice);
   }
 }
 for (const w of STORY_WORDS) add(w.reading);
