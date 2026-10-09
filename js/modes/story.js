@@ -148,8 +148,10 @@ export function mount(el, ctx) {
         choiceSolved = true;
         speaker.speak(ch.options[i], { mps: 4, voice: CAST.ren.voice });
         if (!choiceMissed) store.log(true);
+        store.grade({ skill: 'grammar', id: `${chapter.id}:${index}`, ok: true, firstTry: !choiceMissed });
       } else {
         if (!choiceMissed) store.log(false);
+        store.grade({ skill: 'grammar', id: `${chapter.id}:${index}`, ok: false, firstTry: !choiceMissed });
         choiceMissed = true;
         wrongReply = ch.wrongReply;
       }

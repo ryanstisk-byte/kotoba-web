@@ -85,6 +85,7 @@ export function mount(el, ctx) {
     const ok = question.options[i].correct;
     if (ok) right++;
     store.recordSlice(question.answer, ok);
+    store.grade({ skill: 'pitch', id: question.answer.id, ok });
     // After answering, replay the right answer so the contrast sticks.
     speaker.speak(question.answer.speak, { mps: 3.0, voice: question.voice });
     if (ctx.today) {

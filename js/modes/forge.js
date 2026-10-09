@@ -78,6 +78,7 @@ export function mount(el, ctx) {
       forged = true;
       message = null;
       if (firstTry) store.log(true);
+      store.grade({ skill: 'kanji', id: t.kanji, ok: true, firstTry });
       if (!practice) {
         store.forge(t.kanji);
         store.plant(t.gardenID);
@@ -90,6 +91,7 @@ export function mount(el, ctx) {
       }
     } else {
       if (firstTry) store.log(false);
+      store.grade({ skill: 'kanji', id: t.kanji, ok: false, firstTry });
       firstTry = false;
       message = `Not quite. This kanji needs ${t.parts.length} parts.`;
       anvil = [];

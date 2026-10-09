@@ -269,6 +269,8 @@ export function mount(el, ctx) {
       } else {
         result = scoreRhythm(p, tracker.samples, beat(), COUNTDOWN + latency());
         store.recordRhythm(p, result.total);
+        store.grade({ skill: 'speaking', id: p.id, ok: result.passed });
+        store.grade({ skill: 'pitch', id: p.id, ok: result.pitch >= 0.75 });
         countAttempt(p);
       }
       phase = 'result';
@@ -290,6 +292,7 @@ export function mount(el, ctx) {
     // Generous: saying it along counts as a clear.
     result = { timing: ok ? 1 : 0, pitch: ok ? 1 : 0, perMora: p.morae.map(() => ({ hit: ok })), total: ok ? 0.85 : 0, passed: ok };
     store.recordRhythm(p, result.total);
+    store.grade({ skill: 'speaking', id: p.id, ok });
     countAttempt(p);
     render();
     if (ok) fx.hit({ el: el.querySelector('.score-big') }); else fx.miss();

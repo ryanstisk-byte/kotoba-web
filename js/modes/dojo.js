@@ -286,6 +286,7 @@ export function mount(el, ctx) {
     quiz.answered = true;
     quiz.picked = o;
     const ok = o === cur.answer;
+    store.grade({ skill: cur.item.track === 'kanji' ? 'kanji' : cur.type === 'w2r' ? 'vocab' : 'kana', id: cur.id, ok, firstTry: !quiz.retried.has(cur.id + cur.type) });
     if (!quiz.firstTry.has(cur.id)) quiz.firstTry.set(cur.id, ok);
     else if (!ok) quiz.firstTry.set(cur.id, false);
     if (!ok && !quiz.retried.has(cur.id + cur.type)) {

@@ -242,6 +242,7 @@ export function mount(el, ctx) {
     record(false);
     g.missed.push(phrase);
     store.recordSlice(phrase, false);
+    store.grade({ skill: input === 'choose' ? 'vocab' : 'speaking', id: phrase.id, ok: false });
     // Show the answer instead of taking a life.
     g.reveal = phrase;
     g.revealUntil = performance.now() + 2800;
@@ -269,6 +270,7 @@ export function mount(el, ctx) {
     g.score += f.hinted || f.revealed ? Math.floor(base / 2) : base;
     record(true);
     store.recordSlice(f.phrase, true);
+    store.grade({ skill: input === 'choose' ? 'vocab' : 'speaking', id: f.phrase.id, ok: true, firstTry: !f.hinted && !f.revealed });
     if (input !== 'speech') speaker.speak(f.phrase.speak, { mps: 4 });
     fx.hit({ el: f.el });
     drawHud();

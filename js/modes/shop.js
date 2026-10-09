@@ -76,12 +76,14 @@ export function mount(el, ctx) {
     if (i === 0) {
       feedback = '✓ いらっしゃいませ is what every shop says to welcome customers.';
       if (!mistakes) store.log(true);
+      store.grade({ skill: 'grammar', id: 'shop:greet', ok: true, firstTry: !mistakes });
       speaker.speak(g, { mps: 4.5, voice: 1 });
       step = 'fill';
       clearTimeout(orderTimer);
       orderTimer = setTimeout(sayOrder, 1400);
     } else {
       if (!mistakes) store.log(false);
+      store.grade({ skill: 'grammar', id: 'shop:greet', ok: false, firstTry: !mistakes });
       mistakes++;
       feedback = `That's not a shop greeting. ${i === 1 ? 'おかえりなさい is "welcome home".' : 'いただきます is said before eating.'} Try again.`;
     }
@@ -94,9 +96,13 @@ export function mount(el, ctx) {
     if (right) {
       feedback = `✓ Right: ${say(item, count)} ${item.name}.`;
       store.log(true);
+      store.grade({ skill: 'counters', id: `${item.counter}:${count}`, ok: true, firstTry: !mistakes });
+      if (!showText) store.grade({ skill: 'listening', id: `order:${item.name}`, ok: true, firstTry: !mistakes });
       step = 'reply';
     } else {
       store.log(false);
+      store.grade({ skill: 'counters', id: `${item.counter}:${count}`, ok: false, firstTry: !mistakes });
+      if (!showText) store.grade({ skill: 'listening', id: `order:${item.name}`, ok: false, firstTry: !mistakes });
       mistakes++;
       feedback = `Hmm, they wanted ${item.name} × ${count} (${say(item, count)}). Listen again and fix the counter.`;
       basket = [];
@@ -112,6 +118,7 @@ export function mount(el, ctx) {
       feedback = '✓ ありがとうございました: the polite past-tense thanks shops use as customers leave.';
       speaker.speak(t, { mps: 4.5, voice: 1 });
       store.log(true);
+      store.grade({ skill: 'grammar', id: 'shop:thanks', ok: true, firstTry: !mistakes });
       served++;
       if (mistakes === 0) perfect++;
       step = 'done';
@@ -121,6 +128,7 @@ export function mount(el, ctx) {
       }
     } else {
       store.log(false);
+      store.grade({ skill: 'grammar', id: 'shop:thanks', ok: false, firstTry: !mistakes });
       mistakes++;
       feedback = i === 1
         ? 'じゃあね is a casual "see ya". Too casual for a shopkeeper with any customer.'

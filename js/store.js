@@ -119,6 +119,7 @@ function load() {
 }
 
 const listeners = new Set();
+const gradeListeners = new Set();
 
 class Store {
   constructor() {
@@ -202,8 +203,12 @@ class Store {
    */
   grade({ skill, id = null, ok, firstTry = true } = {}) {
     if (!SKILLS.includes(skill)) return;
-    void id; void ok; void firstTry;
+    const ev = { skill, id, ok: !!ok, firstTry: !!firstTry, at: Date.now() };
+    gradeListeners.forEach((fn) => { try { fn(ev); } catch (e) { /* ignore */ } });
   }
+
+  /** Listen to every graded action (e.g. a course unit counting its practice). Returns an unsubscribe function. */
+  onGrade(fn) { gradeListeners.add(fn); return () => gradeListeners.delete(fn); }
 
   // ----- review items -----
   item(id) { return this.s.items[id]; }
