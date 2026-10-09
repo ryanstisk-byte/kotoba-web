@@ -1,5 +1,6 @@
 // Story (StoryView.swift): Kotoba Dojo, visual-novel style.
 import { store } from '../store.js';
+import { earlyHint } from '../tuning.js';
 import { speaker } from '../audio.js';
 import { CHAPTERS, CAST } from '../data.js';
 import { esc, delegate } from '../ui.js';
@@ -53,7 +54,7 @@ export function mount(el, ctx) {
   }
 
   function enterBeat() {
-    showEnglish = false;
+    showEnglish = !!beat().choice && earlyHint(store.engine, 'grammar');   // meaning up front on choices while grammar is hard
     selectedWord = null;
     wrongReply = null;
     choiceSolved = false;

@@ -769,3 +769,28 @@ p:has(> .jr), .small:has(> .jr), .lead:has(> .jr), .strong:has(> .jr), span:has(
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
   .fx-burst, .fx-lines { display: none; }
 }
+
+/* ======================================================================
+   Learning engine: Progress charts, placement check, weekly check-in
+   ====================================================================== */
+.chart { display: block; width: 100%; max-width: 480px; height: auto; overflow: visible; font-family: var(--font-ui); }
+.chart text { font-size: 12.5px; }
+.chart .ch-label { fill: var(--ink); font-weight: 600; }
+.chart .ch-val { fill: var(--dim); font-family: var(--font-mono); font-size: 12px; }
+.chart .ch-note { fill: var(--dim); font-size: 10.5px; }
+.chart .ch-inval { fill: var(--accent-ink); font-family: var(--font-mono); font-size: 12px; font-weight: 800; }
+.chart .ch-track { fill: var(--surface-2); }
+.chart .ch-bar { fill: var(--accent); }
+.chart .ch-grid { stroke: var(--line); stroke-width: 1; }
+.chart .ch-ref { stroke: var(--ink); stroke-width: 1.5; stroke-dasharray: 4 3; opacity: 0.7; }
+.chart .ch-row:hover .ch-bar { opacity: 0.8; }
+.engine-card { display: flex; flex-direction: column; gap: var(--sp-2); border-left: 4px solid var(--electric); }
+.engine-card .hero-kicker { margin: 0; }
+.checkin.low { border-left-color: var(--miss); }
+.checkin.high { border-left-color: var(--good); }
+.placement { max-width: 560px; margin-inline: auto; width: 100%; }
+.placement-k { padding: var(--sp-3) 0; }
+.placement-opts { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
+.placement-opts .btn { font-size: var(--fs-lg); font-weight: 800; min-height: 3.25rem; }
+.placement-reveal { text-align: center; font-size: var(--fs-lg); }
+.placement-list { margin: 0; padding-left: var(--sp-5); }

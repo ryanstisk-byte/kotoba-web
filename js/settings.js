@@ -28,6 +28,12 @@ export function mount(el, ctx) {
               <button class="seg-btn ${st.length === 'standard' ? 'on' : ''}" data-act="len" data-v="standard" role="radio" aria-checked="${st.length === 'standard'}">Standard ~20 min</button>
               <button class="seg-btn ${st.length === 'short' ? 'on' : ''}" data-act="len" data-v="short" role="radio" aria-checked="${st.length === 'short'}">Short ~10 min</button>
             </div></div>
+          <div><span class="strong" id="pace-label">New words per day</span>
+            <div class="seg" role="radiogroup" aria-labelledby="pace-label">
+              ${[['normal', 'Up to 5'], ['less', 'Up to 3']].map(([v, t]) => `<button class="seg-btn ${st.pace === v ? 'on' : ''}" data-act="pace" data-v="${v}" role="radio" aria-checked="${st.pace === v}">${t}</button>`).join('')}
+            </div>
+            <p class="small dim">The app also brings in fewer while your recent answers are below ~80%, so it stays near the 85% sweet spot.</p></div>
+          <a class="btn wide" href="#/placement">Placement check (skip what you already know)</a>
           <div><span class="strong">Theme</span>
             <div class="seg" role="radiogroup">
               ${['auto', 'light', 'dark'].map((t) => `<button class="seg-btn ${st.theme === t ? 'on' : ''}" data-act="theme" data-v="${t}" role="radio" aria-checked="${st.theme === t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}
@@ -250,6 +256,7 @@ export function mount(el, ctx) {
 
   const off = delegate(el, {
     len: (b) => { store.setSetting('length', b.dataset.v); render(); },
+    pace: (b) => { store.setSetting('pace', b.dataset.v); render(); },
     textsize: (b) => { store.setSetting('textSize', b.dataset.v); ctx.applyTheme(); render(); el.querySelector(`[data-act=textsize][data-v="${b.dataset.v}"]`)?.focus(); },
     theme: (b) => { store.setSetting('theme', b.dataset.v); ctx.applyTheme(); render(); },
     testvoice: (b) => {
