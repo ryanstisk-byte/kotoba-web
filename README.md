@@ -43,6 +43,7 @@ Actions (`.github/workflows/tests.yml`).
 
 - `tests/modes.spec.js`: every mode loads and completes one interaction.
 - `tests/today.spec.js`: the Today plan for each weekday, Short and Quiet sessions, beginners, and running every block.
+- `tests/course.spec.js`: the guided course (path, units, lesson, grammar search, Today drawing from the current unit, unit completion, the saved `course` field).
 - `tests/progress.spec.js`: saved progress loads with nothing lost (`tests/fixtures/progress-v1.json`), export/import, reload, reset.
 - `tests/offline.spec.js`: the service worker precaches everything and the app works with no network.
 - `tests/smoke.spec.js` and `tests/store.spec.js`: settings, the `#/check` screen, layout and store bookkeeping.

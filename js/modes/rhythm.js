@@ -3,6 +3,7 @@
 import { store } from '../store.js';
 import { speaker, PitchTracker, semitones, micSupported, micHelp } from '../audio.js';
 import { esc, delegate } from '../ui.js';
+import { PHRASE_BY_ID } from '../data.js';
 import * as fx from '../fx.js';
 import { romajiIfWanted } from '../furigana.js';
 
@@ -65,7 +66,14 @@ export function mount(el, ctx) {
   const GOAL = 3;
   const COUNTDOWN = 1.6;
   const tracker = new PitchTracker();
-  let queue = store.queue();
+  // A course unit can limit the phrases (ctx.phraseIds), keeping the review order for the ones it includes.
+  const unitQueue = () => {
+    const q = store.queue();
+    if (!ctx.phraseIds?.length) return q;
+    const mine = q.filter((p) => ctx.phraseIds.includes(p.id));
+    return mine.length ? mine : ctx.phraseIds.map((id) => PHRASE_BY_ID[id]).filter(Boolean);
+  };
+  let queue = unitQueue();
   let index = 0;
   let phase = 'ready';
   let playStart = 0;
@@ -302,7 +310,7 @@ export function mount(el, ctx) {
     result = null;
     phase = 'ready';
     const current = phrase()?.id;
-    queue = store.queue();
+    queue = unitQueue();
     const i = queue.findIndex((q) => q.id === current);
     index = queue.length > 1 && i >= 0 ? (i + 1) % queue.length : 0;
     render();

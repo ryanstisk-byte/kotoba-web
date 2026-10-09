@@ -20,7 +20,7 @@ createServer(async (req, res) => {
   let rel = decodeURIComponent(url.pathname.slice(BASE.length)) || 'index.html';
   if (rel.endsWith('/')) rel += 'index.html';
   const file = normalize(join(ROOT, rel));
-  if (!file.startsWith(ROOT) || file.split(sep).some((p) => p.startsWith('.') && p.length > 1) || file.includes(`${sep}node_modules${sep}`)) {
+  if (!file.startsWith(ROOT) || file.slice(ROOT.length).split(sep).some((p) => p.startsWith('.') && p.length > 1) || file.includes(`${sep}node_modules${sep}`)) {
     res.writeHead(404); res.end(); return;
   }
   try {

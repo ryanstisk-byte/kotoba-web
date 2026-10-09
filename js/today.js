@@ -2,6 +2,7 @@
 import { store, DAILY_REVIEW_CAP, DAILY_REVIEW_CAP_SHORT } from './store.js';
 import { MODE_BY_ID } from './data.js';
 import { TRACKS } from './dojo-data.js';
+import { coursePlan } from './course.js';
 
 const SKILL_BY_WEEKDAY = {
   1: 'particle', // Mon
@@ -48,8 +49,11 @@ export function todayPlan(date = new Date()) {
     ctx: { cap },
   });
 
+  // With the course on, Input is the current unit's lesson (then its story scene), and grammar/counter skill days
+  // practise the unit (see coursePlan in course.js). Otherwise the next story chapter, as before.
+  const course = coursePlan();
   const { chapter, replay } = store.nextChapter();
-  if (!(short && beginner)) blocks.push({
+  if (!(short && beginner)) blocks.push(course ? course.input : {
     id: 'input', mode: 'story', mins: 5, title: replay ? 'Story replay' : 'Story',
     desc: `${replay ? 'Replay (furigana off)' : 'Next scene'}: ${chapter.number}. ${chapter.title} · ${chapter.en}`,
     ctx: { chapterId: chapter.id },
@@ -72,6 +76,9 @@ export function todayPlan(date = new Date()) {
       // no skill block
     } else if (skill === 'free') {
       blocks.push({ id: 'skill', mode: null, mins: 5, title: 'Skill focus · Free choice', desc: 'Saturday: play any mode you like.', ctx: {} });
+    } else if (skill && course && course.skill(skill)) {
+      const cs = course.skill(skill);
+      blocks.push({ id: 'skill', mode: cs.mode, mins: 5, title: `Skill focus · ${MODE_BY_ID[cs.mode].title}`, desc: `${WEEKDAY[weekday]}: ${cs.desc}`, ctx: cs.ctx, unit: cs.unit });
     } else if (skill) {
       const goals = { particle: '6 trains.', duel: '10 pitch questions.', forge: '3 kanji.', shop: '3 customers.' };
       blocks.push({ id: 'skill', mode: skill, mins: 5, title: `Skill focus · ${MODE_BY_ID[skill].title}`, desc: `${WEEKDAY[weekday]}: ${goals[skill]}`, ctx: {} });

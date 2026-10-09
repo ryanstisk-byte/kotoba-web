@@ -49,7 +49,9 @@ test.describe('saved progress from the current version (v1)', () => {
   test('migrating a v1 blob to v2 is lossless and adds the new settings (what import and load both use)', async ({ page }) => {
     await page.goto('./');
     const out = await page.evaluate(async (blob) => (await import('./js/store.js')).store.parseImport(JSON.stringify(blob)), FIXTURE);
-    expect(out).toEqual({ ...FIXTURE, v: 2, settings: { ...FIXTURE.settings, textSize: 'm', sfx: true, haptics: true } });
+    // Later migrations add their own fields (e.g. the course), so check v1's content plus v2's settings, not the whole shape.
+    expect(out).toEqual(expect.objectContaining({ ...FIXTURE, v: out.v, settings: { ...FIXTURE.settings, textSize: 'm', sfx: true, haptics: true } }));
+    expect(out.v).toBeGreaterThanOrEqual(2);
   });
 
   test('a v1 blob in storage is saved back as v2 with nothing lost', async ({ page }) => {
@@ -57,7 +59,7 @@ test.describe('saved progress from the current version (v1)', () => {
     await page.goto('./');
     await expect(page.locator('#view')).not.toBeEmpty();
     const s = await saved(page);
-    expect(s.v).toBe(2);
+    expect(s.v).toBeGreaterThanOrEqual(2);
     expectNothingLost(FIXTURE, s);
     expect(s.settings).toEqual(expect.objectContaining({ textSize: 'm', sfx: true, haptics: true }));
   });
@@ -90,8 +92,9 @@ test.describe('saved progress from v2', () => {
     await expect(page.locator('#view')).not.toBeEmpty();
     const s = await saved(page);
     expectNothingLost(FIXTURE_V2, s);
-    expect(s.v).toBe(2);
-    expect(await page.evaluate(async (blob) => (await import('./js/store.js')).store.parseImport(JSON.stringify(blob)), FIXTURE_V2)).toEqual(FIXTURE_V2);
+    expect(s.v).toBeGreaterThanOrEqual(2);
+    // Newer versions only add fields: everything in the v2 blob comes back unchanged.
+    expect(await page.evaluate(async (blob) => (await import('./js/store.js')).store.parseImport(JSON.stringify(blob)), FIXTURE_V2)).toEqual(expect.objectContaining({ ...FIXTURE_V2, v: s.v }));
   });
 
   test('a v1 progress code still imports into this version', async ({ page }) => {

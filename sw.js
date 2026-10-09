@@ -8,6 +8,8 @@ const FILES = [
   './js/app.js',
   './js/audio.js',
   './js/clips.js',
+  './js/course.js',
+  './js/course-data.js',
   './js/data.js',
   './js/dojo-data.js',
   './js/furigana.js',

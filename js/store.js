@@ -16,7 +16,7 @@ export const DAILY_NEW_CAP = 5;
 export const SKILLS = ['kana', 'kanji', 'vocab', 'grammar', 'listening', 'pitch', 'speaking', 'counters'];
 
 /** Version of the saved progress shape. Bump it and add a step to MIGRATIONS whenever the shape changes. */
-export const STATE_VERSION = 2;
+export const STATE_VERSION = 3;
 
 function blank() {
   return {
@@ -32,7 +32,17 @@ function blank() {
       textSize: 'm', sfx: true, haptics: true,   // added in v2
     },
     days: {},           // 'YYYY-MM-DD' -> { ok, tot, rev, newc, studied, blocks: { id: 'done'|'skipped' } }
+    course: blankCourse(),   // added in the course migration (see migrateCourse)
   };
+}
+
+/**
+ * The guided course (js/course.js): on = Today follows it, current = unit chosen as current (null: first not done),
+ * reached / done / read = unit ids, tally = unit id -> { ok, tot, last } first-try answers in that unit's practice
+ * (last: the most recent results as a '1'/'0' string, newest at the end).
+ */
+export function blankCourse() {
+  return { on: true, current: null, reached: [], done: [], read: [], tally: {} };
 }
 
 export function dateKey(d = new Date()) {
@@ -49,7 +59,14 @@ export function dateKey(d = new Date()) {
 const MIGRATIONS = {
   // v1 -> v2: text size, sound effects and vibration settings (defaults: medium, on, on).
   1: (raw) => ({ ...raw, settings: { textSize: 'm', sfx: true, haptics: true, ...(raw.settings || {}) } }),
+  2: migrateCourse,
 };
+
+// integrator: course migration (final slot v5)
+/** Adds the guided-course field with defaults. Self-contained: it touches nothing else in the blob. */
+export function migrateCourse(raw) {
+  return { ...raw, course: raw.course && typeof raw.course === 'object' ? raw.course : blankCourse() };
+}
 
 export function migrate(raw) {
   if (!raw || typeof raw !== 'object') return raw;
@@ -107,7 +124,32 @@ function normalize(input) {
       };
     }
   }
+  s.course = normalizeCourse(raw.course);
   return s;
+}
+
+const UNIT_ID_RE = /^p\d+-\d+$/;
+function normalizeCourse(c) {
+  const out = blankCourse();
+  if (!c || typeof c !== 'object') return out;
+  const ids = (a) => (Array.isArray(a) ? [...new Set(a.filter((x) => typeof x === 'string' && UNIT_ID_RE.test(x)))] : []);
+  out.on = c.on !== false;
+  out.current = typeof c.current === 'string' && UNIT_ID_RE.test(c.current) ? c.current : null;
+  out.reached = ids(c.reached);
+  out.done = ids(c.done);
+  out.read = ids(c.read);
+  if (c.tally && typeof c.tally === 'object') {
+    for (const [id, t] of Object.entries(c.tally)) {
+      if (!UNIT_ID_RE.test(id) || !t || typeof t !== 'object') continue;
+      const tot = Math.max(0, Math.floor(Number(t.tot) || 0));
+      out.tally[id] = {
+        tot,
+        ok: Math.max(0, Math.min(tot, Math.floor(Number(t.ok) || 0))),
+        last: typeof t.last === 'string' ? t.last.replace(/[^01]/g, '').slice(-30) : '',
+      };
+    }
+  }
+  return out;
 }
 
 function load() {

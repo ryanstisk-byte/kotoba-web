@@ -19,6 +19,8 @@ export function mount(el, ctx) {
   let mistakes = 0;
   let orderTimer;
 
+  // A course unit can limit orders to its counters (ctx.counters); the shelf and scoring stay the same.
+  const orderStock = ctx.counters?.length ? SHOP_STOCK.filter((s) => ctx.counters.includes(s.counter)) : SHOP_STOCK;
   const say = (it, n) => COUNTERS[it.counter].say[n - 1];
   const orderText = () => customer.order(item, say(item, count));
   const sayOrder = () => speaker.speak(orderText(), { mps: 4, voice: customer.voice });
@@ -140,7 +142,7 @@ export function mount(el, ctx) {
 
   function nextCustomer() {
     customer = pick(Object.values(CUSTOMERS));
-    item = pick(SHOP_STOCK);
+    item = pick(orderStock.length ? orderStock : SHOP_STOCK);
     count = 1 + Math.floor(Math.random() * 5);
     basket = [];
     feedback = null;

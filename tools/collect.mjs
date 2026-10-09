@@ -4,6 +4,7 @@ import { PHRASES, CHAPTERS, CAST, STORY_WORDS, TRAINS, assembleTrain, KANJI, SHO
 import { LESSONS, KANJI_LESSONS, READ_WORDS } from '../js/dojo-data.js';
 import { N5_WORDS } from '../js/data.js';
 import { N5 } from '../js/n5.js';
+import { COURSE_EXAMPLES } from '../js/course-data.js';
 
 const clips = new Map();
 // opts (optional): { accent } to set a word's pitch, { say } for text the voice should read instead.
@@ -40,6 +41,8 @@ add(SHOP_THANKS[0], 1);
 for (const l of LESSONS) for (const c of l.chars) add(c.k);
 for (const l of KANJI_LESSONS) for (const j of l.kanji) { add(j.reading); pairs.push([j.word, j.reading]); }
 for (const v of READ_WORDS) add(v.w);
+// Course example sentences, each in its speaker's voice (0 narrator, 1 Ren, 2 Master, 3 Kaito).
+for (const ex of COURSE_EXAMPLES) { add(ex.jp, ex.voice); pairs.push([ex.jp, ex.reading]); }
 
 // N5 deck: each word with its pitch accent set, and its example sentence. Added last so these win over
 // an older clip of the same text.
