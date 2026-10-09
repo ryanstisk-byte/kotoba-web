@@ -1,6 +1,7 @@
 // "Today": a guided daily plan. Nothing is lost by skipping blocks or days, and there are no streaks.
 import { store, DAILY_REVIEW_CAP, DAILY_REVIEW_CAP_SHORT } from './store.js';
 import { MODE_BY_ID } from './data.js';
+import { TRACKS } from './dojo-data.js';
 
 const SKILL_BY_WEEKDAY = {
   1: 'particle', // Mon
@@ -22,9 +23,23 @@ export function todayPlan(date = new Date()) {
   const day = store.day();
   const status = (id) => day.blocks[id] || null;
 
+  // Reading first while the kana and starter kanji are still being learned.
+  const nextLesson = store.nextLesson();
+  const dojoDue = store.dojoDue().length;
+  const beginner = !store.trackDone('hiragana') || !store.trackDone('katakana');
+  if (nextLesson || dojoDue >= 5) {
+    const review = !nextLesson || dojoDue >= 8;
+    const track = nextLesson && TRACKS.find((t) => t.id === nextLesson.track);
+    blocks.push({
+      id: 'dojo', mode: 'dojo', mins: 5, title: review ? 'Reading review' : 'Reading Dojo',
+      desc: review ? `${Math.min(dojoDue, 15)} learned characters come back for review.` : `Next lesson: ${track.title} · ${nextLesson.title}.`,
+      ctx: { review },
+    });
+  }
+
   const garden = store.dailyGardenQueue(cap);
   blocks.push({
-    id: 'garden', n: 1, mode: 'garden', mins: 5, title: 'Garden review',
+    id: 'garden', mode: 'garden', mins: 5, title: 'Garden review',
     desc: garden.queue.length
       ? `${garden.queue.length} to water today (max ${cap}, up to 5 new).${garden.waiting ? ` ${garden.waiting} more wait; no rush.` : ''}`
       : store.thirsty().length
@@ -34,8 +49,8 @@ export function todayPlan(date = new Date()) {
   });
 
   const { chapter, replay } = store.nextChapter();
-  blocks.push({
-    id: 'input', n: 2, mode: 'story', mins: 5, title: replay ? 'Story replay' : 'Story',
+  if (!(short && beginner)) blocks.push({
+    id: 'input', mode: 'story', mins: 5, title: replay ? 'Story replay' : 'Story',
     desc: `${replay ? 'Replay (furigana off)' : 'Next scene'}: ${chapter.number}. ${chapter.title} · ${chapter.en}`,
     ctx: { chapterId: chapter.id },
   });
@@ -50,17 +65,20 @@ export function todayPlan(date = new Date()) {
       speak = skill === 'duel' ? 'shop' : 'duel';
       speakDesc = speak === 'duel' ? 'Quiet mode: listening instead of speaking. 10 pitch questions.' : 'Quiet mode: listen to 3 customers and serve them.';
     }
-    blocks.push({ id: 'speak', n: 3, mode: speak, mins: 5, title: `Speaking · ${MODE_BY_ID[speak].title}`, desc: speakDesc, ctx: {} });
+    blocks.push({ id: 'speak', mode: speak, mins: 5, title: `Speaking · ${MODE_BY_ID[speak].title}`, desc: speakDesc, ctx: {} });
 
-    if (skill === 'free') {
-      blocks.push({ id: 'skill', n: 4, mode: null, mins: 5, title: 'Skill focus · Free choice', desc: 'Saturday: play any mode you like.', ctx: {} });
+    // While learning to read, the Dojo takes the skill-focus slot so the day stays about 20 minutes.
+    if (beginner) {
+      // no skill block
+    } else if (skill === 'free') {
+      blocks.push({ id: 'skill', mode: null, mins: 5, title: 'Skill focus · Free choice', desc: 'Saturday: play any mode you like.', ctx: {} });
     } else if (skill) {
       const goals = { particle: '6 trains.', duel: '10 pitch questions.', forge: '3 kanji.', shop: '3 customers.' };
-      blocks.push({ id: 'skill', n: 4, mode: skill, mins: 5, title: `Skill focus · ${MODE_BY_ID[skill].title}`, desc: `${WEEKDAY[weekday]}: ${goals[skill]}`, ctx: {} });
+      blocks.push({ id: 'skill', mode: skill, mins: 5, title: `Skill focus · ${MODE_BY_ID[skill].title}`, desc: `${WEEKDAY[weekday]}: ${goals[skill]}`, ctx: {} });
     }
   }
 
-  for (const b of blocks) b.status = status(b.id);
+  blocks.forEach((b, i) => { b.n = i + 1; b.status = status(b.id); });
   const sunday = !short && date.getDay() === 0;
   const finished = blocks.every((b) => b.status);
   return { blocks, short, quiet, sunday, finished, minutes: blocks.reduce((a, b) => a + b.mins, 0) };

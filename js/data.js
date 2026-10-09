@@ -253,7 +253,7 @@ export const SHOP_STOCK = [
 
 export const CUSTOMERS = {
   kid: {
-    emoji: '🧒', label: 'A kid', voice: 2,
+    emoji: '🧒', label: 'A kid', voice: 5,
     order: (item, count) => `${item.name}、${count} ちょうだい！`,
     styleNote: 'ちょうだい is a casual, kid-like "gimme".',
   },
@@ -294,6 +294,8 @@ export function gardenStage(level) {
 // ---------- Mode list (App.swift) ----------
 
 export const MODES = [
+  { id: 'dojo', title: 'Reading Dojo', jp: '読み道場', group: 'Read', icon: '🔤', mic: false,
+    body: 'Start here if you can\'t read Japanese yet: hiragana, then katakana, then your first kanji, a few at a time.' },
   { id: 'garden', title: 'Garden', jp: '庭', group: 'Review', icon: '🌱', mic: false,
     body: "Every word you learn becomes a plant. Water the thirsty ones by remembering them. Nothing dies if you're away." },
   { id: 'story', title: 'Story', jp: '物語', group: 'Understand', icon: '📖', mic: false,

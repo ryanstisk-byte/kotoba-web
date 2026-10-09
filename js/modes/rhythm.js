@@ -1,8 +1,9 @@
 // Rhythm (RhythmView.swift + RhythmScorer.swift): a line sweeps across the morae while you say them;
 // the melody line shows pitch accent and your own pitch is drawn over it.
 import { store } from '../store.js';
-import { speaker, PitchTracker, semitones, micSupported } from '../audio.js';
+import { speaker, PitchTracker, semitones, micSupported, micHelp } from '../audio.js';
 import { esc, delegate } from '../ui.js';
+import { romajiIfWanted } from '../furigana.js';
 
 // ---------- Scorer (generous) ----------
 
@@ -204,6 +205,15 @@ export function mount(el, ctx) {
       }
       g.fillStyle = colors.ink;
       g.fillText(kanaVisible(i) ? mo.kana : '・', cx, kanaY);
+      // Romaji under each mora while hiragana is still being learned.
+      const ro = kanaVisible(i) && !mo.silent ? romajiIfWanted(mo.kana) : '';
+      if (ro) {
+        g.save();
+        g.font = `600 ${Math.min(15, slot * 0.32)}px system-ui, sans-serif`;
+        g.fillStyle = colors.dim;
+        g.fillText(ro, cx, kanaY + fs * 0.5 + 14);
+        g.restore();
+      }
     });
 
     // Sweeping line
@@ -239,7 +249,7 @@ export function mount(el, ctx) {
       } catch (e) {
         selfGrade = true;
         micError = e && e.name === 'NotAllowedError'
-          ? 'Microphone is off. Allow it in the browser (site settings) to get scored; for now, grade yourself.'
+          ? micHelp() + ' For now, grade yourself.'
           : `Couldn't start the microphone (${(e && e.message) || e}). Grade yourself for now.`;
       }
     }

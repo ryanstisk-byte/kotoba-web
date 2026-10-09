@@ -45,7 +45,8 @@ export function mount(el, ctx) {
     }
     render();
     clearTimeout(timer);
-    timer = setTimeout(() => { speaker.speak(question.answer.speak, { mps: 3.5 }); render(); }, 300);
+    question.voice = Math.floor(Math.random() * 4);
+    timer = setTimeout(() => { speaker.speak(question.answer.speak, { mps: 3.5, voice: question.voice }); render(); }, 300);
   }
 
   function colorFor(i) {
@@ -72,7 +73,7 @@ export function mount(el, ctx) {
         ${chosen !== null ? `
           <p class="${ok ? 'good-c' : 'miss-c'}">${ok ? 'Yes! Listen once more to lock it in.' : 'Not quite. The green one is right: play it again and follow that melody.'}</p>
           <button class="btn primary wide" data-act="next">Next ▶</button>` : ''}
-        ${speaker.supported && !speaker.voices.length ? '<p class="small miss-c">No Japanese voice found on this device. Install one (see Settings) for real pitch.</p>' : ''}
+        ${!speaker.hasClip(q.answer.speak) && speaker.supported && !speaker.voices.length ? '<p class="small miss-c">No Japanese voice found on this device. Install one (see Settings) for real pitch.</p>' : ''}
         <p class="tiny dim">Built-in voices usually get pitch accent right, but not always. Trust OJAD over the voice if they disagree.</p>
       </div>`;
   }
@@ -84,7 +85,7 @@ export function mount(el, ctx) {
     if (ok) right++;
     store.recordSlice(question.answer, ok);
     // After answering, replay the right answer so the contrast sticks.
-    speaker.speak(question.answer.speak, { mps: 3.0 });
+    speaker.speak(question.answer.speak, { mps: 3.0, voice: question.voice });
     if (ctx.today) {
       ctx.today.report(`${Math.min(asked, GOAL)}/${GOAL}`);
       if (asked >= GOAL) ctx.today.done();
@@ -93,7 +94,7 @@ export function mount(el, ctx) {
   }
 
   const off = delegate(el, {
-    play: () => { speaker.speak(question.answer.speak, { mps: 3.5 }); render(); },
+    play: () => { question.voice = (question.voice + 1) % 4; speaker.speak(question.answer.speak, { mps: 3.5, voice: question.voice }); render(); },
     choose: (b) => choose(+b.dataset.i),
     next: nextQuestion,
   });

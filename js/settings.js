@@ -1,6 +1,6 @@
 // Settings: quiet mode, session length, theme, voices, mic test, latency calibration, export/import.
 import { store } from './store.js';
-import { speaker, recognitionSupported, micSupported, PitchTracker, audioContext, click } from './audio.js';
+import { speaker, recognitionSupported, micSupported, PitchTracker, audioContext, click, micHelp } from './audio.js';
 import { esc, delegate, toast } from './ui.js';
 import { median } from './modes/rhythm.js';
 
@@ -34,18 +34,38 @@ export function mount(el, ctx) {
         </section>
 
         <section class="panel stack-sm">
-          <h2 class="section-title">Voices</h2>
-          ${!speaker.supported ? '<p class="miss-c">This browser cannot speak text aloud.</p>'
-            : voices.length ? `<p>${voices.length} Japanese voice${voices.length === 1 ? '' : 's'} found. The app rotates through all of them.</p>
-              <p class="small dim">${voices.map((v) => esc(v.name) + (v.localService ? '' : ' (online)')).join(' · ')}</p>`
-            : '<p class="miss-c">No Japanese voice found yet. Install one (below), then reload.</p>'}
-          <button class="btn" data-act="testvoice">🔊 Test: こんにちは</button>
-          <details><summary class="small strong">How to add more Japanese voices</summary>
+          <h2 class="section-title">Reading help</h2>
+          <p class="small dim">Shows how to read the Japanese in every game. The ふa button at the top switches it quickly.</p>
+          <div class="seg seg-wrap" role="radiogroup">
+            ${[['auto', 'Auto'], ['romaji', 'Romaji'], ['kana', 'Furigana'], ['off', 'Off']].map(([v, t]) => `<button class="seg-btn ${st.readingHelp === v ? 'on' : ''}" data-act="ruby" data-v="${v}" role="radio" aria-checked="${st.readingHelp === v}">${t}</button>`).join('')}
+          </div>
+          <p class="small">${{
+            auto: 'Auto: romaji over everything until you finish hiragana in the Reading Dojo, then romaji over katakana only, then just kana over kanji.',
+            romaji: 'Romaji over all Japanese text.',
+            kana: 'Kana (furigana) over kanji only.',
+            off: 'No help: read it yourself.',
+          }[st.readingHelp]}</p>
+          <p class="small dim">Example: <span lang="ja">明日から 修行だ！</span></p>
+        </section>
+
+        <section class="panel stack-sm">
+          <h2 class="section-title">Voice</h2>
+          <div class="seg" role="radiogroup">
+            <button class="seg-btn ${st.voice === 'clips' ? 'on' : ''}" data-act="voice" data-v="clips" role="radio" aria-checked="${st.voice === 'clips'}">Built-in (works everywhere)</button>
+            <button class="seg-btn ${st.voice === 'device' ? 'on' : ''}" data-act="voice" data-v="device" role="radio" aria-checked="${st.voice === 'device'}">Device voices</button>
+          </div>
+          <p class="small dim">The built-in voice is recorded into the app, so it plays offline and on any device. Device voices sound more natural and vary more, but only if your device has Japanese voices installed. Lines without a built-in clip always use a device voice.</p>
+          <div class="row2"><button class="btn" data-act="testvoice" data-v="clips">🔊 Built-in</button><button class="btn" data-act="testvoice" data-v="device">🔊 Device</button></div>
+          ${!speaker.supported ? '<p class="small miss-c">This browser has no device voices.</p>'
+            : voices.length ? `<p class="small">${voices.length} Japanese device voice${voices.length === 1 ? '' : 's'}: <span class="dim">${voices.map((v) => esc(v.name) + (v.localService ? '' : ' (online)')).join(' · ')}</span></p>`
+            : '<p class="small miss-c">No Japanese device voice found. The built-in voice still works.</p>'}
+          <details><summary class="small strong">How to add Japanese device voices</summary>
             <ul class="small dim">
               <li>iPhone: Settings › Accessibility › Spoken Content › Voices › Japanese (download the Enhanced ones).</li>
               <li>Mac: System Settings › Accessibility › Spoken Content › System voice › Manage Voices › Japanese.</li>
-              <li>Windows: Settings › Time &amp; language › Speech › Add voices › Japanese. Chrome also has online Google voices.</li>
+              <li>Windows: Settings › Time &amp; language › Speech › Add voices › Japanese. Chrome and Edge also have online voices.</li>
             </ul></details>
+          <a class="btn wide" href="#/check">🔧 Sound &amp; mic check</a>
         </section>
 
         <section class="panel stack-sm">
@@ -164,7 +184,7 @@ export function mount(el, ctx) {
         if (out) out.textContent = msg;
       }, 150);
     } catch (e) {
-      micTest.msg = e && e.name === 'NotAllowedError' ? 'Microphone permission is off for this site.' : `Mic error: ${(e && e.message) || e}`;
+      micTest.msg = e && e.name === 'NotAllowedError' ? micHelp() : `Mic error: ${(e && e.message) || e}`;
       tracker.stop();
       render();
     }
@@ -205,7 +225,12 @@ export function mount(el, ctx) {
   const off = delegate(el, {
     len: (b) => { store.setSetting('length', b.dataset.v); render(); },
     theme: (b) => { store.setSetting('theme', b.dataset.v); ctx.applyTheme(); render(); },
-    testvoice: () => speaker.speak('こんにちは', { mps: 4 }),
+    testvoice: (b) => {
+      if (b.dataset.v === 'device') speaker.speakDevice('こんにちは', { mps: 4 });
+      else { const prev = speaker.source; speaker.source = 'clips'; speaker.speak('こんにちは', { mps: 4 }); speaker.source = prev; }
+    },
+    ruby: (b) => { store.setSetting('readingHelp', b.dataset.v); ctx.refreshChrome(); ctx.rerender(); },
+    voice: (b) => { store.setSetting('voice', b.dataset.v); ctx.refreshChrome(); render(); },
     mictest: toggleMic,
     calib: startCalib,
     savecalib: () => { setLatency(calib.result); calib = null; toast('Latency saved.'); render(); },

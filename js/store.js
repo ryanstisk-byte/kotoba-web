@@ -1,6 +1,7 @@
 // Progress store: spaced review with no streaks. Missing days never wipes anything out.
 // Port of ProgressStore.swift plus the daily-plan bookkeeping for the "Today" screen.
 import { PHRASES, PHRASE_BY_ID, GARDEN_CATALOG, CHAPTERS } from './data.js';
+import { ALL_LESSONS } from './dojo-data.js';
 
 export const STORAGE_KEY = 'kotobaBeat.v1';
 const DAY = 86_400_000;
@@ -18,8 +19,9 @@ function blank() {
     lastSession: null,
     chapters: [],       // cleared chapter ids
     forged: [],         // forged kanji
+    dojo: [],           // cleared Reading Dojo lesson ids
     storyReplays: {},   // chapter id -> last replay ms (to rotate replays in the daily plan)
-    settings: { latencyMs: 0, quiet: false, length: 'standard', hideIosHint: false, theme: 'auto' },
+    settings: { latencyMs: 0, quiet: false, length: 'standard', hideIosHint: false, theme: 'auto', readingHelp: 'auto', voice: 'clips' },
     days: {},           // 'YYYY-MM-DD' -> { ok, tot, rev, newc, studied, blocks: { id: 'done'|'skipped' } }
   };
 }
@@ -49,6 +51,7 @@ function normalize(raw) {
   s.lastSession = typeof raw.lastSession === 'number' ? raw.lastSession : null;
   if (Array.isArray(raw.chapters)) s.chapters = raw.chapters.filter((x) => typeof x === 'string');
   if (Array.isArray(raw.forged)) s.forged = raw.forged.filter((x) => typeof x === 'string');
+  if (Array.isArray(raw.dojo)) s.dojo = raw.dojo.filter((x) => typeof x === 'string');
   if (raw.storyReplays && typeof raw.storyReplays === 'object') s.storyReplays = { ...raw.storyReplays };
   if (raw.settings && typeof raw.settings === 'object') {
     const st = raw.settings;
@@ -57,6 +60,8 @@ function normalize(raw) {
     s.settings.length = st.length === 'short' ? 'short' : 'standard';
     s.settings.hideIosHint = !!st.hideIosHint;
     s.settings.theme = ['light', 'dark'].includes(st.theme) ? st.theme : 'auto';
+    s.settings.readingHelp = ['romaji', 'kana', 'off'].includes(st.readingHelp) ? st.readingHelp : 'auto';
+    s.settings.voice = st.voice === 'device' ? 'device' : 'clips';
   }
   if (raw.days && typeof raw.days === 'object') {
     for (const [k, d] of Object.entries(raw.days)) {
@@ -260,6 +265,45 @@ class Store {
     const q = reviews.slice(0, remaining);
     const newSlots = Math.min(newLeft, remaining - q.length);
     return { queue: q.concat(fresh.slice(0, Math.max(0, newSlots))), waiting: Math.max(0, reviews.length - q.length), remaining };
+  }
+
+  // ----- reading dojo -----
+  clearLesson(id) {
+    if (!this.s.dojo.includes(id)) this.s.dojo.push(id);
+    this.markStudied();
+  }
+  get clearedLessons() { return new Set(this.s.dojo); }
+  trackDone(track) {
+    const cleared = this.clearedLessons;
+    return ALL_LESSONS.filter((l) => l.track === track).every((l) => cleared.has(l.id));
+  }
+  /** First lesson not yet cleared, in course order (hiragana, katakana, kanji). */
+  nextLesson() {
+    const cleared = this.clearedLessons;
+    return ALL_LESSONS.find((l) => !cleared.has(l.id)) || null;
+  }
+
+  /** Dojo review: same growing intervals as the garden, but kept out of the garden's daily cap. */
+  recordDojo(id, ok, { firstTime = false } = {}) {
+    const p = this.s.items[id] || { level: 0, due: 0, best: 0, r: 0, pl: Date.now() };
+    if (ok) {
+      p.level = Math.min(p.level + 1, INTERVALS.length - 1);
+      p.due = Date.now() + INTERVALS[p.level] * DAY;
+    } else {
+      // A miss comes back soon, without knocking the level down (no punishment, just more practice).
+      p.due = firstTime ? Date.now() + DAY / 2 : Date.now();
+    }
+    p.r = (p.r || 0) + 1;
+    this.s.items[id] = p;
+    this.log(ok);
+  }
+
+  /** Learned kana and kanji that are due again, most overdue first. */
+  dojoDue(now = Date.now()) {
+    return Object.entries(this.s.items)
+      .filter(([id, p]) => (id.startsWith('kana:') || id.startsWith('kj:')) && p.due <= now)
+      .sort((a, b) => a[1].due - b[1].due)
+      .map(([id]) => id);
   }
 
   // ----- story plan -----

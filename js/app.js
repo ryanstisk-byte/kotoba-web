@@ -2,7 +2,7 @@
 import { store } from './store.js';
 import { speaker } from './audio.js';
 import { MODES, MODE_BY_ID } from './data.js';
-import { esc, delegate } from './ui.js';
+import { esc, delegate, toast } from './ui.js';
 import { todayPlan, accuracyNote } from './today.js';
 import * as garden from './modes/garden.js';
 import * as story from './modes/story.js';
@@ -12,15 +12,19 @@ import * as rhythm from './modes/rhythm.js';
 import * as duel from './modes/duel.js';
 import * as slice from './modes/slice.js';
 import * as shop from './modes/shop.js';
+import * as dojo from './modes/dojo.js';
 import * as settings from './settings.js';
+import * as soundcheck from './soundcheck.js';
+import { initReadingHelp, clearReadingHelp, readingConfig } from './furigana.js';
 
-const MOUNTS = { garden, story, particle, forge, rhythm, duel, slice, shop };
+const MOUNTS = { dojo, garden, story, particle, forge, rhythm, duel, slice, shop };
 
 const view = document.getElementById('view');
 const banner = document.getElementById('banner');
 const titleEl = document.getElementById('title');
 const backBtn = document.getElementById('back');
 const quietBadge = document.getElementById('quiet-badge');
+const rubyBtn = document.getElementById('ruby-toggle');
 let cleanup = null;
 
 // ---------- theme ----------
@@ -34,6 +38,18 @@ function applyTheme() {
 
 function refreshChrome() {
   quietBadge.hidden = !store.settings.quiet;
+  speaker.source = store.settings.voice;
+  const labels = { auto: 'Auto', romaji: 'Romaji', kana: 'Kana', off: 'Off' };
+  rubyBtn.textContent = 'ふa';
+  rubyBtn.title = `Reading help: ${labels[store.settings.readingHelp]} (tap to change)`;
+  rubyBtn.setAttribute('aria-label', rubyBtn.title);
+  rubyBtn.classList.toggle('off', store.settings.readingHelp === 'off');
+}
+
+/** Re-render everything with a new reading-help setting. */
+export function rerender() {
+  clearReadingHelp(document.body);
+  route();
 }
 
 // ---------- routing ----------
@@ -74,7 +90,12 @@ function route() {
   }
   if (a === 'settings') {
     setTitle('Settings', true);
-    cleanup = settings.mount(view, { applyTheme, refreshChrome });
+    cleanup = settings.mount(view, { applyTheme, refreshChrome, rerender });
+    return;
+  }
+  if (a === 'check') {
+    setTitle('Sound & mic check', true);
+    cleanup = soundcheck.mount(view);
     return;
   }
   setTitle('今日 · Today', false);
@@ -177,6 +198,8 @@ function renderHome() {
       </div>
       ${showHint ? `<div class="panel hint"><span class="grow small">📱 On iPhone: <span class="strong">Share › Add to Home Screen</span> keeps your progress safe (Safari may clear website data after ~7 days unused).</span>
         <button class="iconbtn" data-act="hidehint" aria-label="Dismiss">✕</button></div>` : ''}
+      ${!store.trackDone('hiragana') && !store.clearedLessons.size ? `<a class="panel hint link-panel" href="#/play/dojo"><span class="grow small">🔤 <span class="strong">New to reading Japanese?</span> Start in the Reading Dojo: hiragana, katakana, then kanji. Until then, every game shows romaji (tap ふa at the top to change it).</span><span class="dim chev" aria-hidden="true">›</span></a>` : ''}
+      <a class="panel hint link-panel" href="#/check"><span class="grow small">🔧 No sound, or the mic doesn't hear you? Run the <span class="strong">sound &amp; mic check</span>.</span><span class="dim chev" aria-hidden="true">›</span></a>
       <div class="tiles">
         <div class="panel tile"><span class="tile-v mono">${thirsty}</span><span class="small dim">plants need water</span></div>
         <div class="panel tile"><span class="tile-v mono">${well}</span><span class="small dim">remembered well</span></div>
@@ -211,7 +234,7 @@ function renderHome() {
 
       <h2 class="section-label">ALL MODES</h2>
       <div class="mode-grid">${MODES.map((m) => modeCard(m, quiet, `#/play/${m.id}`)).join('')}</div>
-      <p class="small dim">Tip: install more Japanese voices on your device (see Settings). The app rotates through every voice you have, which trains your ear on more speakers.</p>
+      <p class="small dim">Tip: the app has its own built-in voice that works everywhere. For more variety, switch to your device's Japanese voices in Settings.</p>
     </div>`;
   const off = delegate(view, {
     skip: (b) => { store.setBlock(b.dataset.id, 'skipped'); renderHome(); },
@@ -229,13 +252,27 @@ function renderHome() {
 // ---------- boot ----------
 backBtn.addEventListener('click', () => {
   const [a] = parse();
-  if (a === 'today' || a === 'play' || a === 'settings') location.hash = '#/';
+  if (a === 'today' || a === 'play' || a === 'settings' || a === 'check') location.hash = '#/';
   else history.back();
 });
 window.addEventListener('hashchange', route);
+rubyBtn.addEventListener('click', () => {
+  const order = ['auto', 'romaji', 'kana', 'off'];
+  const next = order[(order.indexOf(store.settings.readingHelp) + 1) % order.length];
+  store.setSetting('readingHelp', next);
+  const c = readingConfig();
+  const what = next === 'off' ? 'off' : next === 'auto'
+    ? `auto (now: ${c.hira ? 'romaji over everything' : c.kata ? 'romaji over katakana, furigana over kanji' : 'furigana over kanji'})`
+    : next === 'romaji' ? 'romaji over everything' : 'furigana over kanji';
+  refreshChrome();
+  rerender();
+  toast(`Reading help: ${what}`);
+});
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyTheme);
 applyTheme();
 store.markSession();
+refreshChrome();
+initReadingHelp([document.body]);
 route();
 
 // Ask the browser not to evict our storage (helps on Chrome; Safari needs Add to Home Screen).
