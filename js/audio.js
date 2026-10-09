@@ -1,8 +1,27 @@
 // Speech output (Speaker.swift), speech recognition (Recognizer.swift) and pitch tracking (PitchTracker.swift).
 
+import { CLIPS } from './clips.js';
+
 // ---------------- Speaker ----------------
 
-/** Reads phrases aloud with the device's Japanese voices, rotating voices each time. */
+export const isIOS = typeof navigator !== 'undefined'
+  && (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+export const isStandalone = () => typeof window !== 'undefined'
+  && (window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true);
+
+/** iOS 17+: "playback" lets sound play with the ring/silent switch on; mic use needs "play-and-record". */
+export function setAudioSession(type) {
+  try { if (navigator.audioSession && navigator.audioSession.type !== type) navigator.audioSession.type = type; } catch (e) { /* ignore */ }
+}
+
+// A short silent clip, played on the first tap to unlock the audio element (iOS needs one gesture).
+const SILENCE = 'audio/silence.mp3';
+
+/**
+ * Reads Japanese aloud. Uses the app's built-in voice clips when there is one for the text (works on every
+ * device, offline, and with the iPhone silent switch on), and the device's own Japanese voices otherwise
+ * or when Settings › Voice is set to "device".
+ */
 class Speaker {
   constructor() {
     this.supported = typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
@@ -11,6 +30,39 @@ class Speaker {
     this.currentVoiceName = '';
     this.unlocked = false;
     this.listeners = new Set();
+    this.source = 'clips';        // 'clips' | 'device' (set from settings)
+    this.lastMethod = '';         // 'clip' | 'device' | 'none'
+    this.lastError = '';
+    this.audio = typeof Audio !== 'undefined' ? new Audio() : null;
+    if (this.audio) { this.audio.preload = 'auto'; this.audio.setAttribute?.('playsinline', ''); }
+    this.pendingEnd = null;
+    this.ttsTimer = 0;
+    this.keep = null;             // Chrome drops utterances that get garbage collected mid-speech
+    if (typeof window === 'undefined') return;
+    // iOS and some desktop browsers only allow sound after a user gesture: unlock both paths on the first tap.
+    const unlock = () => {
+      if (this.unlocked) return;
+      this.unlocked = true;
+      setAudioSession('playback');
+      if (this.audio && this.audio.paused) {
+        try {
+          this.audio.src = SILENCE;
+          const p = this.audio.play();
+          if (p && p.catch) p.catch((e) => { if (!e || e.name !== 'AbortError') this.unlocked = false; });
+        } catch (e) { this.unlocked = false; }
+      }
+      try { audioContext(); } catch (e) { /* ignore */ }
+      if (this.supported) {
+        try {
+          const u = new SpeechSynthesisUtterance(' ');
+          u.volume = 0;
+          u.lang = 'ja-JP';
+          speechSynthesis.speak(u);
+        } catch (e) { /* ignore */ }
+        this.loadVoices();
+      }
+    };
+    for (const ev of ['pointerdown', 'touchend', 'click', 'keydown']) window.addEventListener(ev, unlock, { capture: true });
     if (!this.supported) return;
     this.loadVoices();
     try {
@@ -24,20 +76,6 @@ class Speaker {
       if (this.voices.length || ++tries > 20) clearInterval(poll);
       else this.loadVoices();
     }, 250);
-    // iOS only allows speech after a user gesture: speak a silent utterance on the first tap.
-    const unlock = () => {
-      if (this.unlocked) return;
-      this.unlocked = true;
-      try {
-        const u = new SpeechSynthesisUtterance(' ');
-        u.volume = 0;
-        u.lang = 'ja-JP';
-        speechSynthesis.speak(u);
-      } catch (e) { /* ignore */ }
-      this.loadVoices();
-    };
-    window.addEventListener('pointerdown', unlock, { capture: true });
-    window.addEventListener('keydown', unlock, { capture: true });
   }
 
   loadVoices() {
@@ -54,12 +92,67 @@ class Speaker {
 
   onVoices(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
 
+  /** The built-in clip for this text and voice, if the app has one. */
+  clipFor(text, voice) {
+    const v = voice === null || voice === undefined ? 0 : Math.abs(voice);
+    return CLIPS[text + '#' + v] || CLIPS[text + '#0'] || null;
+  }
+
+  hasClip(text) { return !!this.clipFor(text, 0); }
+
   /**
    * @param mps rough target speed in morae per second; natural speech is about 7.
    * @param voice pass a fixed number to always use the same voice (e.g. one per story character).
    */
   speak(text, { mps = 4, voice = null, onend = null } = {}) {
-    if (!this.supported || !text) { if (onend) setTimeout(onend, 0); return; }
+    this.stop();
+    if (!text) { if (onend) setTimeout(onend, 0); return; }
+    const clip = this.source !== 'device' || !this.voices.length ? this.clipFor(text, voice) : null;
+    if (clip && this.audio) return this.playClip(clip, mps, onend, text, voice);
+    this.speakDevice(text, { mps, voice, onend });
+  }
+
+  playClip(file, mps, onend, text, voice) {
+    const a = this.audio;
+    let fellBack = false;
+    const done = () => {
+      a.onended = a.onerror = null;
+      this.pendingEnd = null;
+      if (onend) onend();
+    };
+    const fallback = (err) => {
+      if (fellBack) return;
+      fellBack = true;
+      a.onended = a.onerror = null;
+      this.lastError = err && err.name === 'NotAllowedError'
+        ? 'The browser blocked sound until you tap the page.'
+        : `Clip failed (${(err && (err.name || err.message)) || 'error'}); used the device voice.`;
+      this.speakDevice(text, { mps, voice, onend });
+    };
+    this.pendingEnd = onend;
+    a.onended = done;
+    a.onerror = () => fallback(a.error);
+    a.src = 'audio/' + file;
+    // Clips are recorded slightly slow; speed them to the requested pace (pitch stays the same).
+    const rate = Math.min(Math.max(mps / 4.5, 0.75), 1.15);
+    a.playbackRate = rate;
+    a.defaultPlaybackRate = rate;
+    a.volume = 1;
+    this.lastMethod = 'clip';
+    this.currentVoiceName = 'Kotoba voice';
+    try {
+      const p = a.play();
+      if (p && p.catch) p.catch((e) => { if (e && e.name === 'AbortError') return; fallback(e); });
+    } catch (e) { fallback(e); }
+  }
+
+  speakDevice(text, { mps = 4, voice = null, onend = null } = {}) {
+    if (!this.supported) {
+      this.lastMethod = 'none';
+      this.lastError = 'This browser cannot speak text aloud and there is no clip for this line.';
+      if (onend) setTimeout(onend, 0);
+      return;
+    }
     if (!this.voices.length) this.loadVoices();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'ja-JP';
@@ -68,7 +161,7 @@ class Speaker {
       if (voice !== null && voice !== undefined) {
         v = this.voices[Math.abs(voice) % this.voices.length];
         // Shift the overall pitch per character so they sound different even with one voice installed.
-        const shifts = [1.0, 0.8, 1.2, 0.9, 1.1];
+        const shifts = [1.0, 0.8, 1.2, 0.9, 1.1, 1.3];
         u.pitch = shifts[Math.abs(voice) % shifts.length];
       } else {
         v = this.voices[this.voiceIndex % this.voices.length];
@@ -78,21 +171,35 @@ class Speaker {
       this.currentVoiceName = v.name;
     } else {
       this.currentVoiceName = 'default';
+      this.lastError = 'No Japanese voice is installed on this device, so this line may be silent or read in English.';
     }
     // Map our speed to the speech rate scale (1 is the voice's normal speed).
     const normalized = Math.min(Math.max(mps / 7, 0.3), 1);
     u.rate = 0.45 + 0.55 * normalized;
     if (onend) { u.onend = onend; u.onerror = onend; }
+    this.keep = u;
+    this.lastMethod = 'device';
     try {
-      if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
+      const busy = speechSynthesis.speaking || speechSynthesis.pending;
+      if (busy) speechSynthesis.cancel();
       speechSynthesis.resume();
-      speechSynthesis.speak(u);
+      // Chrome drops an utterance queued in the same tick as cancel(), so wait a moment after cancelling.
+      if (busy) this.ttsTimer = setTimeout(() => speechSynthesis.speak(u), 60);
+      else speechSynthesis.speak(u);
     } catch (e) { if (onend) onend(); }
   }
 
   stop() {
+    clearTimeout(this.ttsTimer);
+    if (this.audio && !this.audio.paused) {
+      const end = this.pendingEnd;
+      this.audio.onended = this.audio.onerror = null;
+      this.pendingEnd = null;
+      try { this.audio.pause(); } catch (e) { /* ignore */ }
+      if (end) end();
+    }
     if (!this.supported) return;
-    try { speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+    try { if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel(); } catch (e) { /* ignore */ }
   }
 }
 
@@ -114,6 +221,22 @@ export function normalizeJa(s) {
   return out;
 }
 
+/** Why speech recognition is missing, in words that say what to do about it. */
+export function noRecognitionReason() {
+  if (/Firefox\//.test(navigator.userAgent)) return 'Firefox has no speech recognition. Use Chrome or Edge on PC, or Safari on iPhone.';
+  return 'This browser has no speech recognition. Use Chrome or Edge on PC, or Safari on iPhone.';
+}
+
+/** What to do when the mic or speech recognition is blocked, per platform. */
+export function micHelp(err = 'not-allowed') {
+  if (isIOS) {
+    if (isStandalone() && err === 'service-not-allowed') return 'Speech recognition is often blocked in Home Screen apps on iPhone. Open the site in Safari for speaking games (Safari keeps separate progress; use Export / Import to copy it).';
+    if (err === 'service-not-allowed') return 'Speech recognition is off. Turn on Dictation (Settings › General › Keyboard › Enable Dictation), then reload.';
+    return 'Safari blocked the mic. Tap aA in the address bar › Website Settings › Microphone › Allow, then reload.';
+  }
+  return 'The browser blocked the mic. Click the icon left of the address (lock or sliders) › Microphone › Allow, then reload. Also check that Windows lets apps use the microphone (Settings › Privacy › Microphone).';
+}
+
 /** Continuous Japanese speech recognition with restart-on-end. Publishes the transcript of the current window. */
 export class Recognizer {
   constructor() {
@@ -121,7 +244,7 @@ export class Recognizer {
     this.status = '';
     this.listening = false;
     this.unavailable = !SRClass;
-    this.unavailableReason = SRClass ? '' : 'Speech recognition is not supported in this browser.';
+    this.unavailableReason = SRClass ? '' : noRecognitionReason();
     this.onTranscript = null;
     this.onRestart = null;
     this.onState = null;
@@ -145,6 +268,8 @@ export class Recognizer {
 
   start(hints = []) {
     if (!SRClass) { this.fail(this.unavailableReason); return; }
+    setAudioSession('play-and-record');
+    this.failures = [];
     this.hints = hints;
     this.want = true;
     this.begin();
@@ -155,6 +280,7 @@ export class Recognizer {
     clearTimeout(this.windowTimer);
     this.teardown();
     this.listening = false;
+    setAudioSession('playback');
     this.emit();
   }
 
@@ -170,7 +296,8 @@ export class Recognizer {
       return;
     }
     rec.lang = 'ja-JP';
-    rec.continuous = true;
+    // Safari's continuous mode stops hearing after the first phrase; short windows that restart work better.
+    rec.continuous = !isIOS;
     rec.interimResults = true;
     rec.maxAlternatives = 3;
     this.rec = rec;
@@ -199,13 +326,13 @@ export class Recognizer {
       if (gen !== this.gen) return;
       const err = ev.error || 'error';
       if (err === 'not-allowed' || err === 'service-not-allowed') {
-        this.fail('Microphone or speech recognition permission is off.');
+        this.fail(micHelp(err));
       } else if (err === 'audio-capture') {
-        this.fail('No microphone was found.');
+        this.fail('No microphone was found. Check that one is plugged in and selected for this browser.');
       } else if (err === 'network') {
         this.fail('Speech recognition needs an internet connection in this browser.');
       } else if (err === 'language-not-supported') {
-        this.fail('Japanese speech recognition is not available here.');
+        this.fail('Japanese speech recognition is not available here. On iPhone, add Japanese under Settings › General › Keyboard › Keyboards.');
       }
       // no-speech / aborted: onend restarts.
     };
@@ -273,15 +400,26 @@ export class PitchTracker {
     if (!micSupported) throw new Error('This browser has no microphone access.');
     const ctx = audioContext();
     if (!ctx) throw new Error('This browser has no Web Audio.');
-    this.stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-    });
+    setAudioSession('play-and-record');
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      });
+    } catch (e) {
+      // Some devices reject the raw-audio constraints; plain audio still gives usable pitch.
+      if (e && (e.name === 'OverconstrainedError' || e.name === 'TypeError')) this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      else { setAudioSession('playback'); throw e; }
+    }
     if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
     this.ctx = ctx;
     this.source = ctx.createMediaStreamSource(this.stream);
     this.analyser = ctx.createAnalyser();
     this.analyser.fftSize = 2048;
     this.source.connect(this.analyser);
+    // Safari only processes nodes that lead to the speakers, so route the analyser into a muted gain.
+    this.mute = ctx.createGain();
+    this.mute.gain.value = 0;
+    this.analyser.connect(this.mute).connect(ctx.destination);
     this.buf = new Float32Array(2048);
     this.startTime = performance.now();
     this.samples = [];
@@ -296,7 +434,7 @@ export class PitchTracker {
     let sum = 0;
     for (let i = 0; i < frames.length; i++) sum += frames[i] * frames[i];
     const rms = Math.sqrt(sum / frames.length);
-    const voiced = rms > Math.max(this.noiseFloor * 2.5, 0.008);
+    const voiced = rms > Math.max(this.noiseFloor * 2.2, 0.004);
     const hz = voiced ? detectPitch(frames, this.ctx.sampleRate) : null;
     const t = (performance.now() - this.startTime) / 1000;
     this.liveLevel = rms;
@@ -319,9 +457,12 @@ export class PitchTracker {
   stop() {
     clearInterval(this.timer);
     if (this.source) { try { this.source.disconnect(); } catch (e) { /* ignore */ } }
+    if (this.mute) { try { this.mute.disconnect(); } catch (e) { /* ignore */ } }
     if (this.stream) this.stream.getTracks().forEach((t) => t.stop());
+    if (this.stream) setAudioSession('playback');
     this.stream = null;
     this.source = null;
+    this.mute = null;
     this.analyser = null;
     this.running = false;
     this.liveHz = null;

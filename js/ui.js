@@ -1,4 +1,5 @@
 // Small DOM helpers shared by every mode.
+import { romajiIfWanted } from './furigana.js';
 
 export function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -42,7 +43,11 @@ export function melodySVG(morae, { showKana = true, color = 'var(--accent)', hei
   const line = pts.map((p) => p.join(',')).join(' ');
   const dots = pts.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="6" fill="${color}"/>`).join('');
   const kana = showKana
-    ? morae.map((mo, i) => `<text x="${(i + 0.5) * slot}" y="${h * 0.9}" text-anchor="middle" class="melody-kana">${esc(mo.kana)}</text>`).join('')
+    ? morae.map((mo, i) => {
+      const ro = romajiIfWanted(mo.kana);
+      return `<text x="${(i + 0.5) * slot}" y="${h * (ro ? 0.8 : 0.9)}" text-anchor="middle" class="melody-kana">${esc(mo.kana)}</text>`
+        + (ro ? `<text x="${(i + 0.5) * slot}" y="${h * 0.99}" text-anchor="middle" class="melody-romaji">${esc(ro)}</text>` : '');
+    }).join('')
     : '';
   return `<svg class="melody" viewBox="0 0 ${w} ${h}" style="height:${height}px" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
     <polyline points="${line}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>${dots}${kana}</svg>`;

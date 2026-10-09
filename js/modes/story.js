@@ -120,7 +120,7 @@ export function mount(el, ctx) {
     const words = chapter.beats.flatMap((b) => b.words);
     el.innerHTML = `
       <div class="stack">
-        <h2 class="accent-c title-jp">第${chapter.number}話 クリア！</h2>
+        <h2 class="accent-c title-jp" data-noruby>第${chapter.number}話 クリア！</h2>
         <p>Chapter ${chapter.number} cleared. These words are now growing in your garden:</p>
         <div class="panel word-list">${words.map((w) => `
           <div class="word-row"><span class="strong" lang="ja">${esc(w.jp)}</span><span class="dim" lang="ja">${esc(w.reading)}</span><span class="small dim grow right">${esc(w.en)}</span></div>`).join('')}
