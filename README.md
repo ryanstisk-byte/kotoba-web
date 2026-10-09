@@ -30,3 +30,22 @@ dictionary and the .vvm voice models) and which voices are used. Voices used: VO
 VOICEVOX:青山龍星, VOICEVOX:玄野武宏, VOICEVOX:東北イタコ, VOICEVOX:ずんだもん (credited in Settings, as their terms require).
 
 It synthesizes only new lines, rewrites `js/clips.js`, `js/readings.js` and the precache list in `sw.js`. Then bump `CACHE_VERSION`.
+
+## Tests
+
+The site stays build-free; `package.json` only pulls in Playwright for the tests. Every pull request runs them on GitHub
+Actions (`.github/workflows/tests.yml`).
+
+    npm install
+    npx playwright install chromium   # once
+    npm test                          # Playwright, at phone (390x844) and desktop (1280x800) size
+    npm run test:static               # precache list, clips, every spoken line has a clip
+
+- `tests/modes.spec.js`: every mode loads and completes one interaction.
+- `tests/today.spec.js`: the Today plan for each weekday, Short and Quiet sessions, beginners, and running every block.
+- `tests/progress.spec.js`: saved progress loads with nothing lost (`tests/fixtures/progress-v1.json`), export/import, reload, reset.
+- `tests/offline.spec.js`: the service worker precaches everything and the app works with no network.
+- `tests/smoke.spec.js` and `tests/store.spec.js`: settings, the `#/check` screen, layout and store bookkeeping.
+
+Every test fails on any console error. If you change the shape of the saved progress, add a migration and a new fixture
+next to `progress-v1.json` with a test that loads it.

@@ -1,1 +1,4 @@
 voicevox_core/
+node_modules/
+test-results/
+playwright-report/

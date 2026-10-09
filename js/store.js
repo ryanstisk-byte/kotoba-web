@@ -145,8 +145,11 @@ class Store {
 
   weekAccuracy() {
     let ok = 0, tot = 0;
+    const day = new Date();
     for (let i = 0; i < 7; i++) {
-      const d = this.s.days[dateKey(new Date(Date.now() - i * DAY))];
+      // Step back by calendar day, not 24 hours, so a daylight-saving change never skips or repeats a day.
+      if (i) day.setDate(day.getDate() - 1);
+      const d = this.s.days[dateKey(day)];
       if (d) { ok += d.ok; tot += d.tot; }
     }
     return { ok, tot, rate: tot ? ok / tot : null };
