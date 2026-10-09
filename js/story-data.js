@@ -18,9 +18,24 @@ export const SAGA_CAST = {
   kiku: { name: 'Granny Kiku', jpName: 'キクさん', color: 'var(--good)', voice: 4 },
 };
 
-/** Chapters 5-12. `cast` is data.js's CAST (which includes SAGA_CAST). */
-export function sagaChapters(cast) {
-  const W = (jp, reading, en) => ({ jp, reading, en, gardenID: 'w:' + jp });
+/**
+ * Story words written in kana whose N5 deck entry is written with kanji: they share the deck's Garden card.
+ * (Words written the same way as a deck word match automatically.)
+ */
+const N5_ALIAS = {
+  'いる': '要る', 'はたらく': '働く', 'となり': '隣', 'まつ': '待つ', 'ことば': '言葉', 'おおい': '多い',
+  'れんしゅう': '練習', 'はなし': '話', 'わすれる': '忘れる', 'たのしい': '楽しい', 'いってきます': '行ってきます',
+  'いく': '行く', 'かるい': '軽い', 'かお': '顔',
+};
+
+/**
+ * Chapters 5-12. `cast` is data.js's CAST (which includes SAGA_CAST); `n5` is the raw N5 deck (js/n5.js).
+ * A story word that is also in the N5 deck reuses the deck's Garden id ('n5:…'), so it never becomes a second plant.
+ */
+export function sagaChapters(cast, n5 = []) {
+  const deck = new Map();
+  for (const [jp, kana] of n5) deck.set(jp, deck.has(jp) ? deck.get(jp) : 'n5:' + jp);   // same ids as data.js N5_WORDS
+  const W = (jp, reading, en) => ({ jp, reading, en, gardenID: deck.get(jp) || deck.get(N5_ALIAS[jp]) || 'w:' + jp });
   const B = (speaker, jp, reading, en, extra = {}) => ({ speaker, jp, reading, en, words: [], note: null, choice: null, ...extra });
   const C = (prompt, options, answer, wrongReply) => ({ prompt, options, answer, wrongReply });
   const { narrator, ren, master, kaito, sora, tanaka, kiku } = cast;

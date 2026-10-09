@@ -16,7 +16,7 @@ export const DAILY_NEW_CAP = 5;
 export const SKILLS = ['kana', 'kanji', 'vocab', 'grammar', 'listening', 'pitch', 'speaking', 'counters'];
 
 /** Version of the saved progress shape. Bump it and add a step to MIGRATIONS whenever the shape changes. */
-export const STATE_VERSION = 2;
+export const STATE_VERSION = 3;
 
 function blank() {
   return {
@@ -32,6 +32,7 @@ function blank() {
       textSize: 'm', sfx: true, haptics: true,   // added in v2
     },
     days: {},           // 'YYYY-MM-DD' -> { ok, tot, rev, newc, studied, blocks: { id: 'done'|'skipped' } }
+    saga: blankSaga(),  // added in v3: Story line mining and chapter results (see migrateStory)
   };
 }
 
@@ -42,6 +43,23 @@ export function dateKey(d = new Date()) {
   return `${y}-${mo}-${da}`;
 }
 
+/** Story saga state: mined lines (Garden cards 'mine:<n>'), the next mined id, and per-chapter results. */
+function blankSaga() {
+  return {
+    mined: [],        // [{ id: 'mine:<n>', jp, reading, en, parts: [[text, reading|null]], at }]
+    seq: 0,           // highest mined number handed out (ids are never reused, even after a delete)
+    quiz: {},         // chapter id -> { ok, tot, best, at } (comprehension questions)
+    challenge: {},    // chapter id -> { ok, tot, best, runs, at } (no-furigana challenge replays)
+  };
+}
+
+// integrator: story migration (final slot v4)
+/** Adds the Story saga fields (mined lines, chapter results) with empty defaults. Changes nothing else. */
+export function migrateStory(raw) {
+  const prev = raw.saga && typeof raw.saga === 'object' ? raw.saga : {};
+  return { ...raw, saga: { ...blankSaga(), ...prev } };
+}
+
 /**
  * Upgrade steps, one per version: MIGRATIONS[n] turns a version-n blob into version n+1.
  * Each step only adds or renames; nothing a learner has saved is ever dropped.
@@ -49,6 +67,8 @@ export function dateKey(d = new Date()) {
 const MIGRATIONS = {
   // v1 -> v2: text size, sound effects and vibration settings (defaults: medium, on, on).
   1: (raw) => ({ ...raw, settings: { textSize: 'm', sfx: true, haptics: true, ...(raw.settings || {}) } }),
+  // v2 -> v3: Story saga (line mining, comprehension and challenge results).
+  2: migrateStory,   // integrator: story migration (final slot v4)
 };
 
 export function migrate(raw) {
@@ -107,7 +127,45 @@ function normalize(input) {
       };
     }
   }
+  s.saga = normalizeSaga(raw.saga);
   return s;
+}
+
+const num = (x) => (Number.isFinite(Number(x)) ? Number(x) : 0);
+
+function normalizeResults(obj, extra = []) {
+  const out = {};
+  if (!obj || typeof obj !== 'object') return out;
+  for (const [k, r] of Object.entries(obj)) {
+    if (!r || typeof r !== 'object') continue;
+    const e = { ok: num(r.ok), tot: num(r.tot), best: num(r.best), at: num(r.at) };
+    for (const f of extra) e[f] = num(r[f]);
+    out[k] = e;
+  }
+  return out;
+}
+
+/** Validates the saga block: keeps every well-formed mined line and result, fills in what's missing. */
+function normalizeSaga(raw) {
+  const g = blankSaga();
+  if (!raw || typeof raw !== 'object') return g;
+  const seen = new Set();
+  if (Array.isArray(raw.mined)) {
+    for (const m of raw.mined) {
+      if (!m || typeof m !== 'object' || typeof m.id !== 'string' || !/^mine:\d+$/.test(m.id) || seen.has(m.id)) continue;
+      if (typeof m.jp !== 'string' || !m.jp.trim()) continue;
+      seen.add(m.id);
+      const parts = Array.isArray(m.parts)
+        ? m.parts.filter((p) => Array.isArray(p) && typeof p[0] === 'string').map((p) => [p[0], typeof p[1] === 'string' ? p[1] : null])
+        : [];
+      g.mined.push({ id: m.id, jp: m.jp, reading: typeof m.reading === 'string' ? m.reading : '', en: typeof m.en === 'string' ? m.en : '', parts, at: num(m.at) });
+    }
+  }
+  const top = g.mined.reduce((n, m) => Math.max(n, Number(m.id.slice(5))), 0);
+  g.seq = Math.max(top, Math.floor(num(raw.seq)));
+  g.quiz = normalizeResults(raw.quiz);
+  g.challenge = normalizeResults(raw.challenge, ['runs']);
+  return g;
 }
 
 function load() {
@@ -289,10 +347,18 @@ class Store {
   }
 
   // ----- garden -----
+  /** The Garden card for a progress id: the built-in catalog, or a line the learner mined in Story. */
+  catalogItem(id) {
+    if (GARDEN_CATALOG[id]) return GARDEN_CATALOG[id];
+    if (!id.startsWith('mine:')) return null;
+    const m = this.s.saga.mined.find((x) => x.id === id);
+    return m ? { id: m.id, jp: m.jp, reading: m.reading, en: m.en, mined: true } : null;
+  }
+
   planted() {
     return Object.entries(this.s.items)
-      .filter(([id]) => GARDEN_CATALOG[id])
-      .map(([id, prog]) => ({ item: GARDEN_CATALOG[id], prog }))
+      .filter(([id]) => this.catalogItem(id))
+      .map(([id, prog]) => ({ item: this.catalogItem(id), prog }))
       .sort((a, b) => a.prog.due - b.prog.due);
   }
 
@@ -309,7 +375,9 @@ class Store {
     const now = Date.now();
     const plants = this.planted().filter((p) => p.prog.due <= now);
     const reviews = plants.filter((p) => p.prog.r > 0).map((p) => p.item);
-    const fresh = plants.filter((p) => !p.prog.r).sort((a, b) => (a.prog.pl || 0) - (b.prog.pl || 0)).map((p) => p.item);
+    // New plants oldest first, except lines the learner mined themselves, which come first.
+    const fresh = plants.filter((p) => !p.prog.r)
+      .sort((a, b) => (b.item.mined ? 1 : 0) - (a.item.mined ? 1 : 0) || (a.prog.pl || 0) - (b.prog.pl || 0)).map((p) => p.item);
     // If fewer than 5 planted words are waiting, introduce starter phrases in order, then the N5 deck in order.
     if (fresh.length < newLeft) {
       for (const ph of PHRASES) {
@@ -328,6 +396,41 @@ class Store {
     const q = reviews.slice(0, remaining);
     const newSlots = Math.min(newLeft, remaining - q.length);
     return { queue: q.concat(fresh.slice(0, Math.max(0, newSlots))), waiting: Math.max(0, reviews.length - q.length), remaining };
+  }
+
+  // ----- story saga: line mining and chapter results -----
+  get mined() { return this.s.saga.mined; }
+
+  /** Saves a pasted line as a Garden card (planted, due now). Returns its id. */
+  mineLine({ jp, reading, en, parts = [] }) {
+    const g = this.s.saga;
+    g.seq += 1;
+    const id = 'mine:' + g.seq;
+    g.mined.push({ id, jp, reading, en, parts, at: Date.now() });
+    this.s.items[id] = { level: 0, due: 0, best: 0, r: 0, pl: Date.now() };
+    this.save();
+    return id;
+  }
+
+  /** Removes a mined line and its Garden card. */
+  deleteMined(id) {
+    const g = this.s.saga;
+    g.mined = g.mined.filter((m) => m.id !== id);
+    if (id.startsWith('mine:')) delete this.s.items[id];
+    this.save();
+  }
+
+  /** Comprehension questions for a chapter (or its no-furigana challenge replay): remembers the latest and best. */
+  recordStoryQuiz(chapterId, ok, tot, { challenge = false } = {}) {
+    const book = challenge ? this.s.saga.challenge : this.s.saga.quiz;
+    const prev = book[chapterId] || { best: 0, runs: 0 };
+    const e = { ok, tot, best: Math.max(prev.best || 0, ok), at: Date.now() };
+    if (challenge) e.runs = (prev.runs || 0) + 1;
+    book[chapterId] = e;
+    this.save();
+  }
+  storyResult(chapterId) {
+    return { quiz: this.s.saga.quiz[chapterId] || null, challenge: this.s.saga.challenge[chapterId] || null };
   }
 
   // ----- reading dojo -----

@@ -42,6 +42,7 @@ Actions (`.github/workflows/tests.yml`).
     npm run test:static               # precache list, clips, every spoken line has a clip
 
 - `tests/modes.spec.js`: every mode loads and completes one interaction.
+- `tests/story-saga.spec.js`: Story chapters 5-12 (data, furigana, questions), the chapter map and no-furigana challenge, "Paste a line" into the Garden, and the v3 saved shape (`tests/fixtures/progress-story.json`).
 - `tests/today.spec.js`: the Today plan for each weekday, Short and Quiet sessions, beginners, and running every block.
 - `tests/progress.spec.js`: saved progress loads with nothing lost (`tests/fixtures/progress-v1.json`), export/import, reload, reset.
 - `tests/offline.spec.js`: the service worker precaches everything and the app works with no network.
