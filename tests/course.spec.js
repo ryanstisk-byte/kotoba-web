@@ -176,7 +176,7 @@ test.describe('Today follows the course', () => {
   test('Input is the unit lesson, then its story scene; the skill block practises the unit', async ({ page }) => {
     await openAt(page, '2026-10-05', { current: 'p1-3', reached: ['p1-3'] });   // Monday
     await page.goto('./#/');
-    expect(await blockTitles(page)).toEqual(['Garden review', "Lesson · Say where you're going and how", 'Speaking · Rhythm', 'Skill focus · Particle Train']);
+    expect(await blockTitles(page)).toEqual(['Garden review', "Lesson · Say where you're going and how", 'Speaking · Speak Slice', 'Skill focus · Particle Train']);
     await expect(view(page).locator('.block-row', { hasText: 'Skill focus' })).toContainText('Unit 1.3 practice, 6 trains');
     await expect(view(page).locator('.course-card')).toContainText("Say where you're going and how");
 
@@ -210,7 +210,7 @@ test.describe('Today follows the course', () => {
   test('Quiet, Short and Sunday keep their shape with the course on', async ({ page }) => {
     await openAt(page, '2026-10-11', { current: 'p1-1' }, { settings: { quiet: true, hideIosHint: true } });
     await page.goto('./#/');
-    expect(await blockTitles(page)).toEqual(['Garden review', 'Lesson · Talk about what you like', 'Speaking · Pitch Duel']);
+    expect(await blockTitles(page)).toEqual(['Garden review', 'Lesson · Talk about what you like', 'Speaking · Listening Lab']);
     await view(page).getByRole('radio', { name: /Short/ }).click();
     expect(await blockTitles(page)).toEqual(['Garden review', 'Lesson · Talk about what you like']);
   });

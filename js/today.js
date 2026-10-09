@@ -4,15 +4,46 @@ import { MODE_BY_ID } from './data.js';
 import { TRACKS } from './dojo-data.js';
 import { coursePlan } from './course.js';
 
+/**
+ * Skill block by weekday, in two alternating weeks (A, B) so every mode gets regular time and no skill area starves:
+ * grammar every Monday, pitch and listening every week (Tue/Fri swap), kanji or kana every Wednesday, counters every
+ * Thursday. Speaking rotates Rhythm, Speak Slice and Sentence Builder day by day.
+ */
 const SKILL_BY_WEEKDAY = {
-  1: 'particle', // Mon
-  2: 'duel',     // Tue
-  3: 'forge',    // Wed
-  4: 'shop',     // Thu
-  5: 'particle', // Fri
-  6: 'free',     // Sat
-  0: null,       // Sun: review only
+  1: ['particle', 'conj'],   // Mon: grammar
+  2: ['duel', 'listen'],     // Tue: pitch | listening
+  3: ['forge', 'kata'],      // Wed: kanji | kana
+  4: ['shop', 'numbers'],    // Thu: counters
+  5: ['listen', 'duel'],     // Fri: listening | pitch
+  6: 'free',                 // Sat
+  0: null,                   // Sun: review only
 };
+const SPEAK_ROTATION = ['rhythm', 'slice', 'build'];
+const SPEAK_DESC = {
+  rhythm: 'Shadow 3 phrases with the sweeping line.',
+  slice: 'One 60-second round: say the words out loud.',
+  build: 'Build 5 sentences from English, then say each one.',
+};
+/** In Quiet mode the speaking block becomes a listening one. */
+const QUIET_ROTATION = ['duel', 'listen', 'numbers'];
+const QUIET_DESC = {
+  duel: 'Quiet mode: listening instead of speaking. 10 pitch questions.',
+  listen: 'Quiet mode: listening instead of speaking. 2 short scenes.',
+  numbers: 'Quiet mode: listening instead of speaking. 8 numbers by ear.',
+};
+const GOALS = {
+  particle: '6 trains.', duel: '10 pitch questions.', forge: '3 kanji.', shop: '3 customers.',
+  listen: '2 listening scenes.', conj: '12 quick forms.', kata: 'One round of 12 loanwords.', numbers: '8 numbers by ear.',
+};
+
+/** Days since 1 Jan 1970 for the local calendar date (so it never shifts with time zones or daylight saving). */
+export function dayNumber(date) {
+  return Math.round(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86_400_000);
+}
+/** 0 for an A week, 1 for a B week. Weeks start on Monday. */
+export function weekParity(date) {
+  return Math.floor((dayNumber(date) + 3) / 7) % 2;
+}
 const WEEKDAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 /** Builds today's blocks from the date and settings. Statuses come from the store. */
@@ -61,13 +92,16 @@ export function todayPlan(date = new Date()) {
 
   if (!short) {
     const weekday = date.getDay();
-    const skill = SKILL_BY_WEEKDAY[weekday];
-    const odd = date.getDate() % 2 === 1;
-    let speak = odd ? 'rhythm' : 'slice';
-    let speakDesc = odd ? 'Shadow 3 phrases with the sweeping line.' : 'One 60-second round: say the words out loud.';
+    const slot = SKILL_BY_WEEKDAY[weekday];
+    const skill = Array.isArray(slot) ? slot[weekParity(date)] : slot;
+    const n = dayNumber(date);
+    let speak = SPEAK_ROTATION[n % SPEAK_ROTATION.length];
+    let speakDesc = SPEAK_DESC[speak];
     if (quiet) {
-      speak = skill === 'duel' ? 'shop' : 'duel';
-      speakDesc = speak === 'duel' ? 'Quiet mode: listening instead of speaking. 10 pitch questions.' : 'Quiet mode: listen to 3 customers and serve them.';
+      // A listening mode, never the same one as today's skill block.
+      speak = QUIET_ROTATION[n % QUIET_ROTATION.length];
+      if (speak === skill) speak = QUIET_ROTATION[(n + 1) % QUIET_ROTATION.length];
+      speakDesc = QUIET_DESC[speak];
     }
     blocks.push({ id: 'speak', mode: speak, mins: 5, title: `Speaking · ${MODE_BY_ID[speak].title}`, desc: speakDesc, ctx: {} });
 
@@ -80,8 +114,7 @@ export function todayPlan(date = new Date()) {
       const cs = course.skill(skill);
       blocks.push({ id: 'skill', mode: cs.mode, mins: 5, title: `Skill focus · ${MODE_BY_ID[cs.mode].title}`, desc: `${WEEKDAY[weekday]}: ${cs.desc}`, ctx: cs.ctx, unit: cs.unit });
     } else if (skill) {
-      const goals = { particle: '6 trains.', duel: '10 pitch questions.', forge: '3 kanji.', shop: '3 customers.' };
-      blocks.push({ id: 'skill', mode: skill, mins: 5, title: `Skill focus · ${MODE_BY_ID[skill].title}`, desc: `${WEEKDAY[weekday]}: ${goals[skill]}`, ctx: {} });
+      blocks.push({ id: 'skill', mode: skill, mins: 5, title: `Skill focus · ${MODE_BY_ID[skill].title}`, desc: `${WEEKDAY[weekday]}: ${GOALS[skill]}`, ctx: {} });
     }
   }
 

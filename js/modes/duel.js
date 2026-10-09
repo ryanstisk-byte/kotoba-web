@@ -47,7 +47,13 @@ export function mount(el, ctx) {
     render();
     clearTimeout(timer);
     question.voice = Math.floor(Math.random() * 4);
-    timer = setTimeout(() => { speaker.speak(question.answer.speak, { mps: 3.5, voice: question.voice }); render(); }, 300);
+    // Only the voice label changes here: redrawing the whole screen could swallow a tap that's landing right now.
+    timer = setTimeout(() => { speaker.speak(question.answer.speak, { mps: 3.5, voice: question.voice }); showVoice(); }, 300);
+  }
+
+  function showVoice() {
+    const v = el.querySelector('.duel-voice');
+    if (v) v.textContent = speaker.currentVoiceName ? 'Voice: ' + speaker.currentVoiceName : '';
   }
 
   function colorFor(i) {
@@ -62,7 +68,7 @@ export function mount(el, ctx) {
     el.innerHTML = `
       <div class="stack">
         <div class="row-between"><span class="strong mono">${right}/${asked} correct</span>
-          <span class="small dim">${speaker.currentVoiceName ? 'Voice: ' + esc(speaker.currentVoiceName) : ''}</span></div>
+          <span class="small dim duel-voice">${speaker.currentVoiceName ? 'Voice: ' + esc(speaker.currentVoiceName) : ''}</span></div>
         <p class="lead strong">${q.isPair ? 'Which one did you hear?' : 'Which melody did you hear?'}</p>
         ${q.isPair ? '' : `<p class="dim" lang="ja">${esc(q.answer.display)} · ${esc(q.answer.meaning)}</p>`}
         <button class="btn wide" data-act="play">🔊 Play again (new voice)</button>
@@ -98,7 +104,7 @@ export function mount(el, ctx) {
   }
 
   const off = delegate(el, {
-    play: () => { question.voice = (question.voice + 1) % 4; speaker.speak(question.answer.speak, { mps: 3.5, voice: question.voice }); render(); },
+    play: () => { question.voice = (question.voice + 1) % 4; speaker.speak(question.answer.speak, { mps: 3.5, voice: question.voice }); showVoice(); },
     choose: (b) => choose(+b.dataset.i),
     next: nextQuestion,
   });
