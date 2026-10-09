@@ -1,6 +1,7 @@
 // Rhythm (RhythmView.swift + RhythmScorer.swift): a line sweeps across the morae while you say them;
 // the melody line shows pitch accent and your own pitch is drawn over it.
 import { store } from '../store.js';
+import { rhythmSpeed } from '../tuning.js';
 import { speaker, PitchTracker, semitones, micSupported, micHelp } from '../audio.js';
 import { esc, delegate } from '../ui.js';
 import * as fx from '../fx.js';
@@ -79,7 +80,8 @@ export function mount(el, ctx) {
 
   const phrase = () => queue[index % queue.length];
   const level = () => store.level(phrase());
-  const mps = () => Math.min(2.0 + 0.8 * level(), 7.0);
+  const tempo = rhythmSpeed(store.engine);   // difficulty targeting: a little slower while speaking is hard
+  const mps = () => Math.max(1.6, Math.min(2.0 + 0.8 * level(), 7.0) * tempo);
   const beat = () => 1 / mps();
   const latency = () => (store.settings.latencyMs || 0) / 1000;
   const showDisplay = () => level() < 2 || phase === 'result';

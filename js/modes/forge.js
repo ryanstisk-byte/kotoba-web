@@ -1,5 +1,6 @@
 // Kanji Forge (KanjiForgeView.swift): combine components into a kanji to unlock a real word.
 import { store } from '../store.js';
+import { earlyHint } from '../tuning.js';
 import { speaker } from '../audio.js';
 import { KANJI, PART_NAMES } from '../data.js';
 import { esc, shuffle, delegate, pick } from '../ui.js';
@@ -19,7 +20,7 @@ export function mount(el, ctx) {
 
   function nextTarget() {
     forged = false;
-    showStory = false;
+    showStory = earlyHint(store.engine, 'kanji');   // difficulty targeting: story hint up front while kanji is hard
     message = null;
     anvil = [];
     firstTry = true;

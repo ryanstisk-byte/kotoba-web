@@ -2,6 +2,7 @@
 // Nothing is lost when one falls; the answer is shown instead.
 // Without speech recognition: self-grade (Reveal / I said it ✓ / Missed). In quiet mode: listen-and-choose.
 import { store } from '../store.js';
+import { sliceSpawn } from '../tuning.js';
 import { speaker, Recognizer, recognitionSupported, normalizeJa } from '../audio.js';
 import { PHRASES } from '../data.js';
 import { esc, shuffle, pick, rand, delegate } from '../ui.js';
@@ -21,7 +22,7 @@ export function mount(el, ctx) {
   let controlsFor = -1;   // focus flyer the controls were drawn for
 
   function newGame() {
-    return { flyers: [], score: 0, combo: 0, hits: 0, misses: 0, timeLeft: ROUND, spawnInterval: 3.4, sinceSpawn: 99,
+    return { flyers: [], score: 0, combo: 0, hits: 0, misses: 0, timeLeft: ROUND, spawnInterval: sliceSpawn(store.engine, input === 'choose'), sinceSpawn: 99,
       recent: [], matchCounts: {}, reveal: null, revealUntil: 0, missed: [], lastTick: performance.now(), choices: null, choiceFor: null };
   }
 

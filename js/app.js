@@ -3,7 +3,6 @@
 import { store, dateKey } from './store.js';
 import { speaker } from './audio.js';
 import { MODES, MODE_BY_ID } from './data.js';
-import { ALL_LESSONS, TRACKS } from './dojo-data.js';
 import { esc, delegate, toast } from './ui.js';
 import { todayPlan, accuracyNote } from './today.js';
 import * as fx from './fx.js';
@@ -18,8 +17,10 @@ import * as shop from './modes/shop.js';
 import * as dojo from './modes/dojo.js';
 import * as settings from './settings.js';
 import * as soundcheck from './soundcheck.js';
+import * as placement from './placement.js';
+import * as progress from './progress.js';
+import { checkinCard, checkinHandlers } from './checkin.js';
 import { initReadingHelp, clearReadingHelp, readingConfig } from './furigana.js';
-import { CHAPTERS, KANJI } from './data.js';
 
 const MOUNTS = { dojo, garden, story, particle, forge, rhythm, duel, slice, shop };
 /** A one-glyph badge per mode (decorative; the English title is the label). */
@@ -172,13 +173,18 @@ function routeView(a, b, c) {
     cleanup = settings.mount(view, { applyTheme, refreshChrome, rerender });
     return;
   }
+  if (a === 'placement') {
+    setTitle('Quick check', true);
+    cleanup = placement.mount(view, { done: goHome });
+    return;
+  }
   if (a === 'check') {
     setTitle('Sound & mic check', true);
     cleanup = soundcheck.mount(view);
     return;
   }
   if (a === 'modes') { setTitle('Modes', false); renderModes(); return; }
-  if (a === 'progress') { setTitle('Progress', false); renderProgress(); return; }
+  if (a === 'progress') { setTitle('Progress', false); progress.render(view); return; }
   setTitle('Kotoba Beat', false);
   renderHome();
 }
@@ -345,6 +351,7 @@ function renderHome() {
             : `<p class="lead strong good-c">✓ Today's plan is done. Come back whenever.</p>`}
         </section>
 
+        ${checkinCard()}${placementCardHTML()}
         <section class="panel today" aria-label="Today's plan">
           <div class="row-between wrap-gap">
             <h2 class="section-title">The plan</h2>
@@ -391,6 +398,7 @@ function renderHome() {
     skip: (b) => { store.setBlock(b.dataset.id, 'skipped'); renderHome(); maybeReward(); },
     len: (b) => { store.setSetting('length', b.dataset.v); renderHome(); },
     hidehint: () => { store.setSetting('hideIosHint', true); renderHome(); },
+    ...checkinHandlers(renderHome),
   });
   const onChange = (ev) => {
     if (ev.target.matches('[data-act=quiet]')) { store.setSetting('quiet', ev.target.checked); refreshChrome(); renderHome(); view.querySelector('[data-act=quiet]')?.focus(); }
@@ -414,74 +422,8 @@ function renderModes() {
   </div>`;
 }
 
-// ---------- progress ----------
-function renderProgress() {
-  const items = store.s.items;
-  const ids = Object.keys(items);
-  const words = store.planted();
-  const kana = ids.filter((id) => id.startsWith('kana:')).length;
-  const kanjiLearned = ids.filter((id) => id.startsWith('kj:')).length;
-  const forged = store.forgedKanji.size;
-  const chapters = store.clearedChapters.size;
-  const acc = store.weekAccuracy();
-  const cleared = store.clearedLessons;
-  const stages = ['Seed', 'Sprout', 'Seedling', 'Young plant', 'Bush', 'Tree', 'Blossom'];
-  const byLevel = stages.map((_, lv) => words.filter((w) => w.prog.level === lv).length);
-  const maxLv = Math.max(1, ...byLevel);
-
-  // This month's calendar: a dot for every day you studied. Gaps are fine.
-  const now = new Date();
-  const first = new Date(now.getFullYear(), now.getMonth(), 1);
-  const daysIn = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const lead = (first.getDay() + 6) % 7;   // weeks start on Monday
-  const cells = [];
-  for (let i = 0; i < lead; i++) cells.push('<span class="cal-d empty" aria-hidden="true"></span>');
-  for (let d = 1; d <= daysIn; d++) {
-    const k = dateKey(new Date(now.getFullYear(), now.getMonth(), d));
-    const on = store.s.days[k]?.studied;
-    cells.push(`<span class="cal-d ${on ? 'on' : ''} ${d === now.getDate() ? 'today' : ''}" ${on ? `aria-label="Studied on the ${d}"` : 'aria-hidden="true"'}>${d}</span>`);
-  }
-
-  view.innerHTML = `<div class="stack">
-    <section class="stat-grid" aria-label="Totals">
-      <div class="panel stat"><span class="stat-v mono">${words.length}</span><span class="small dim">words in the garden</span></div>
-      <div class="panel stat"><span class="stat-v mono">${kana}</span><span class="small dim">kana learned</span></div>
-      <div class="panel stat"><span class="stat-v mono">${kanjiLearned + forged}</span><span class="small dim">kanji met (${kanjiLearned} read, ${forged} forged)</span></div>
-      <div class="panel stat"><span class="stat-v mono">${chapters}<span class="stat-of"> / ${CHAPTERS.length}</span></span><span class="small dim">story chapters</span></div>
-    </section>
-    <section class="panel stack-sm" aria-labelledby="acc-h">
-      <h2 class="section-title" id="acc-h">This week</h2>
-      <p><span class="stat-v mono">${acc.rate == null ? '–' : Math.round(acc.rate * 100) + '%'}</span> <span class="small dim">right, from ${acc.tot} answers</span></p>
-      <p class="small">${esc(accuracyNote(acc.rate, store.settings.length === 'short'))}</p>
-    </section>
-    <section class="panel stack-sm" aria-labelledby="garden-h">
-      <h2 class="section-title" id="garden-h">Garden</h2>
-      <div class="hbars">${stages.map((s, lv) => `<div class="hbar"><span class="small">${s}</span>
-        <span class="bar" role="img" aria-label="${byLevel[lv]} ${s.toLowerCase()}"><span style="width:${(byLevel[lv] / maxLv) * 100}%"></span></span>
-        <span class="small mono right">${byLevel[lv]}</span></div>`).join('')}</div>
-      <p class="small dim">Each right answer grows a plant one stage. Nothing wilts while you're away.</p>
-    </section>
-    <section class="panel stack-sm" aria-labelledby="read-h">
-      <h2 class="section-title" id="read-h">Reading Dojo</h2>
-      <div class="hbars">${TRACKS.map((t) => {
-        const ls = ALL_LESSONS.filter((l) => l.track === t.id);
-        const n = ls.filter((l) => cleared.has(l.id)).length;
-        return `<div class="hbar"><span class="small">${esc(t.title)}</span>
-          <span class="bar" role="img" aria-label="${n} of ${ls.length} lessons"><span style="width:${(n / ls.length) * 100}%"></span></span>
-          <span class="small mono right">${n}/${ls.length}</span></div>`;
-      }).join('')}
-      <div class="hbar"><span class="small">Kanji Forge</span>
-        <span class="bar" role="img" aria-label="${forged} of ${KANJI.length} forged"><span style="width:${(forged / KANJI.length) * 100}%"></span></span>
-        <span class="small mono right">${forged}/${KANJI.length}</span></div></div>
-    </section>
-    <section class="panel stack-sm" aria-labelledby="cal-h">
-      <h2 class="section-title" id="cal-h">${MONTHS[now.getMonth()]}</h2>
-      <div class="cal">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d) => `<span class="cal-h" aria-hidden="true">${d}</span>`).join('')}${cells.join('')}</div>
-      <p class="small dim">${store.daysStudiedThisMonth()} days studied this month. No streaks: come back whenever.</p>
-    </section>
-    <a class="btn wide" href="#/settings">Move progress to another device (Settings)</a>
-  </div>`;
-}
+// ---------- progress (js/progress.js) and engine cards on Today (js/checkin.js, js/placement.js) ----------
+function placementCardHTML() { return placement.placementCard(); }
 
 // ---------- boot ----------
 backBtn.addEventListener('click', goBack);
