@@ -329,6 +329,8 @@ export function gardenStage(level) {
 export const MODES = [
   { id: 'dojo', title: 'Reading Dojo', jp: '読み道場', group: 'Read', icon: '🔤', mic: false,
     body: 'Start here if you can\'t read Japanese yet: hiragana, then katakana, then your first kanji, a few at a time.' },
+  { id: 'kata', title: 'Katakana Rush', jp: 'カタカナラッシュ', group: 'Read', icon: '⚡', mic: false,
+    body: 'Read loanwords like コーヒー and テレビ against a gentle clock. Romaji help until you know katakana; time running out just shows the answer.' },
   { id: 'garden', title: 'Garden', jp: '庭', group: 'Review', icon: '🌱', mic: false,
     body: "Every word you learn becomes a plant. Water the thirsty ones by remembering them. Nothing dies if you're away." },
   { id: 'story', title: 'Story', jp: '物語', group: 'Understand', icon: '📖', mic: false,
@@ -337,6 +339,10 @@ export const MODES = [
     body: 'Couple word cars with the right particle. A wrong one derails the train and tells you why.' },
   { id: 'forge', title: 'Kanji Forge', jp: '漢字鍛冶', group: 'Understand', icon: '🔨', mic: false,
     body: 'Combine parts like 亻 + 木 into kanji, and each one unlocks a real word.' },
+  { id: 'conj', title: 'Conjugation Dojo', jp: '活用道場', group: 'Understand', icon: '🥋', mic: false,
+    body: 'Rapid-fire verb and adjective forms: ます, ない, た, て and plain. A miss shows the answer and why.' },
+  { id: 'build', title: 'Sentence Builder', jp: '文づくり', group: 'Understand', icon: '🧩', mic: false,
+    body: 'See the English, build the Japanese from shuffled tiles, then say it out loud (skipped in Quiet mode).' },
   { id: 'rhythm', title: 'Rhythm', jp: 'リズム', group: 'Speak & listen', icon: '〰️', mic: true,
     body: 'Say each mora as the line sweeps by. Follow the pink pitch melody. It speeds up and hides the lyrics as you improve.' },
   { id: 'duel', title: 'Pitch Duel', jp: 'ピッチ対決', group: 'Speak & listen', icon: '👂', mic: false,
@@ -345,5 +351,9 @@ export const MODES = [
     body: 'Objects fly up. Say the Japanese word out loud to cut them. Recall under pressure, with no lives to lose.' },
   { id: 'shop', title: 'Shopkeeper', jp: 'お店', group: 'Speak & listen', icon: '🛒', mic: false,
     body: 'Customers order out loud. Count it out with the right counter and answer like a real shop.' },
+  { id: 'listen', title: 'Listening Lab', jp: '聞き取りラボ', group: 'Speak & listen', icon: '🎧', mic: false,
+    body: 'Short audio-only scenes between Ren, Kaito and the Master, then questions. Replay, slow it down, read the text after.' },
+  { id: 'numbers', title: 'Numbers & Time', jp: '数と時間', group: 'Speak & listen', icon: '🔢', mic: false,
+    body: 'Train times, shop prices, dates and counters by ear. Listen and pick the number.' },
 ];
 export const MODE_BY_ID = Object.fromEntries(MODES.map((x) => [x.id, x]));

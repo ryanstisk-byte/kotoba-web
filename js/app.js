@@ -16,14 +16,20 @@ import * as duel from './modes/duel.js';
 import * as slice from './modes/slice.js';
 import * as shop from './modes/shop.js';
 import * as dojo from './modes/dojo.js';
+import * as listen from './modes/listen.js';
+import * as conj from './modes/conj.js';
+import * as build from './modes/build.js';
+import * as kata from './modes/kata.js';
+import * as numbers from './modes/numbers.js';
 import * as settings from './settings.js';
 import * as soundcheck from './soundcheck.js';
 import { initReadingHelp, clearReadingHelp, readingConfig } from './furigana.js';
 import { CHAPTERS, KANJI } from './data.js';
 
-const MOUNTS = { dojo, garden, story, particle, forge, rhythm, duel, slice, shop };
+const MOUNTS = { dojo, garden, story, particle, forge, rhythm, duel, slice, shop, listen, conj, build, kata, numbers };
 /** A one-glyph badge per mode (decorative; the English title is the label). */
-const MODE_GLYPH = { dojo: '読', garden: '庭', story: '話', particle: 'は', forge: '漢', rhythm: '拍', duel: '音', slice: '斬', shop: '店' };
+const MODE_GLYPH = { dojo: '読', garden: '庭', story: '話', particle: 'は', forge: '漢', rhythm: '拍', duel: '音', slice: '斬', shop: '店',
+  listen: '耳', conj: '活', build: '組', kata: 'カ', numbers: '数' };
 const TABS = { '': 'today', modes: 'modes', garden: 'garden', progress: 'progress', settings: 'settings' };
 
 const view = document.getElementById('view');

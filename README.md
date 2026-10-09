@@ -1,6 +1,6 @@
 # Kotoba Beat (web)
 
-A personal Japanese study game for PC and phone. It has a Reading Dojo (hiragana, katakana, starter kanji) and eight game modes (Garden, Story, Particle Train, Kanji Forge, Rhythm, Pitch Duel, Speak Slice and Shopkeeper) and a guided **Today** session.
+A personal Japanese study game for PC and phone. It has a Reading Dojo (hiragana, katakana, starter kanji) and thirteen game modes (Garden, Story, Particle Train, Kanji Forge, Conjugation Dojo, Sentence Builder, Katakana Rush, Rhythm, Pitch Duel, Speak Slice, Shopkeeper, Listening Lab and Numbers & Time) and a guided **Today** session.
 
 Live site: https://ryanstisk-byte.github.io/kotoba-web/
 
@@ -42,6 +42,8 @@ Actions (`.github/workflows/tests.yml`).
     npm run test:static               # precache list, clips, every spoken line has a clip
 
 - `tests/modes.spec.js`: every mode loads and completes one interaction.
+- `tests/new-modes.spec.js`: Listening Lab, Conjugation Dojo, Sentence Builder, Katakana Rush and Numbers & Time: right and
+  wrong answers, skill grading, the Garden, Quiet mode, and finishing each as a Today block.
 - `tests/today.spec.js`: the Today plan for each weekday, Short and Quiet sessions, beginners, and running every block.
 - `tests/progress.spec.js`: saved progress loads with nothing lost (`tests/fixtures/progress-v1.json`), export/import, reload, reset.
 - `tests/offline.spec.js`: the service worker precaches everything and the app works with no network.

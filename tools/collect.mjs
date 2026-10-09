@@ -4,6 +4,7 @@ import { PHRASES, CHAPTERS, CAST, STORY_WORDS, TRAINS, assembleTrain, KANJI, SHO
 import { LESSONS, KANJI_LESSONS, READ_WORDS } from '../js/dojo-data.js';
 import { N5_WORDS } from '../js/data.js';
 import { N5 } from '../js/n5.js';
+import { DIALOGUES, NUMBER_SCENES, KATA_WORDS, CONJ_WORDS, VERB_FORMS, ADJ_FORMS, conjugate, conjPrompt, BUILD_SENTENCES } from '../js/practice-data.js';
 
 const clips = new Map();
 // opts (optional): { accent } to set a word's pitch, { say } for text the voice should read instead.
@@ -52,5 +53,21 @@ N5_WORDS.forEach((w, i) => {
     pairs.push([w.ex, w.exReading]);
   }
 });
+
+// Newer practice modes: Listening Lab scenes (each character's voice), Numbers & Time scenes, Katakana Rush words,
+// Conjugation Dojo forms (with readings) and Sentence Builder sentences. Most N5 examples and story lines already
+// have clips, so only the new text is synthesized.
+for (const d of DIALOGUES) for (const l of d.lines) { add(l.jp, l.who.voice); pairs.push([l.jp, l.reading]); }
+for (const s of NUMBER_SCENES) { if (!clips.has(s.jp + '#' + s.voice)) add(s.jp, s.voice); if (s.reading) pairs.push([s.jp, s.reading]); }
+for (const w of KATA_WORDS) if (!clips.has(w.say + '#0')) add(w.say);
+for (const w of CONJ_WORDS) {
+  for (const f of w.type === 'verb' ? VERB_FORMS : ADJ_FORMS) {
+    for (const c of [conjugate(w, f), conjPrompt(w, f)]) {
+      if (!clips.has(c.jp + '#0')) add(c.jp);
+      if (c.jp !== c.kana) pairs.push([c.jp, c.kana]);
+    }
+  }
+}
+for (const s of BUILD_SENTENCES) if (!clips.has(s.say + '#' + s.voice)) add(s.say, s.voice);
 
 process.stdout.write(JSON.stringify({ clips: [...clips.values()], pairs }));

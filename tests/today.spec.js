@@ -1,15 +1,24 @@
 // The guided "Today" plan: its shape for every weekday, Short and Quiet sessions, beginners, and running its blocks.
 import { test, expect, seed, saved, readerState, view } from './helpers.js';
 
-// Week of Monday 5 October 2026. Odd dates get Rhythm for speaking, even dates Speak Slice.
+// Two weeks from Monday 5 October 2026: an A week, then a B week (the skill block alternates between them).
+// Speaking rotates Speak Slice, Sentence Builder, Rhythm day by day; Quiet mode swaps in a listening mode instead
+// (Listening Lab, Numbers & Time, Pitch Duel), never the same as the day's skill block.
 const WEEK = [
-  { day: 'Monday', date: '2026-10-05', speak: 'Rhythm', skill: 'Particle Train' },
-  { day: 'Tuesday', date: '2026-10-06', speak: 'Speak Slice', skill: 'Pitch Duel' },
-  { day: 'Wednesday', date: '2026-10-07', speak: 'Rhythm', skill: 'Kanji Forge' },
-  { day: 'Thursday', date: '2026-10-08', speak: 'Speak Slice', skill: 'Shopkeeper' },
-  { day: 'Friday', date: '2026-10-09', speak: 'Rhythm', skill: 'Particle Train' },
-  { day: 'Saturday', date: '2026-10-10', speak: 'Speak Slice', skill: 'Free choice' },
-  { day: 'Sunday', date: '2026-10-11', speak: 'Rhythm', skill: null },
+  { day: 'Monday A', date: '2026-10-05', speak: 'Speak Slice', quiet: 'Listening Lab', skill: 'Particle Train' },
+  { day: 'Tuesday A', date: '2026-10-06', speak: 'Sentence Builder', quiet: 'Numbers & Time', skill: 'Pitch Duel' },
+  { day: 'Wednesday A', date: '2026-10-07', speak: 'Rhythm', quiet: 'Pitch Duel', skill: 'Kanji Forge' },
+  { day: 'Thursday A', date: '2026-10-08', speak: 'Speak Slice', quiet: 'Listening Lab', skill: 'Shopkeeper' },
+  { day: 'Friday A', date: '2026-10-09', speak: 'Sentence Builder', quiet: 'Numbers & Time', skill: 'Listening Lab' },
+  { day: 'Saturday A', date: '2026-10-10', speak: 'Rhythm', quiet: 'Pitch Duel', skill: 'Free choice' },
+  { day: 'Sunday A', date: '2026-10-11', speak: 'Speak Slice', quiet: 'Listening Lab', skill: null },
+  { day: 'Monday B', date: '2026-10-12', speak: 'Sentence Builder', quiet: 'Numbers & Time', skill: 'Conjugation Dojo' },
+  { day: 'Tuesday B', date: '2026-10-13', speak: 'Rhythm', quiet: 'Pitch Duel', skill: 'Listening Lab' },
+  { day: 'Wednesday B', date: '2026-10-14', speak: 'Speak Slice', quiet: 'Listening Lab', skill: 'Katakana Rush' },
+  { day: 'Thursday B', date: '2026-10-15', speak: 'Sentence Builder', quiet: 'Pitch Duel', skill: 'Numbers & Time' },
+  { day: 'Friday B', date: '2026-10-16', speak: 'Rhythm', quiet: 'Listening Lab', skill: 'Pitch Duel' },
+  { day: 'Saturday B', date: '2026-10-17', speak: 'Speak Slice', quiet: 'Listening Lab', skill: 'Free choice' },
+  { day: 'Sunday B', date: '2026-10-18', speak: 'Sentence Builder', quiet: 'Numbers & Time', skill: null },
 ];
 
 const blockTitles = (page) => view(page).locator('.block-row .strong').allInnerTexts();
@@ -30,15 +39,15 @@ test.describe('Today plan (reader who finished the Dojo)', () => {
       if (w.skill) want.push(`Skill focus · ${w.skill}`);
       expect(await blockTitles(page)).toEqual(want);
       const sundayNote = view(page).getByText('Sunday: review only.', { exact: false });
-      if (w.day === 'Sunday') await expect(sundayNote).toBeVisible(); else await expect(sundayNote).toHaveCount(0);
+      if (w.day.startsWith('Sunday')) await expect(sundayNote).toBeVisible(); else await expect(sundayNote).toHaveCount(0);
     });
 
     test(`${w.day}: quiet mode swaps speaking for listening`, async ({ page }) => {
       await openHomeOn(page, w.date, { settings: { quiet: true, hideIosHint: true } });
       const titles = await blockTitles(page);
-      const quietSpeak = w.skill === 'Pitch Duel' ? 'Shopkeeper' : 'Pitch Duel';
-      expect(titles[2]).toBe(`Speaking · ${quietSpeak}`);
-      expect(titles.join()).not.toMatch(/Rhythm|Speak Slice/);
+      expect(titles[2]).toBe(`Speaking · ${w.quiet}`);
+      expect(titles.join()).not.toMatch(/Rhythm|Speak Slice|Sentence Builder/);
+      if (w.skill) expect(titles[3]).toBe(`Skill focus · ${w.skill}`);
       await expect(page.locator('#quiet-badge')).toBeVisible();
     });
 
@@ -48,6 +57,17 @@ test.describe('Today plan (reader who finished the Dojo)', () => {
       await expect(view(page).getByRole('radio', { name: /Short/ })).toHaveAttribute('aria-checked', 'true');
     });
   }
+
+  test('over two weeks every practice mode gets a block, and every skill area is covered', async ({ page }) => {
+    await openHomeOn(page, '2026-10-05');
+    const modes = await page.evaluate(async () => {
+      const { todayPlan } = await import('./js/today.js');
+      const out = new Set();
+      for (let d = 5; d <= 18; d++) for (const b of todayPlan(new Date(2026, 9, d)).blocks) if (b.mode) out.add(b.mode);
+      return [...out].sort();
+    });
+    expect(modes).toEqual(['build', 'conj', 'duel', 'forge', 'garden', 'kata', 'listen', 'numbers', 'particle', 'rhythm', 'shop', 'slice', 'story'].sort());
+  });
 
   test('Saturday free choice opens a mode picker that runs inside the plan', async ({ page }) => {
     await openHomeOn(page, '2026-10-10');
@@ -72,7 +92,7 @@ test.describe('Today plan (reader who finished the Dojo)', () => {
   test('Quiet switch on the home screen', async ({ page }) => {
     await openHomeOn(page, '2026-10-05');
     await view(page).getByRole('switch').check();
-    expect((await blockTitles(page))[2]).toBe('Speaking · Pitch Duel');
+    expect((await blockTitles(page))[2]).toBe('Speaking · Listening Lab');
     expect((await saved(page)).settings.quiet).toBe(true);
   });
 });
@@ -81,7 +101,7 @@ test.describe('Today plan (beginner)', () => {
   test('a new learner starts with the Reading Dojo and no skill block', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-10-05T10:00:00'));
     await page.goto('./#/');
-    expect(await blockTitles(page)).toEqual(['Reading Dojo', 'Garden review', 'Story', 'Speaking · Rhythm']);
+    expect(await blockTitles(page)).toEqual(['Reading Dojo', 'Garden review', 'Story', 'Speaking · Speak Slice']);
     await expect(view(page).locator('.block-row').getByText(/Next lesson: Hiragana/)).toBeVisible();
   });
 
