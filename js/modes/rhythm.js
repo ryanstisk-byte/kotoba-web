@@ -1,6 +1,7 @@
 // Rhythm (RhythmView.swift + RhythmScorer.swift): a line sweeps across the morae while you say them;
 // the melody line shows pitch accent and your own pitch is drawn over it.
 import { store } from '../store.js';
+import { rhythmSpeed } from '../tuning.js';
 import { speaker, PitchTracker, semitones, micSupported, micHelp } from '../audio.js';
 import { esc, delegate } from '../ui.js';
 import * as fx from '../fx.js';
@@ -79,7 +80,8 @@ export function mount(el, ctx) {
 
   const phrase = () => queue[index % queue.length];
   const level = () => store.level(phrase());
-  const mps = () => Math.min(2.0 + 0.8 * level(), 7.0);
+  const tempo = rhythmSpeed(store.engine);   // difficulty targeting: a little slower while speaking is hard
+  const mps = () => Math.max(1.6, Math.min(2.0 + 0.8 * level(), 7.0) * tempo);
   const beat = () => 1 / mps();
   const latency = () => (store.settings.latencyMs || 0) / 1000;
   const showDisplay = () => level() < 2 || phase === 'result';
@@ -269,6 +271,8 @@ export function mount(el, ctx) {
       } else {
         result = scoreRhythm(p, tracker.samples, beat(), COUNTDOWN + latency());
         store.recordRhythm(p, result.total);
+        store.grade({ skill: 'speaking', id: p.id, ok: result.passed });
+        store.grade({ skill: 'pitch', id: p.id, ok: result.pitch >= 0.75 });
         countAttempt(p);
       }
       phase = 'result';
@@ -290,6 +294,7 @@ export function mount(el, ctx) {
     // Generous: saying it along counts as a clear.
     result = { timing: ok ? 1 : 0, pitch: ok ? 1 : 0, perMora: p.morae.map(() => ({ hit: ok })), total: ok ? 0.85 : 0, passed: ok };
     store.recordRhythm(p, result.total);
+    store.grade({ skill: 'speaking', id: p.id, ok });
     countAttempt(p);
     render();
     if (ok) fx.hit({ el: el.querySelector('.score-big') }); else fx.miss();

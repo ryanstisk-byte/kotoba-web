@@ -41,9 +41,9 @@ export function todayPlan(date = new Date()) {
   blocks.push({
     id: 'garden', mode: 'garden', mins: 5, title: 'Garden review',
     desc: garden.queue.length
-      ? `${garden.queue.length} to water today (max ${cap}, up to 5 new).${garden.waiting ? ` ${garden.waiting} more wait; no rush.` : ''}`
+      ? `${garden.queue.length} to water today (max ${cap}, up to ${store.newCap()} new).${garden.waiting ? ` ${garden.waiting} more wait; no rush.` : ''}`
       : store.thirsty().length
-        ? `Today's share is done. ${store.thirsty().length} more wait for later days (new words arrive 5 a day); nothing wilts.`
+        ? `Today's share is done. ${store.thirsty().length} more wait for later days (new words arrive ${store.newCap()} a day); nothing wilts.`
         : 'Nothing due right now. Your garden is fine.',
     ctx: { cap },
   });

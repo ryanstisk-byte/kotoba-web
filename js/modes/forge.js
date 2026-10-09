@@ -1,5 +1,6 @@
 // Kanji Forge (KanjiForgeView.swift): combine components into a kanji to unlock a real word.
 import { store } from '../store.js';
+import { earlyHint } from '../tuning.js';
 import { speaker } from '../audio.js';
 import { KANJI, PART_NAMES } from '../data.js';
 import { esc, shuffle, delegate, pick } from '../ui.js';
@@ -19,7 +20,7 @@ export function mount(el, ctx) {
 
   function nextTarget() {
     forged = false;
-    showStory = false;
+    showStory = earlyHint(store.engine, 'kanji');   // difficulty targeting: story hint up front while kanji is hard
     message = null;
     anvil = [];
     firstTry = true;
@@ -78,6 +79,7 @@ export function mount(el, ctx) {
       forged = true;
       message = null;
       if (firstTry) store.log(true);
+      store.grade({ skill: 'kanji', id: t.kanji, ok: true, firstTry });
       if (!practice) {
         store.forge(t.kanji);
         store.plant(t.gardenID);
@@ -90,6 +92,7 @@ export function mount(el, ctx) {
       }
     } else {
       if (firstTry) store.log(false);
+      store.grade({ skill: 'kanji', id: t.kanji, ok: false, firstTry });
       firstTry = false;
       message = `Not quite. This kanji needs ${t.parts.length} parts.`;
       anvil = [];

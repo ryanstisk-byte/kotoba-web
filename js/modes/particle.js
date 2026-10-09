@@ -61,6 +61,7 @@ export function mount(el, ctx) {
       filled[gap] = particle;
       derail = null;
       store.log(true);
+      store.grade({ skill: 'grammar', id: `train:${order[position % order.length]}`, ok: true, firstTry: !hadDerail });
       const open = openGaps();
       activeGap = open.length ? open[0] : null;
       if (!open.length) {
@@ -77,6 +78,7 @@ export function mount(el, ctx) {
       if (departed) fx.hit({ big: true, el: el.querySelector('.car-body.engine') }); else fx.hit();
     } else {
       if (!hadDerail) store.log(false);
+      store.grade({ skill: 'grammar', id: `train:${order[position % order.length]}`, ok: false, firstTry: !hadDerail });
       hadDerail = true;
       derail = `Derailed! ${particle} doesn't fit here. ${g.why}`;
       render(true);

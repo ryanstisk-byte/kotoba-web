@@ -8,7 +8,9 @@ const FIXTURE_V2 = JSON.parse(readFileSync(new URL('./fixtures/progress-v2.json'
 
 /** Every word, review date, chapter, kanji, lesson, setting and study day in `before` is still in `after`, unchanged. */
 function expectNothingLost(before, after) {
-  expect(after.items).toEqual(before.items);
+  // v3 adds scheduler fields (s, d, lr) to each item; every field that was saved before stays exactly the same.
+  expect(Object.keys(after.items).sort()).toEqual(Object.keys(before.items).sort());
+  for (const [id, p] of Object.entries(before.items)) expect(after.items[id], id).toEqual(expect.objectContaining(p));
   expect(after.chapters).toEqual(before.chapters);
   expect(after.forged).toEqual(before.forged);
   expect(after.dojo).toEqual(before.dojo);
@@ -46,18 +48,20 @@ test.describe('saved progress from the current version (v1)', () => {
     expect(after.settings).toEqual(expect.objectContaining(FIXTURE.settings));
   });
 
-  test('migrating a v1 blob to v2 is lossless and adds the new settings (what import and load both use)', async ({ page }) => {
+  test('migrating a v1 blob to v3 is lossless and adds the new settings (what import and load both use)', async ({ page }) => {
     await page.goto('./');
     const out = await page.evaluate(async (blob) => (await import('./js/store.js')).store.parseImport(JSON.stringify(blob)), FIXTURE);
-    expect(out).toEqual({ ...FIXTURE, v: 2, settings: { ...FIXTURE.settings, textSize: 'm', sfx: true, haptics: true } });
+    expectNothingLost(FIXTURE, out);
+    expect(out.v).toBe(3);
+    expect(out.settings).toEqual({ ...FIXTURE.settings, textSize: 'm', sfx: true, haptics: true, pace: 'normal' });
   });
 
-  test('a v1 blob in storage is saved back as v2 with nothing lost', async ({ page }) => {
+  test('a v1 blob in storage is saved back as v3 with nothing lost', async ({ page }) => {
     await seed(page, FIXTURE);
     await page.goto('./');
     await expect(page.locator('#view')).not.toBeEmpty();
     const s = await saved(page);
-    expect(s.v).toBe(2);
+    expect(s.v).toBe(3);
     expectNothingLost(FIXTURE, s);
     expect(s.settings).toEqual(expect.objectContaining({ textSize: 'm', sfx: true, haptics: true }));
   });
@@ -69,7 +73,7 @@ test.describe('saved progress from the current version (v1)', () => {
     await page.goto('./');
     await expect(page.locator('#today-h')).toBeVisible();
     const s = await saved(page);
-    expect(s.items).toEqual(FIXTURE.items);
+    for (const [id, p] of Object.entries(FIXTURE.items)) expect(s.items[id]).toEqual(expect.objectContaining(p));
     expect(s.chapters).toEqual(['ch1']);
     expect(s.forged).toEqual(['休']);
     expect(s.dojo).toEqual([]);
@@ -90,8 +94,8 @@ test.describe('saved progress from v2', () => {
     await expect(page.locator('#view')).not.toBeEmpty();
     const s = await saved(page);
     expectNothingLost(FIXTURE_V2, s);
-    expect(s.v).toBe(2);
-    expect(await page.evaluate(async (blob) => (await import('./js/store.js')).store.parseImport(JSON.stringify(blob)), FIXTURE_V2)).toEqual(FIXTURE_V2);
+    expect(s.v).toBe(3);   // migrated to v3 (tests/engine.spec.js covers v3 itself)
+    expectNothingLost(FIXTURE_V2, await page.evaluate(async (blob) => (await import('./js/store.js')).store.parseImport(JSON.stringify(blob)), FIXTURE_V2));
   });
 
   test('a v1 progress code still imports into this version', async ({ page }) => {

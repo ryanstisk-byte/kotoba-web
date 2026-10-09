@@ -92,6 +92,7 @@ export function mount(el, ctx) {
   function answer(ok) {
     const item = session[position];
     store.recordReview(item.id, ok);
+    store.grade({ skill: 'vocab', id: item.id, ok });
     sessionDone++;
     revealed = false;
     position++;
