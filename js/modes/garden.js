@@ -1,8 +1,8 @@
 // Garden (GardenView.swift): every word becomes a plant that needs watering at growing intervals. Nothing ever dies.
 import { store, DAILY_REVIEW_CAP } from '../store.js';
 import { speaker } from '../audio.js';
-import { gardenStage } from '../data.js';
-import { esc, shuffle, delegate } from '../ui.js';
+import { gardenStage, accentMorae, accentName, toMorae, N5_WORDS } from '../data.js';
+import { esc, shuffle, delegate, melodySVG } from '../ui.js';
 
 export function mount(el, ctx) {
   const cap = ctx.cap || DAILY_REVIEW_CAP;
@@ -41,8 +41,9 @@ export function mount(el, ctx) {
       <div class="stack">
         <div class="hero-jp good-c">庭</div>
         <p class="dim">${planted.length === 0
-          ? "Your garden is empty. Words you meet in Rhythm, Story and Kanji Forge get planted here. Watering also introduces up to 5 starter words a day."
+          ? "Your garden is empty. Words you meet in Rhythm, Story and Kanji Forge get planted here. Watering also introduces up to 5 new words a day: starter phrases first, then the N5 deck."
           : `${planted.length} plants. ${thirsty.length} need water. Plants grow each time you remember them, and they never die if you're away.`}</p>
+        ${planted.length ? `<p class="small dim">N5 deck: ${planted.filter((p) => p.item.deck === 'n5').length} of ${N5_WORDS.length} words planted, up to 5 new a day.</p>` : ''}
         ${daily.waiting ? `<p class="small dim">Big backlog? Only ${cap} a day, most overdue first. The other ${daily.waiting} wait patiently.</p>` : ''}
         ${action}
         <div class="plant-grid">
@@ -59,17 +60,33 @@ export function mount(el, ctx) {
     el.innerHTML = `
       <div class="card-review">
         <p class="small dim mono">${position + 1} / ${session.length}</p>
-        <div class="review-jp">${esc(item.jp)}</div>
+        <div class="review-jp"${item.id.includes('|') ? ' data-noruby' : ''}>${esc(item.jp)}</div>
+        ${item.deck === 'n5' ? '<p class="tiny dim">N5 word</p>' : ''}
         ${revealed
-          ? `<p class="lead dim">${esc(item.reading)}</p><p class="lead trace-c strong">${esc(item.en)}</p>`
+          ? `<p class="lead dim">${esc(item.reading)}</p><p class="lead trace-c strong">${esc(item.en)}</p>${item.deck === 'n5' ? n5Details(item) : ''}`
           : `<p class="dim">${ctx.quiet ? 'Say it in your head' : 'Say it out loud'} and recall the meaning, then check.</p>`}
         <div class="spacer"></div>
         ${revealed
           ? `<div class="row2"><button class="btn" data-act="forgot">↩ Forgot</button><button class="btn primary" data-act="knew">✓ Knew it</button></div>
-             <button class="btn ghost small-btn" data-act="hear">🔊 Hear it again</button>`
+             <div class="row2"><button class="btn ghost small-btn" data-act="hear">🔊 Hear it again</button><button class="btn ghost small-btn" data-act="slow">🐢 Slowly</button></div>`
           : `<button class="btn primary wide" data-act="check">👁 Check</button>`}
       </div>`;
   }
+
+  // N5 deck cards also show the pitch melody and an example sentence.
+  function n5Details(item) {
+    const morae = accentMorae(item.reading, item.accent);
+    return `
+      <div class="n5-pitch" data-noruby title="Pitch: ${esc(accentName(item.accent, toMorae(item.reading).length))}">${melodySVG(morae, { height: 64 })}</div>
+      <p class="tiny dim">Pitch: ${esc(accentName(item.accent, morae.length))}</p>
+      ${item.ex ? `<div class="panel n5-ex">
+        <p class="lead">${esc(item.ex)}</p>
+        <p class="small dim">${esc(item.exEn)}</p>
+        <button class="btn ghost small-btn" data-act="hearEx">🔊 Example</button>
+      </div>` : ''}`;
+  }
+
+  const sayOf = (item) => item.say || item.reading;
 
   function answer(ok) {
     const item = session[position];
@@ -88,8 +105,10 @@ export function mount(el, ctx) {
   const off = delegate(el, {
     water: startDaily,
     extra: () => { session = shuffle(store.thirsty().slice(0, 20)); position = 0; revealed = false; render(); },
-    check: () => { revealed = true; speaker.speak(session[position].reading, { mps: 3.5 }); render(); },
-    hear: () => speaker.speak(session[position].reading, { mps: 3.5 }),
+    check: () => { revealed = true; speaker.speak(sayOf(session[position]), { mps: 3.5 }); render(); },
+    hear: () => speaker.speak(sayOf(session[position]), { mps: 3.5 }),
+    slow: () => speaker.speak(sayOf(session[position]), { mps: 2.5, speed: 'slow' }),
+    hearEx: () => speaker.speak(session[position].ex, { mps: 4 }),
     forgot: () => answer(false),
     knew: () => answer(true),
   });

@@ -123,10 +123,12 @@ class Speaker {
    * @param mps rough target speed in morae per second; natural speech is about 7.
    * @param voice pass a fixed number to always use the same voice (e.g. one per story character).
    */
-  speak(text, { mps = 4, voice = null, onend = null } = {}) {
+  speak(text, { mps = 4, voice = null, onend = null, speed = null } = {}) {
     this.stop();
     if (!text) { if (onend) setTimeout(onend, 0); return; }
-    const clip = this.usesDevice ? null : this.clipFor(text, voice);
+    // speed: 'slow' or 'normal' for this line only (e.g. a 🐢 button); otherwise the 🐢 setting decides.
+    this.lineSpeed = speed || this.speed;
+    const clip = this.usesDevice ? null : this.clipFor(text, voice, this.lineSpeed);
     if (clip && this.audio) return this.playClip(clip, mps, onend, text, voice);
     this.speakDevice(text, { mps, voice, onend });
   }
@@ -153,7 +155,7 @@ class Speaker {
     a.onerror = () => fallback(a.error);
     a.src = 'audio/' + file;
     // Clips are recorded at natural and slow speed; only stretch when a slow recording is missing.
-    const rate = this.speed === 'slow' && !this.isSlowClip(file) ? 0.75 : 1;
+    const rate = this.lineSpeed === 'slow' && !this.isSlowClip(file) ? 0.75 : 1;
     a.playbackRate = rate;
     a.defaultPlaybackRate = rate;
     a.volume = 1;
@@ -195,7 +197,7 @@ class Speaker {
     }
     // Map our speed to the speech rate scale (1 is the voice's normal speed).
     const normalized = Math.min(Math.max(mps / 7, 0.3), 1);
-    u.rate = (0.45 + 0.55 * normalized) * (this.speed === 'slow' ? 0.7 : 1);
+    u.rate = (0.45 + 0.55 * normalized) * ((this.lineSpeed || this.speed) === 'slow' ? 0.7 : 1);
     if (onend) { u.onend = onend; u.onerror = onend; }
     this.keep = u;
     this.lastMethod = 'device';

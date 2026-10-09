@@ -8,6 +8,14 @@ Live site: https://ryanstisk-byte.github.io/kotoba-web/
 - Progress is saved in the browser on each device. Use Settings > Export / Import to move it between devices.
 - When you change any file, bump `CACHE_VERSION` in `sw.js` so installed copies update.
 
+## N5 deck
+
+`tools/n5.tsv` holds a 686-word JLPT N5 deck in teaching order: kana, meaning, pitch accent, and an example sentence
+with its reading. The Garden introduces it, 5 new words a day at most, after the starter phrases, skipping words already
+planted from Story or Kanji Forge. Each word is voiced with its listed pitch accent and each example sentence is voiced
+too (normal and slow). Readings were checked against JMdict (EDRDG, CC BY-SA 4.0). After editing the TSV, run the
+build below; it regenerates `js/n5.js`.
+
 ## Voice clips and readings
 
 The app ships its own Japanese voices (VOICEVOX, one per character, at normal and slow speed) as small MP3s in
