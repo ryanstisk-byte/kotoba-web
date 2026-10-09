@@ -1,4 +1,5 @@
-// All study content, ported verbatim from the Kotoba Beat SwiftUI prototype.
+// All study content, ported verbatim from the Kotoba Beat SwiftUI prototype (plus the N5 deck in n5.js).
+import { N5 } from './n5.js';
 
 // ---------- Phrases (Phrases.swift) ----------
 
@@ -275,11 +276,43 @@ export const SHOP_THANKS = ['ありがとうございました！', 'じゃあ�
 // ---------- Garden catalog (GardenView.swift) ----------
 
 /** Every item the app knows how to show, keyed by its progress id. */
+// ---------- N5 vocabulary deck (generated js/n5.js, source tools/n5.tsv) ----------
+
+/** Split kana into morae (small ゃゅょ etc. join the kana before them). */
+export function toMorae(kana) {
+  return kana.match(/.[ゃゅょぁぃぅぇぉゎャュョァィゥェォヮ]?/g) || [];
+}
+
+/** Morae with high/low pitch for a Tokyo-accent downstep number (0 = flat), as the word sounds said alone. */
+export function accentMorae(kana, accent) {
+  return toMorae(kana).map((k, i) => ({
+    kana: k,
+    high: accent === 1 ? i === 0 : i > 0 && (accent === 0 || i < accent),
+    silent: k === 'っ' || k === 'ッ',
+  }));
+}
+
+export function accentName(accent, n) {
+  if (accent === 0) return 'flat (heiban): low, then stays high, even on a following particle';
+  if (accent === 1) return 'high first, then drops (atamadaka)';
+  if (accent >= n) return 'high to the end, then drops on a following particle (odaka)';
+  return `drops after the ${['', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth'][accent] || accent + 'th'} mora (nakadaka)`;
+}
+
+const n5Seen = new Set();
+export const N5_WORDS = N5.map(([jp, kana, en, accent, ex, exReading, exEn, say]) => {
+  // A few words share a written form (十 is both じゅう and とお): those get the reading in their id and clip.
+  const dup = n5Seen.has(jp);
+  n5Seen.add(jp);
+  return { id: 'n5:' + jp + (dup ? '|' + kana : ''), jp, reading: kana, en, accent, ex, exReading, exEn, say: say || (dup ? kana : jp) };
+});
+
 export const GARDEN_CATALOG = (() => {
   const out = {};
   for (const p of PHRASES) out[p.id] = { id: p.id, jp: p.display, reading: p.kana, en: p.meaning };
   for (const w of STORY_WORDS) out[w.gardenID] = { id: w.gardenID, jp: w.jp, reading: w.reading, en: w.en };
   for (const r of KANJI) out[r.gardenID] = { id: r.gardenID, jp: r.word, reading: r.reading, en: r.wordEn };
+  for (const w of N5_WORDS) out[w.id] = { ...w, deck: 'n5' };
   return out;
 })();
 
