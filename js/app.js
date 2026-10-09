@@ -21,8 +21,13 @@ import * as placement from './placement.js';
 import * as progress from './progress.js';
 import { checkinCard, checkinHandlers } from './checkin.js';
 import { initReadingHelp, clearReadingHelp, readingConfig } from './furigana.js';
+import * as course from './course.js';
+import { UNIT_BY_ID } from './course-data.js';
 
 const MOUNTS = { dojo, garden, story, particle, forge, rhythm, duel, slice, shop };
+/** Screens the Today plan can open that aren't modes (the course lesson). */
+const TODAY_MOUNTS = { ...MOUNTS, lesson: { mount: course.mountLesson } };
+const modeTitle = (id) => MODE_BY_ID[id]?.title || 'Lesson';
 /** A one-glyph badge per mode (decorative; the English title is the label). */
 const MODE_GLYPH = { dojo: '読', garden: '庭', story: '話', particle: 'は', forge: '漢', rhythm: '拍', duel: '音', slice: '斬', shop: '店' };
 const TABS = { '': 'today', modes: 'modes', garden: 'garden', progress: 'progress', settings: 'settings' };
@@ -96,8 +101,8 @@ function syncDepth() {
 function goBack() {
   if (document.querySelector('.reward')) return;
   if (depth > 0) { history.back(); return; }
-  const [a] = parse();
-  location.replace(a === 'play' ? '#/modes' : '#/');
+  const [a, b] = parse();
+  location.replace(a === 'play' ? '#/modes' : (a === 'course' && b) || a === 'grammar' ? '#/course' : '#/');
 }
 
 /** Return to Today: step back if Today is right behind us, otherwise go there. */
@@ -161,11 +166,29 @@ function routeView(a, b, c) {
     const block = plan.blocks.find((x) => x.id === b);
     if (!block) { location.replace('#/'); return; }
     const modeId = block.mode || c;
-    if (!modeId || !MOUNTS[modeId]) { renderFreePicker(block); return; }
-    setTitle(MODE_BY_ID[modeId].title, true);
+    if (!modeId || !TODAY_MOUNTS[modeId]) { renderFreePicker(block); return; }
+    setTitle(modeTitle(modeId), true);
     view.classList.add('mode-' + modeId);
     const today = makeTodayCtx(block, modeId);
-    cleanup = MOUNTS[modeId].mount(view, { ...block.ctx, quiet: store.settings.quiet, today });
+    const stopMode = TODAY_MOUNTS[modeId].mount(view, { ...block.ctx, quiet: store.settings.quiet, today });
+    // A block drawn from the course counts its answers toward the current unit.
+    const stopUnit = block.unit ? course.trackUnit(block.unit) : null;
+    cleanup = () => { if (stopUnit) stopUnit(); if (stopMode) stopMode(); };
+    return;
+  }
+  if (a === 'grammar') { setTitle('Grammar', true); cleanup = course.renderGrammar(view); return; }
+  if (a === 'course') {
+    const unit = b && UNIT_BY_ID[b];
+    if (!unit) { setTitle('Course', true); cleanup = course.renderPath(view); return; }
+    if (c === 'lesson' && !unit.outline) { setTitle('Lesson', true); cleanup = course.mountLesson(view, { unitId: b }); return; }
+    if (c && MOUNTS[c] && !unit.outline) {
+      setTitle(MODE_BY_ID[c].title, true);
+      view.classList.add('mode-' + c);
+      cleanup = course.mountPractice(view, banner, b, c, MOUNTS[c], store.settings.quiet);
+      return;
+    }
+    setTitle(course.unitLabel(unit), true);
+    cleanup = course.renderUnit(view, b);
     return;
   }
   if (a === 'settings') {
@@ -205,7 +228,7 @@ function makeTodayCtx(block, modeId) {
     banner.innerHTML = isDone
       ? `<div class="banner done"><span class="grow"><span class="strong">✓ Block ${block.n} done</span>${doneMsg ? `<br><span class="small">${esc(doneMsg)}</span>` : ''}</span>
           <a class="btn primary small-btn" href="#/" data-bact="home">Back to Today</a></div>`
-      : `<div class="banner"><span class="grow"><span class="small dim">Today · block ${block.n}</span><br><span class="strong">${esc(MODE_BY_ID[modeId].title)}</span> <span class="mono small dim">${esc(progress)}</span></span>
+      : `<div class="banner"><span class="grow"><span class="small dim">Today · block ${block.n}</span><br><span class="strong">${esc(modeTitle(modeId))}</span> <span class="mono small dim">${esc(progress)}</span></span>
           <button class="btn small-btn" data-bact="skip">Skip</button><button class="btn small-btn good" data-bact="done">Done ✓</button></div>`;
   };
   banner.onclick = (ev) => {
@@ -380,6 +403,7 @@ function renderHome() {
       </div>
 
       <aside class="stack home-side" aria-label="At a glance">
+        ${course.courseCard()}
         ${!store.trackDone('hiragana') && !store.clearedLessons.size ? `<a class="panel hint link-panel" href="#/play/dojo"><span class="grow small">🔤 <span class="strong">New to reading Japanese?</span> Start in the Reading Dojo: hiragana, katakana, then kanji. Until then, every game shows romaji (tap ふa at the top to change it).</span><span class="dim chev" aria-hidden="true">›</span></a>` : ''}
         <section class="panel stack-sm" aria-label="Garden at a glance">
           <div class="tiles">
@@ -414,6 +438,11 @@ function renderModes() {
   const groups = [...new Set(MODES.map((m) => m.group))];
   view.innerHTML = `<div class="stack">
     <p class="dim">Every mode, any time. The Today plan picks a few for you each day.</p>
+    <section class="stack-sm" aria-label="Course">
+      <h2 class="section-label">COURSE</h2>
+      ${course.courseCard()}
+      <a class="linkbtn" href="#/grammar">文 Grammar reference ›</a>
+    </section>
     ${groups.map((g) => `<section class="stack-sm" aria-label="${esc(g)}">
       <h2 class="section-label">${esc(g.toUpperCase())}</h2>
       <div class="mode-grid wide">${MODES.filter((m) => m.group === g).map((m) => modeCard(m, quiet, `#/play/${m.id}`)).join('')}</div>

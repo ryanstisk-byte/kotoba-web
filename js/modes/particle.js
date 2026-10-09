@@ -8,7 +8,9 @@ import * as fx from '../fx.js';
 
 export function mount(el, ctx) {
   const GOAL = 6;
-  let order = shuffle(TRAINS.map((_, i) => i));
+  // A course unit can limit practice to its own trains (ctx.trainIds); the mechanics stay the same.
+  const ids = ctx.trainIds?.length ? ctx.trainIds.filter((i) => TRAINS[i]) : TRAINS.map((_, i) => i);
+  let order = shuffle(ids);
   let position = 0;
   let filled = {};
   let activeGap = null;
