@@ -3,6 +3,7 @@ import { store } from '../store.js';
 import { speaker } from '../audio.js';
 import { SHOP_STOCK, COUNTERS, CUSTOMERS, SHOP_GREETINGS, SHOP_THANKS } from '../data.js';
 import { esc, pick, delegate } from '../ui.js';
+import * as fx from '../fx.js';
 
 export function mount(el, ctx) {
   const GOAL = 3;
@@ -85,6 +86,7 @@ export function mount(el, ctx) {
       feedback = `That's not a shop greeting. ${i === 1 ? 'おかえりなさい is "welcome home".' : 'いただきます is said before eating.'} Try again.`;
     }
     render();
+    if (i === 0) fx.hit(); else fx.miss();
   }
 
   function handOver() {
@@ -101,6 +103,7 @@ export function mount(el, ctx) {
       showText = true;
     }
     render();
+    if (right) fx.hit(); else fx.miss();
   }
 
   function reply(i) {
@@ -124,6 +127,7 @@ export function mount(el, ctx) {
         : 'どういたしまして means "you\'re welcome". Here the shop should be thanking them.';
     }
     render();
+    if (i === 0) fx.hit({ big: true }); else fx.miss();
   }
 
   function nextCustomer() {

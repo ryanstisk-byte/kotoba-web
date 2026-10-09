@@ -1,17 +1,33 @@
 // Home, settings and the sound & mic check load cleanly at phone and desktop size.
 import { test, expect, expectNoHorizontalScroll, view } from './helpers.js';
 
-test('home loads with the Today plan and every mode', async ({ page }) => {
+test('home leads with Today and its next step', async ({ page }) => {
   await page.goto('./');
   await expect(page.locator('#today-h')).toHaveText('Today');
+  await expect(view(page).locator('.hero').getByRole('link', { name: /Start: Reading Dojo/ })).toBeVisible();
   await expect(view(page).locator('.block-row').first()).toBeVisible();
-  await expect(view(page).locator('.mode-grid .mode-card')).toHaveCount(9);
   await expectNoHorizontalScroll(page);
 });
 
-for (const hash of ['#/settings', '#/check', '#/play/dojo', '#/play/garden', '#/play/story', '#/play/particle',
+test('the Modes screen lists every mode', async ({ page }) => {
+  await page.goto('./#/modes');
+  await expect(view(page).locator('.mode-card')).toHaveCount(9);
+  await expectNoHorizontalScroll(page);
+});
+
+for (const hash of ['#/', '#/modes', '#/garden', '#/progress', '#/settings']) {
+  test(`${hash} is a top-level screen with no horizontal scroll`, async ({ page }) => {
+    await page.goto('./' + hash);
+    await expect(page.locator('#tabs [aria-current=page]')).toHaveCount(1);
+    await expect(page.locator('#back')).toBeHidden();
+    await page.waitForTimeout(300);
+    await expectNoHorizontalScroll(page);
+  });
+}
+
+for (const hash of ['#/check', '#/play/dojo', '#/play/garden', '#/play/story', '#/play/particle',
   '#/play/forge', '#/play/rhythm', '#/play/duel', '#/play/slice', '#/play/shop']) {
-  test(`${hash} has no horizontal scroll`, async ({ page }) => {
+  test(`${hash} has a back button and no horizontal scroll`, async ({ page }) => {
     await page.goto('./' + hash);
     await expect(page.locator('#back')).toBeVisible();
     await page.waitForTimeout(400);

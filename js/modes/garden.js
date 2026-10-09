@@ -3,6 +3,7 @@ import { store, DAILY_REVIEW_CAP } from '../store.js';
 import { speaker } from '../audio.js';
 import { gardenStage, accentMorae, accentName, toMorae, N5_WORDS } from '../data.js';
 import { esc, shuffle, delegate, melodySVG } from '../ui.js';
+import * as fx from '../fx.js';
 
 export function mount(el, ctx) {
   const cap = ctx.cap || DAILY_REVIEW_CAP;
@@ -100,6 +101,7 @@ export function mount(el, ctx) {
       if (ctx.today) ctx.today.done();
     }
     render();
+    if (ok) fx.hit({ big: !session.length }); else fx.miss();
   }
 
   const off = delegate(el, {

@@ -3,6 +3,7 @@
 import { store } from '../store.js';
 import { speaker, PitchTracker, semitones, micSupported, micHelp } from '../audio.js';
 import { esc, delegate } from '../ui.js';
+import * as fx from '../fx.js';
 import { romajiIfWanted } from '../furigana.js';
 
 // ---------- Scorer (generous) ----------
@@ -272,6 +273,7 @@ export function mount(el, ctx) {
       }
       phase = 'result';
       render();
+      if (result) { if (result.passed) fx.hit({ el: el.querySelector('.score-big') }); else fx.miss({ el: el.querySelector('.score-big') }); }
     }, (COUNTDOWN + total + 0.6) * 1000));
   }
 
@@ -290,6 +292,7 @@ export function mount(el, ctx) {
     store.recordRhythm(p, result.total);
     countAttempt(p);
     render();
+    if (ok) fx.hit({ el: el.querySelector('.score-big') }); else fx.miss();
   }
 
   function next() {

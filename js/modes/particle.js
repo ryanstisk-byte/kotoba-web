@@ -4,6 +4,7 @@ import { store } from '../store.js';
 import { speaker } from '../audio.js';
 import { TRAINS, TRAIN_PALETTE, assembleTrain } from '../data.js';
 import { esc, shuffle, delegate } from '../ui.js';
+import * as fx from '../fx.js';
 
 export function mount(el, ctx) {
   const GOAL = 6;
@@ -73,11 +74,13 @@ export function mount(el, ctx) {
         }
       }
       render();
+      if (departed) fx.hit({ big: true, el: el.querySelector('.car-body.engine') }); else fx.hit();
     } else {
       if (!hadDerail) store.log(false);
       hadDerail = true;
       derail = `Derailed! ${particle} doesn't fit here. ${g.why}`;
       render(true);
+      fx.miss({ el: el.querySelector('.train') });
     }
   }
 

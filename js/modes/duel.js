@@ -3,6 +3,7 @@ import { store } from '../store.js';
 import { speaker } from '../audio.js';
 import { PHRASES } from '../data.js';
 import { esc, shuffle, pick, delegate, melodySVG } from '../ui.js';
+import * as fx from '../fx.js';
 
 /** Every standard Tokyo accent pattern for a word of n morae (type 0 = flat, type k = drop after mora k). */
 export function allPatterns(n) {
@@ -91,6 +92,8 @@ export function mount(el, ctx) {
       if (asked >= GOAL) ctx.today.done();
     }
     render();
+    if (ok) fx.hit({ el: el.querySelector('.duel-opt.correct') }); else fx.miss();
+    fx.announce(ok ? 'Right.' : 'Not quite. The right one is now marked.');
   }
 
   const off = delegate(el, {

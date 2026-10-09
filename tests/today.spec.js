@@ -71,7 +71,7 @@ test.describe('Today plan (reader who finished the Dojo)', () => {
 
   test('Quiet switch on the home screen', async ({ page }) => {
     await openHomeOn(page, '2026-10-05');
-    await view(page).getByRole('checkbox').check();
+    await view(page).getByRole('switch').check();
     expect((await blockTitles(page))[2]).toBe('Speaking · Pitch Duel');
     expect((await saved(page)).settings.quiet).toBe(true);
   });
@@ -82,7 +82,7 @@ test.describe('Today plan (beginner)', () => {
     await page.clock.setFixedTime(new Date('2026-10-05T10:00:00'));
     await page.goto('./#/');
     expect(await blockTitles(page)).toEqual(['Reading Dojo', 'Garden review', 'Story', 'Speaking · Rhythm']);
-    await expect(view(page).getByText(/Next lesson: Hiragana/)).toBeVisible();
+    await expect(view(page).locator('.block-row').getByText(/Next lesson: Hiragana/)).toBeVisible();
   });
 
   test('a beginner\'s short session is reading and review', async ({ page }) => {

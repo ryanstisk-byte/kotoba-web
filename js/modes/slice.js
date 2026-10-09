@@ -5,6 +5,7 @@ import { store } from '../store.js';
 import { speaker, Recognizer, recognitionSupported, normalizeJa } from '../audio.js';
 import { PHRASES } from '../data.js';
 import { esc, shuffle, pick, rand, delegate } from '../ui.js';
+import * as fx from '../fx.js';
 
 const ROUND = 60;
 const GRAVITY = 0.42;
@@ -245,6 +246,7 @@ export function mount(el, ctx) {
     g.reveal = phrase;
     g.revealUntil = performance.now() + 2800;
     drawReveal();
+    fx.miss({ el: el.querySelector('#sl-reveal .reveal') });
     drawHud();
     renderControls();
   }
@@ -268,6 +270,7 @@ export function mount(el, ctx) {
     record(true);
     store.recordSlice(f.phrase, true);
     if (input !== 'speech') speaker.speak(f.phrase.speak, { mps: 4 });
+    fx.hit({ el: f.el });
     drawHud();
     renderControls();
   }

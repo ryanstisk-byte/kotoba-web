@@ -12,16 +12,22 @@ export const DAILY_REVIEW_CAP = 20;
 export const DAILY_REVIEW_CAP_SHORT = 10;
 export const DAILY_NEW_CAP = 5;
 
+/** Version of the saved progress shape. Bump it and add a step to MIGRATIONS whenever the shape changes. */
+export const STATE_VERSION = 2;
+
 function blank() {
   return {
-    v: 1,
+    v: STATE_VERSION,
     items: {},          // id -> { level, due (ms), best, r (garden reviews), pl (planted ms) }
     lastSession: null,
     chapters: [],       // cleared chapter ids
     forged: [],         // forged kanji
     dojo: [],           // cleared Reading Dojo lesson ids
     storyReplays: {},   // chapter id -> last replay ms (to rotate replays in the daily plan)
-    settings: { latencyMs: 0, quiet: false, length: 'standard', hideIosHint: false, theme: 'auto', readingHelp: 'auto', voiceSrc: 'auto', speed: 'normal' },
+    settings: {
+      latencyMs: 0, quiet: false, length: 'standard', hideIosHint: false, theme: 'auto', readingHelp: 'auto', voiceSrc: 'auto', speed: 'normal',
+      textSize: 'm', sfx: true, haptics: true,   // added in v2
+    },
     days: {},           // 'YYYY-MM-DD' -> { ok, tot, rev, newc, studied, blocks: { id: 'done'|'skipped' } }
   };
 }
@@ -33,8 +39,29 @@ export function dateKey(d = new Date()) {
   return `${y}-${mo}-${da}`;
 }
 
-function normalize(raw) {
+/**
+ * Upgrade steps, one per version: MIGRATIONS[n] turns a version-n blob into version n+1.
+ * Each step only adds or renames; nothing a learner has saved is ever dropped.
+ */
+const MIGRATIONS = {
+  // v1 -> v2: text size, sound effects and vibration settings (defaults: medium, on, on).
+  1: (raw) => ({ ...raw, settings: { textSize: 'm', sfx: true, haptics: true, ...(raw.settings || {}) } }),
+};
+
+export function migrate(raw) {
+  if (!raw || typeof raw !== 'object') return raw;
+  let v = Number.isInteger(raw.v) && raw.v > 0 ? raw.v : 1;
+  let out = raw;
+  while (v < STATE_VERSION) {
+    out = MIGRATIONS[v](out);
+    v += 1;
+  }
+  return { ...out, v: Math.max(v, out.v || 0) };
+}
+
+function normalize(input) {
   const s = blank();
+  const raw = migrate(input);
   if (!raw || typeof raw !== 'object') return s;
   if (raw.items && typeof raw.items === 'object') {
     for (const [id, p] of Object.entries(raw.items)) {
@@ -64,6 +91,9 @@ function normalize(raw) {
     // voiceSrc replaced the older 'voice' setting, whose default was the built-in clips.
     s.settings.voiceSrc = ['clips', 'device'].includes(st.voiceSrc) ? st.voiceSrc : 'auto';
     s.settings.speed = st.speed === 'slow' ? 'slow' : 'normal';
+    s.settings.textSize = ['s', 'm', 'l', 'xl'].includes(st.textSize) ? st.textSize : 'm';
+    s.settings.sfx = st.sfx !== false;
+    s.settings.haptics = st.haptics !== false;
   }
   if (raw.days && typeof raw.days === 'object') {
     for (const [k, d] of Object.entries(raw.days)) {

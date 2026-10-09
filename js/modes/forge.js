@@ -3,6 +3,7 @@ import { store } from '../store.js';
 import { speaker } from '../audio.js';
 import { KANJI, PART_NAMES } from '../data.js';
 import { esc, shuffle, delegate, pick } from '../ui.js';
+import * as fx from '../fx.js';
 
 export function mount(el, ctx) {
   const GOAL = 3;
@@ -94,6 +95,7 @@ export function mount(el, ctx) {
       anvil = [];
     }
     render();
+    if (forged) fx.hit({ big: true, el: el.querySelector('.forged-k') }); else fx.miss({ el: el.querySelector('.anvil') });
   }
 
   const off = delegate(el, {
