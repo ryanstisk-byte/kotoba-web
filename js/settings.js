@@ -54,8 +54,8 @@ export function mount(el, ctx) {
             ${[['auto', 'Best available'], ['clips', 'Built-in'], ['device', 'All device voices']].map(([v, t]) => `<button class="seg-btn ${st.voiceSrc === v ? 'on' : ''}" data-act="voice" data-v="${v}" role="radio" aria-checked="${st.voiceSrc === v}">${t}</button>`).join('')}
           </div>
           <p class="small">${{
-            auto: speaker.natural.length ? `Using natural device voices: ${esc(speaker.natural.map((v) => v.name).join(', '))}.` : 'No natural-sounding device voice found, so the built-in voice plays. Edge on PC has the best free ones (Nanami, Keita).',
-            clips: 'Always the built-in voice: works offline and on any device, but sounds synthetic.',
+            auto: 'The built-in VOICEVOX voices, one per character.' + (speaker.natural.length ? ` Anything without a clip uses ${esc(speaker.natural[0].name)}.` : ''),
+            clips: 'The built-in VOICEVOX voices, one per character: works offline and on any device.',
             device: 'Rotates through every Japanese voice on this device, for variety.',
           }[st.voiceSrc]}</p>
           <div><span class="strong">Speed</span>
@@ -111,6 +111,7 @@ export function mount(el, ctx) {
           <button class="btn ${resetArmed ? 'danger' : ''}" data-act="reset">${resetArmed ? 'Tap again to erase all progress' : 'Reset all progress'}</button>
         </section>
         <p class="tiny dim center-text">Kotoba Beat web · works offline once loaded</p>
+        <p class="tiny dim center-text" lang="ja" data-noruby>Voices: VOICEVOX:四国めたん · VOICEVOX:白上虎太郎 · VOICEVOX:青山龍星 · VOICEVOX:玄野武宏 · VOICEVOX:東北イタコ · VOICEVOX:ずんだもん</p>
       </div>`;
   }
 
