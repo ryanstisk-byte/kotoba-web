@@ -1,13 +1,17 @@
 // Progress store: spaced review with no streaks. Missing days never wipes anything out.
 // Port of ProgressStore.swift plus the daily-plan bookkeeping for the "Today" screen.
 import { PHRASES, PHRASE_BY_ID, GARDEN_CATALOG, CHAPTERS } from './data.js';
-import { ALL_LESSONS } from './dojo-data.js';
+import { ALL_LESSONS, LESSON_BY_ID } from './dojo-data.js';
+import * as srs from './srs.js';
+import { blankEngine, normalizeEngine, recordGrade, dayNumber } from './skills.js';
+import { newPerDay } from './tuning.js';
 
 export const STORAGE_KEY = 'kotobaBeat.v1';
 const DAY = 86_400_000;
 
-/** Days until the next review after reaching each level. */
-export const INTERVALS = [0, 1, 2, 4, 7, 14, 30];
+/** The old fixed review ladder (days per level). Reviews now use the FSRS-style scheduler in srs.js; this stays for
+ *  the growth-stage range (levels 0-6) and for migrating items saved before v3. */
+export const INTERVALS = srs.LEGACY_INTERVALS;
 export const DAILY_REVIEW_CAP = 20;
 export const DAILY_REVIEW_CAP_SHORT = 10;
 export const DAILY_NEW_CAP = 5;
@@ -16,12 +20,12 @@ export const DAILY_NEW_CAP = 5;
 export const SKILLS = ['kana', 'kanji', 'vocab', 'grammar', 'listening', 'pitch', 'speaking', 'counters'];
 
 /** Version of the saved progress shape. Bump it and add a step to MIGRATIONS whenever the shape changes. */
-export const STATE_VERSION = 2;
+export const STATE_VERSION = 3;
 
 function blank() {
   return {
     v: STATE_VERSION,
-    items: {},          // id -> { level, due (ms), best, r (garden reviews), pl (planted ms) }
+    items: {},          // id -> { level, due (ms), best, r (reviews), pl (planted ms), s (stability, days), d (difficulty 1-10), lr (last review ms) }
     lastSession: null,
     chapters: [],       // cleared chapter ids
     forged: [],         // forged kanji
@@ -30,7 +34,9 @@ function blank() {
     settings: {
       latencyMs: 0, quiet: false, length: 'standard', hideIosHint: false, theme: 'auto', readingHelp: 'auto', voiceSrc: 'auto', speed: 'normal',
       textSize: 'm', sfx: true, haptics: true,   // added in v2
+      pace: 'normal',                             // added in v3: 'less' = at most 3 new words a day
     },
+    engine: blankEngine(),   // added in v3: the skill model, placement and weekly check-in (see skills.js)
     days: {},           // 'YYYY-MM-DD' -> { ok, tot, rev, newc, studied, blocks: { id: 'done'|'skipped' } }
   };
 }
@@ -49,6 +55,16 @@ export function dateKey(d = new Date()) {
 const MIGRATIONS = {
   // v1 -> v2: text size, sound effects and vibration settings (defaults: medium, on, on).
   1: (raw) => ({ ...raw, settings: { textSize: 'm', sfx: true, haptics: true, ...(raw.settings || {}) } }),
+  // v2 -> v3: the FSRS-style scheduler. Each item gets a stability from its level's old interval, a middle difficulty
+  // and an estimated last review; level, due, best, r and pl stay exactly as they were. Adds the skill model
+  // (empty) and the new-words pace setting (normal).
+  2: (raw) => {
+    const items = {};
+    if (raw.items && typeof raw.items === 'object') {
+      for (const [id, p] of Object.entries(raw.items)) items[id] = p && typeof p === 'object' ? srs.migrateItem(p) : p;
+    }
+    return { ...raw, items, engine: raw.engine || blankEngine(), settings: { pace: 'normal', ...(raw.settings || {}) } };
+  },
 };
 
 export function migrate(raw) {
@@ -69,12 +85,16 @@ function normalize(input) {
   if (raw.items && typeof raw.items === 'object') {
     for (const [id, p] of Object.entries(raw.items)) {
       if (!p || typeof p !== 'object') continue;
+      const m = srs.migrateItem(p);   // fills in s, d and lr if they are missing; keeps them if present
       s.items[id] = {
         level: Math.max(0, Math.min(INTERVALS.length - 1, Number(p.level) || 0)),
         due: Number(p.due) || 0,
         best: Number(p.best) || 0,
         r: Number(p.r) || 0,
         pl: Number(p.pl) || 0,
+        s: Math.max(0, Number(m.s) || 0),
+        d: Math.max(0, Math.min(10, Number(m.d) || 0)),
+        lr: Math.max(0, Number(m.lr) || 0),
       };
     }
   }
@@ -97,7 +117,9 @@ function normalize(input) {
     s.settings.textSize = ['s', 'm', 'l', 'xl'].includes(st.textSize) ? st.textSize : 'm';
     s.settings.sfx = st.sfx !== false;
     s.settings.haptics = st.haptics !== false;
+    s.settings.pace = st.pace === 'less' ? 'less' : 'normal';
   }
+  s.engine = normalizeEngine(raw.engine, SKILLS);
   if (raw.days && typeof raw.days === 'object') {
     for (const [k, d] of Object.entries(raw.days)) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(k) || !d || typeof d !== 'object') continue;
@@ -117,6 +139,25 @@ function load() {
   } catch (e) { /* private mode or corrupt data: start fresh */ }
   return blank();
 }
+
+/** How sure the app is of a kana or kanji the placement check found you already know (days of stability). */
+export const PLACEMENT_STABILITY = 3;
+
+/**
+ * Schedules one review of item `p` (mutated) with the FSRS-style scheduler. A miss makes it due now and never
+ * lowers its growth stage; a pass grows the stage by at most one, up to what its stability supports.
+ */
+function schedule(p, ok, now = Date.now()) {
+  const next = srs.review(p, srs.gradeOf(ok), now);
+  p.s = next.s;
+  p.d = next.d;
+  p.lr = next.lr;
+  p.due = next.due;
+  if (ok) p.level = Math.max(p.level || 0, Math.min((p.level || 0) + 1, srs.stageOf(p.s)));
+  return p;
+}
+
+const newItem = (now = Date.now()) => ({ level: 0, due: 0, best: 0, r: 0, pl: now, s: 0, d: 0, lr: 0 });
 
 const listeners = new Set();
 const gradeListeners = new Set();
@@ -197,42 +238,89 @@ class Store {
   // ----- skill model -----
   /**
    * Records one graded action for the skill model: `skill` is one of SKILLS, `id` the item it was about (optional),
-   * `ok` whether it was right, `firstTry` false for a retry after a miss. It only feeds skill tracking: callers still
-   * use log()/recordReview()/recordDojo()/... for scheduling and daily accuracy, exactly as before.
-   * (Contract for the learning engine; the full implementation lands with it.)
+   * `ok` whether it was right, `firstTry` false for a retry after a miss. First tries feed the per-skill daily
+   * tallies, the recent results that difficulty targeting reads, and per-item mastery (skills.js). Callers still
+   * use log()/recordReview()/recordDojo()/... for scheduling and daily accuracy. Every call is emitted to onGrade().
    */
   grade({ skill, id = null, ok, firstTry = true } = {}) {
     if (!SKILLS.includes(skill)) return;
     const ev = { skill, id, ok: !!ok, firstTry: !!firstTry, at: Date.now() };
+    recordGrade(this.s.engine, ev, dateKey());
+    this.save();
     gradeListeners.forEach((fn) => { try { fn(ev); } catch (e) { /* ignore */ } });
   }
+
+  get engine() { return this.s.engine; }
+
+  /** First-try accuracy per skill over calendar days fromKey..toKey (inclusive): { skill: { ok, tot, rate } }. */
+  skillDays(fromKey, toKey) {
+    const from = dayNumber(fromKey), to = dayNumber(toKey);
+    const out = {};
+    for (const sk of SKILLS) out[sk] = { ok: 0, tot: 0, rate: null };
+    for (const [k, day] of Object.entries(this.s.engine.tally)) {
+      const n = dayNumber(k);
+      if (n < from || n > to) continue;
+      for (const [sk, t] of Object.entries(day)) { if (out[sk]) { out[sk].ok += t[0]; out[sk].tot += t[1]; } }
+    }
+    for (const sk of SKILLS) out[sk].rate = out[sk].tot ? out[sk].ok / out[sk].tot : null;
+    return out;
+  }
+
+  /** New garden words allowed today: at most DAILY_NEW_CAP, fewer on the gentle pace or while accuracy is low. */
+  newCap() { return Math.min(DAILY_NEW_CAP, newPerDay(this.s.engine, this.s.settings)); }
+
+  // ----- placement check -----
+  skipPlacement() { this.s.engine.placementSkip = true; this.save(); }
+
+  /**
+   * Marks Reading Dojo lessons the placement check found you know: clears them (never un-clears anything) and
+   * seeds their characters as learned with a modest stability, due over the next week. Existing items are left
+   * alone. Returns the lesson ids that were newly cleared.
+   */
+  applyPlacement(lessonIds, now = Date.now()) {
+    const added = [];
+    let n = 0;
+    for (const id of lessonIds) {
+      const l = LESSON_BY_ID[id];
+      if (!l) continue;
+      if (!this.s.dojo.includes(id)) { this.s.dojo.push(id); added.push(id); }
+      const ids = l.chars ? l.chars.map((c) => 'kana:' + c.k) : (l.kanji || []).map((j) => 'kj:' + j.k);
+      for (const cid of ids) {
+        if (this.s.items[cid]) continue;
+        const s = PLACEMENT_STABILITY;
+        this.s.items[cid] = { level: srs.stageOf(s), due: now + (2 + (n++ % 5)) * DAY, best: 0, r: 1, pl: now, s, d: 5, lr: now };
+      }
+    }
+    const prev = this.s.engine.placement ? this.s.engine.placement.lessons : [];
+    this.s.engine.placement = { at: now, lessons: [...new Set([...prev, ...lessonIds.filter((x) => LESSON_BY_ID[x])])] };
+    this.save();
+    return added;
+  }
+
+  // ----- weekly check-in -----
+  markCheckin(week) { this.s.engine.checkin = week; this.save(); }
 
   /** Listen to every graded action (e.g. a course unit counting its practice). Returns an unsubscribe function. */
   onGrade(fn) { gradeListeners.add(fn); return () => gradeListeners.delete(fn); }
 
   // ----- review items -----
   item(id) { return this.s.items[id]; }
-  progress(id) { return this.s.items[id] || { level: 0, due: 0, best: 0, r: 0, pl: 0 }; }
+  progress(id) { return this.s.items[id] || newItem(0); }
   level(phrase) { return this.progress(phrase.id).level; }
   isDue(phrase, now = Date.now()) { return this.progress(phrase.id).due <= now; }
 
   /** Adds a word to the garden the first time it's met. Does nothing if it's already planted. */
   plant(id) {
     if (this.s.items[id]) return;
-    this.s.items[id] = { level: 0, due: 0, best: 0, r: 0, pl: Date.now() };
+    this.s.items[id] = newItem();
     this.save();
   }
 
-  /** Garden review: a pass grows the plant and waters it until its next due date. */
+  /** Garden review: a pass grows the plant and waters it until its next due date (when recall drops to ~90%). */
   recordReview(id, ok) {
-    const p = this.s.items[id] || { level: 0, due: 0, best: 0, r: 0, pl: Date.now() };
+    const p = this.s.items[id] || newItem();
     const wasNew = !p.r;
-    if (ok) {
-      p.level = Math.min(p.level + 1, INTERVALS.length - 1);
-      p.due = Date.now() + INTERVALS[p.level] * DAY;
-    } else {
-      p.due = Date.now();
-    }
+    schedule(p, ok);
     p.r = (p.r || 0) + 1;
     this.s.items[id] = p;
     const d = this.day();
@@ -269,12 +357,7 @@ class Store {
     const p = { ...this.progress(phrase.id) };
     if (!p.pl) p.pl = Date.now();
     p.best = Math.max(p.best, score);
-    if (score >= 0.8) {
-      p.level = Math.min(p.level + 1, INTERVALS.length - 1);
-      p.due = Date.now() + INTERVALS[p.level] * DAY;
-    } else {
-      p.due = Date.now();
-    }
+    schedule(p, score >= 0.8);
     this.s.items[phrase.id] = p;
     this.log(score >= 0.8);
   }
@@ -305,7 +388,7 @@ class Store {
   dailyGardenQueue(cap = DAILY_REVIEW_CAP) {
     const d = this.day();
     const remaining = Math.max(0, cap - d.rev);
-    const newLeft = Math.max(0, DAILY_NEW_CAP - d.newc);
+    const newLeft = Math.max(0, this.newCap() - d.newc);
     const now = Date.now();
     const plants = this.planted().filter((p) => p.prog.due <= now);
     const reviews = plants.filter((p) => p.prog.r > 0).map((p) => p.item);
@@ -338,16 +421,12 @@ class Store {
     return ALL_LESSONS.find((l) => !cleared.has(l.id)) || null;
   }
 
-  /** Dojo review: same growing intervals as the garden, but kept out of the garden's daily cap. */
+  /** Dojo review: same scheduler as the garden, but kept out of the garden's daily cap. */
   recordDojo(id, ok, { firstTime = false } = {}) {
-    const p = this.s.items[id] || { level: 0, due: 0, best: 0, r: 0, pl: Date.now() };
-    if (ok) {
-      p.level = Math.min(p.level + 1, INTERVALS.length - 1);
-      p.due = Date.now() + INTERVALS[p.level] * DAY;
-    } else {
-      // A miss comes back soon, without knocking the level down (no punishment, just more practice).
-      p.due = firstTime ? Date.now() + DAY / 2 : Date.now();
-    }
+    const p = this.s.items[id] || newItem();
+    schedule(p, ok);
+    // A miss comes back soon, without knocking the level down (no punishment, just more practice).
+    if (!ok && firstTime) p.due = Date.now() + DAY / 2;
     p.r = (p.r || 0) + 1;
     this.s.items[id] = p;
     this.log(ok);
