@@ -203,6 +203,9 @@ button { font: inherit; color: inherit; }
 .plant-jp { font-size: 13px; font-weight: 700; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: var(--jp); }
 .card-review { display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; min-height: calc(100dvh - 220px); padding-top: 12px; }
 .card-review .row2 { width: 100%; }
+.card-review .n5-ex { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.card-review .n5-ex p { margin: 0; }
+.card-review .n5-pitch { display: flex; justify-content: center; }
 .review-jp { font-size: clamp(36px, 12vw, 56px); font-weight: 900; word-break: break-word; margin-top: 8vh; }
 
 /* ---------- story ---------- */
