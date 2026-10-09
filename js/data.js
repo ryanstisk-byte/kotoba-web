@@ -1,5 +1,8 @@
 // All study content, ported verbatim from the Kotoba Beat SwiftUI prototype (plus the N5 deck in n5.js).
 import { N5 } from './n5.js';
+import { sagaChapters, SAGA_CAST, ARCS, QUIZZES } from './story-data.js';
+
+export { ARCS, QUIZZES };
 
 // ---------- Phrases (Phrases.swift) ----------
 
@@ -51,6 +54,7 @@ export const CAST = {
   ren: { name: 'Ren', jpName: 'レン', color: 'var(--accent)', voice: 1 },
   master: { name: 'Master', jpName: '師匠', color: 'var(--good)', voice: 2 },
   kaito: { name: 'Kaito', jpName: 'カイト', color: 'var(--trace)', voice: 3 },
+  ...SAGA_CAST,   // chapters 5-12: the shop customers (js/story-data.js)
 };
 
 const W = (jp, reading, en) => ({ jp, reading, en, gardenID: 'w:' + jp });
@@ -145,6 +149,8 @@ export const CHAPTERS = [
     B(master, 'いい ライバルだな。', 'いい らいばるだな。', 'You two are good rivals.',
       { words: [W('ライバル', 'らいばる', 'rival')] }),
   ] },
+  // Chapters 5-12 (tournament and final arcs) live in js/story-data.js.
+  ...sagaChapters(CAST, N5),
 ];
 
 export const STORY_WORDS = (() => {
