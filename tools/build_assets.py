@@ -2,9 +2,15 @@
 """Builds the generated assets: voice clips (audio/*.mp3 + js/clips.js), readings for romaji/furigana
 (js/readings.js) and the service worker's precache list (sw.js).
 
-Needs: node, ffmpeg, and `python3 -m pip install pyopenjtalk-plus` (Open JTalk with the bundled "mei" voice).
-Run from the repo root after changing any Japanese text:  python3 tools/build_assets.py
-Existing clips are reused, so reruns only synthesize new lines.
+Needs: node, ffmpeg, numpy, pyopenjtalk-plus (for readings) and VOICEVOX CORE 0.16 (for the voices):
+  - the Python wheel voicevox_core-0.16.x-cp310-abi3-<platform>.whl from github.com/VOICEVOX/voicevox_core/releases
+  - libvoicevox_onnxruntime from github.com/VOICEVOX/onnxruntime-builder/releases
+  - open_jtalk_dic_utf_8-1.11 from github.com/r9y9/open_jtalk/releases
+  - the .vvm voice models listed in VOICES, from github.com/VOICEVOX/voicevox_vvm/releases
+  (or let VOICEVOX's `download` tool fetch them all). Point VOICEVOX_DIR at a folder holding
+  onnxruntime/lib/, dict/open_jtalk_dic_utf_8-1.11/ and vvms/.
+Run from the repo root after changing any Japanese text:  VOICEVOX_DIR=... python3 tools/build_assets.py
+Existing clips are reused, so reruns only synthesize new lines. Without pyopenjtalk, js/readings.js is left as is.
 """
 import hashlib
 import json
@@ -17,13 +23,25 @@ import wave
 from collections import Counter, defaultdict
 
 import numpy as np
-import pyopenjtalk
+
+try:
+    import pyopenjtalk
+except ImportError:
+    pyopenjtalk = None
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 AUDIO = os.path.join(ROOT, 'audio')
 
-# Per-character voices: one synthetic voice, shifted in pitch (semitones). Index = `voice` in speaker.speak().
-HALF_TONE = [0, -3, -6, -4, -5, 3]
+# Per-character VOICEVOX voices. Index = `voice` in speaker.speak(); (vvm file, style id, credit name).
+# Only voices whose terms allow free use with a "VOICEVOX:name" credit (shown in Settings, js/settings.js).
+VOICES = [
+    ('0.vvm', 2, '四国めたん'),     # 0 narrator, vocabulary, kana: clear standard voice
+    ('9.vvm', 12, '白上虎太郎'),    # 1 Ren, shopkeeper: young, energetic
+    ('15.vvm', 13, '青山龍星'),     # 2 the Master: deep, calm (personal use; companies must ask first)
+    ('4.vvm', 11, '玄野武宏'),      # 3 Kaito, office worker
+    ('21.vvm', 109, '東北イタコ'),  # 4 older customer
+    ('0.vvm', 3, 'ずんだもん'),     # 5 kid
+]
 # Two recordings of every line: natural speed, and a slow one for the 🐢 setting (slowing at synthesis
 # sounds far cleaner than stretching in the browser).
 SPEEDS = {'': 1.0, 'slow': 0.6}
@@ -48,17 +66,39 @@ def clip_key(text, voice, speed=''):
 
 
 def clip_name(text, voice, speed=''):
-    tag = 'v2|' + (f'{SPEEDS[speed]}|' if speed else '')
+    tag = 'vv1|' + (f'{SPEEDS[speed]}|' if speed else '')
     return hashlib.sha1((tag + clip_key(text, voice, speed)).encode()).hexdigest()[:12] + '.mp3'
 
 
+_synth = None
+
+
+def synthesizer():
+    global _synth
+    if _synth is None:
+        from voicevox_core.blocking import Onnxruntime, OpenJtalk, Synthesizer, VoiceModelFile
+        base = os.environ.get('VOICEVOX_DIR', os.path.join(ROOT, 'voicevox_core'))
+        ort = Onnxruntime.load_once(filename=os.path.join(base, 'onnxruntime', 'lib', Onnxruntime.LIB_VERSIONED_FILENAME))
+        _synth = Synthesizer(ort, OpenJtalk(os.path.join(base, 'dict', 'open_jtalk_dic_utf_8-1.11')))
+        for vvm in sorted({v[0] for v in VOICES}):
+            with VoiceModelFile.open(os.path.join(base, 'vvms', vvm)) as m:
+                _synth.load_voice_model(m)
+    return _synth
+
+
 def synth(text, voice, speed, out):
-    x, sr = pyopenjtalk.tts(SAY_AS.get(text, text), speed=SPEEDS[speed], half_tone=HALF_TONE[voice])
-    # Open JTalk often peaks well above 16-bit range: scale down instead of clipping (clipping sounded harsh and cut off).
-    peak = float(np.max(np.abs(x))) or 1.0
-    x = (x * (0.9 * 32767 / peak)).astype(np.int16)
+    s = synthesizer()
+    style = VOICES[voice][1]
+    q = s.create_audio_query(SAY_AS.get(text, text), style)
+    q.speed_scale = SPEEDS[speed]
     with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
         tmp = f.name
+        f.write(s.synthesis(q, style))
+    # Keep headroom: scale every clip to the same peak (0.9) so none clip and voices sound equally loud.
+    with wave.open(tmp, 'rb') as w:
+        sr, x = w.getframerate(), np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16).astype(np.float64)
+    peak = float(np.max(np.abs(x))) or 1.0
+    x = (x * (0.9 * 32767 / peak)).astype(np.int16)
     with wave.open(tmp, 'wb') as w:
         w.setnchannels(1)
         w.setsampwidth(2)
@@ -268,7 +308,10 @@ def build_sw():
 def main():
     data = json.loads(subprocess.run(['node', os.path.join(ROOT, 'tools', 'collect.mjs')], capture_output=True, check=True, text=True).stdout)
     build_clips([tuple(c) for c in data['clips']])
-    build_readings(data['pairs'])
+    if pyopenjtalk:
+        build_readings(data['pairs'])
+    else:
+        print('readings: pyopenjtalk not installed, js/readings.js left as is')
     build_sw()
 
 

@@ -110,11 +110,9 @@ class Speaker {
     return CLIPS[text + '#' + v] || CLIPS[text + '#0'] || null;
   }
 
-  /** Which voice plays by default: a natural-sounding device voice if there is one, else the built-in clips. */
+  /** The built-in VOICEVOX clips play by default; device voices only when chosen, or for lines without a clip. */
   get usesDevice() {
-    if (this.source === 'device') return this.voices.length > 0;
-    if (this.source === 'auto') return this.natural.length > 0;
-    return false;
+    return this.source === 'device' && this.voices.length > 0;
   }
 
   isSlowClip(file) { return SLOW_FILES.has(file); }
