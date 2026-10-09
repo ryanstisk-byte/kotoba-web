@@ -26,7 +26,7 @@ test('service worker registers, precaches everything and the app works offline',
   await page.reload();
   await expect(page.locator('#today-h')).toBeVisible();
   await page.goto('./#/modes');
-  await expect(view(page).locator('.mode-card')).toHaveCount(9);
+  await expect(view(page).locator('.mode-card')).toHaveCount(14);
 
   // Modes and screens load from the cache.
   for (const [hash, title] of [['#/play/garden', 'Garden'], ['#/play/dojo', 'Reading Dojo'], ['#/check', 'Sound & mic check'], ['#/settings', 'Settings']]) {

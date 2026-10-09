@@ -879,3 +879,43 @@ p:has(> .jr), .small:has(> .jr), .lead:has(> .jr), .strong:has(> .jr), span:has(
 .word-item { text-align: center; }
 .word-item .tiny { line-height: 1.3; }
 .course .row-between.wrap-gap > .switch-row { flex: 1 1 220px; }
+   New practice modes: Listening Lab, Conjugation Dojo, Sentence Builder, Katakana Rush, Numbers & Time
+   ====================================================================== */
+.practice { max-width: 680px; margin: 0 auto; width: 100%; }
+.practice-opts .btn { min-height: 60px; font-size: var(--fs-lg); line-height: var(--lh-ruby); }
+.practice-opts .btn[lang="ja"] { font-family: var(--font-jp); font-size: var(--fs-jp-md); font-weight: 800; }
+.practice p[lang="ja"] { line-height: var(--lh-ruby); }
+/* Listening Lab and Numbers & Time */
+.listen-stage { display: flex; gap: var(--sp-3); align-items: center; border: 2px solid var(--ink); }
+.listen-scene { font-size: 3rem; line-height: 1; flex: none; }
+.transcript { gap: var(--sp-2); }
+.t-line { display: flex; gap: var(--sp-2); align-items: flex-start; }
+.t-line + .t-line { border-top: 1.5px solid var(--line); padding-top: var(--sp-2); }
+.t-play { flex: none; font-size: 1.1rem; width: 44px; height: 44px; }
+.t-jp { font-family: var(--font-jp); font-size: var(--fs-jp-md); font-weight: 700; word-break: break-word; }
+/* Conjugation Dojo */
+.conj-card { border: 2px solid var(--ink); box-shadow: 4px 4px 0 var(--edge); }
+.conj-word { font-family: var(--font-jp); font-size: var(--fs-jp-xl); font-weight: 900; line-height: 1.5; word-break: break-word; }
+.conj-form { font-size: var(--fs-xl); font-weight: 900; font-style: italic; color: var(--accent); }
+/* Sentence Builder */
+.build-prompt { display: flex; gap: var(--sp-3); align-items: center; }
+.build-scene { font-size: 2.6rem; line-height: 1; flex: none; }
+.tile-row { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; min-height: 64px; }
+.answer-row { padding: var(--sp-2); border: 2px dashed var(--border-strong); border-radius: var(--r-md); background: var(--surface-2); }
+.answer-row.is-right { border: 2px solid var(--good); background: var(--good-soft); }
+.answer-row.is-wrong { border: 2px solid var(--miss); background: var(--miss-soft); }
+.word-tile {
+  min-height: 48px; padding: var(--sp-1) var(--sp-3); border-radius: var(--r-sm); border: 2px solid var(--ink);
+  background: var(--surface); color: var(--ink); font-family: var(--font-jp); font-size: var(--fs-jp-md); font-weight: 800;
+  box-shadow: 2px 2px 0 var(--edge); cursor: pointer; line-height: var(--lh-ruby); max-width: 100%; word-break: break-word;
+}
+.word-tile:hover { border-color: var(--accent); }
+.word-tile.placed { background: var(--accent-soft); }
+.word-tile:disabled { cursor: default; box-shadow: none; }
+.build-answer { font-family: var(--font-jp); font-size: var(--fs-jp-lg); font-weight: 800; word-break: break-word; }
+/* Katakana Rush */
+.rush-bar { height: 12px; border-radius: var(--r-pill); background: var(--surface-2); border: 1.5px solid var(--border-strong); overflow: hidden; }
+.rush-bar > span { display: block; height: 100%; background: var(--electric); }
+.rush-card { border: 2px solid var(--ink); }
+.rush-word { font-family: var(--font-jp); font-size: clamp(2.6rem, 13vw, 4.2rem); font-weight: 900; line-height: 1.2; word-break: break-word; }
+.rush-romaji { font-size: var(--fs-lg); min-height: 1.5em; }
