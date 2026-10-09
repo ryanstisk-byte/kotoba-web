@@ -157,6 +157,24 @@ test.describe('readability', () => {
     expect(sw).toBeLessThanOrEqual(cw);
   });
 
+  test('a long kana word with romaji over it wraps instead of overflowing a narrow screen', async ({ page }) => {
+    await seed(page, { v: 2, items: {}, settings: { readingHelp: 'romaji' } });
+    await page.goto('./#/modes');
+    const r = await page.evaluate(async () => {
+      const p = document.createElement('p');
+      p.style.width = '150px';
+      p.lang = 'ja';
+      p.textContent = 'ありがとうございました';
+      document.getElementById('view').prepend(p);
+      await new Promise((res) => setTimeout(res, 100));   // reading help annotates on the next mutation pass
+      const rts = [...p.querySelectorAll('rt')].map((x) => x.textContent);
+      return { overflow: p.scrollWidth - p.clientWidth, rts };
+    });
+    expect(r.rts.join('')).toBe('arigatougozaimashita');
+    expect(r.rts.length).toBeGreaterThan(1);
+    expect(r.overflow).toBeLessThanOrEqual(0);
+  });
+
   for (const help of ['romaji', 'kana']) {
     test(`${help} reading help never overlaps other text`, async ({ page }) => {
       await seed(page, { v: 2, items: {}, settings: { readingHelp: help, textSize: 'l' } });
