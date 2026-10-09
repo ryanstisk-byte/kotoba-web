@@ -1,6 +1,6 @@
 // Progress store: spaced review with no streaks. Missing days never wipes anything out.
 // Port of ProgressStore.swift plus the daily-plan bookkeeping for the "Today" screen.
-import { PHRASES, PHRASE_BY_ID, GARDEN_CATALOG, CHAPTERS } from './data.js';
+import { PHRASES, PHRASE_BY_ID, GARDEN_CATALOG, CHAPTERS, N5_WORDS } from './data.js';
 import { ALL_LESSONS } from './dojo-data.js';
 
 export const STORAGE_KEY = 'kotobaBeat.v1';
@@ -290,11 +290,19 @@ class Store {
     const plants = this.planted().filter((p) => p.prog.due <= now);
     const reviews = plants.filter((p) => p.prog.r > 0).map((p) => p.item);
     const fresh = plants.filter((p) => !p.prog.r).sort((a, b) => (a.prog.pl || 0) - (b.prog.pl || 0)).map((p) => p.item);
-    // If fewer than 5 planted words are waiting, introduce starter phrases in order.
+    // If fewer than 5 planted words are waiting, introduce starter phrases in order, then the N5 deck in order.
     if (fresh.length < newLeft) {
       for (const ph of PHRASES) {
         if (fresh.length >= newLeft) break;
         if (!ph.isBoss && !this.s.items[ph.id]) fresh.push(GARDEN_CATALOG[ph.id]);
+      }
+    }
+    if (fresh.length < newLeft) {
+      // Skip N5 words already growing under another id (met in Story, Kanji Forge or the starter phrases).
+      const known = new Set(this.planted().map((p) => p.item.jp).concat(fresh.map((f) => f.jp)));
+      for (const w of N5_WORDS) {
+        if (fresh.length >= newLeft) break;
+        if (!this.s.items[w.id] && !known.has(w.jp)) { fresh.push(GARDEN_CATALOG[w.id]); known.add(w.jp); }
       }
     }
     const q = reviews.slice(0, remaining);
