@@ -211,7 +211,7 @@ test.describe('modes', () => {
     for (let i = 0; i < count; i++) await v.locator('[data-act=add]').nth(index).click();
     await v.getByRole('button', { name: /Hand it over/ }).click();
     await expect(v.getByText(/✓ Right:/)).toBeVisible();
-    await v.getByRole('button', { name: /^ありがとうございました/ }).click();
+    await v.locator('[data-act=reply][data-i="0"]').click();   // ありがとうございました (its romaji is chunked into the name)
     await expect(v.getByText(/1 served · 1 perfect/)).toBeVisible();
     await v.getByRole('button', { name: /Next customer/ }).click();
     await expect(v.getByRole('button', { name: /^いらっしゃいませ/ })).toBeVisible();
