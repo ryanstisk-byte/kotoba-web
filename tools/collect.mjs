@@ -2,9 +2,12 @@
 // Run: node tools/collect.mjs > /tmp/collect.json   (used by tools/build_assets.py)
 import { PHRASES, CHAPTERS, CAST, STORY_WORDS, TRAINS, assembleTrain, KANJI, SHOP_STOCK, COUNTERS, CUSTOMERS, SHOP_GREETINGS, SHOP_THANKS, GARDEN_CATALOG } from '../js/data.js';
 import { LESSONS, KANJI_LESSONS, READ_WORDS } from '../js/dojo-data.js';
+import { N5_WORDS } from '../js/data.js';
+import { N5 } from '../js/n5.js';
 
 const clips = new Map();
-const add = (text, voice = 0) => { if (text) clips.set(text + '#' + voice, [text, voice]); };
+// opts (optional): { accent } to set a word's pitch, { say } for text the voice should read instead.
+const add = (text, voice = 0, opts = null) => { if (text) clips.set(text + '#' + voice, opts ? [text, voice, opts] : [text, voice]); };
 const pairs = [];
 
 for (const p of PHRASES) {
@@ -37,5 +40,17 @@ add(SHOP_THANKS[0], 1);
 for (const l of LESSONS) for (const c of l.chars) add(c.k);
 for (const l of KANJI_LESSONS) for (const j of l.kanji) { add(j.reading); pairs.push([j.word, j.reading]); }
 for (const v of READ_WORDS) add(v.w);
+
+// N5 deck: each word with its pitch accent set, and its example sentence. Added last so these win over
+// an older clip of the same text.
+N5_WORDS.forEach((w, i) => {
+  const [, , , , , , , say, exSay] = N5[i];
+  add(w.say, 0, { accent: w.accent, ...(say ? { say } : {}) });
+  pairs.push([w.jp, w.reading]);
+  if (w.ex) {
+    add(w.ex, 0, exSay ? { say: exSay } : null);
+    pairs.push([w.ex, w.exReading]);
+  }
+});
 
 process.stdout.write(JSON.stringify({ clips: [...clips.values()], pairs }));

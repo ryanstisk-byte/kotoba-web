@@ -10,7 +10,7 @@ Needs: node, ffmpeg, numpy, pyopenjtalk-plus (for readings) and VOICEVOX CORE 0.
   (or let VOICEVOX's `download` tool fetch them all). Point VOICEVOX_DIR at a folder holding
   onnxruntime/lib/, dict/open_jtalk_dic_utf_8-1.11/ and vvms/.
 Run from the repo root after changing any Japanese text:  VOICEVOX_DIR=... python3 tools/build_assets.py
-Existing clips are reused, so reruns only synthesize new lines. Without pyopenjtalk, js/readings.js is left as is.
+Existing clips are reused, so reruns only synthesize new lines. Without pyopenjtalk, js/readings.js keeps what it has and only gains the readings written in the data.
 """
 import hashlib
 import json
@@ -65,8 +65,11 @@ def clip_key(text, voice, speed=''):
     return f'{text}#{voice}' + (f'#{speed}' if speed else '')
 
 
-def clip_name(text, voice, speed=''):
+def clip_name(text, voice, speed='', opts=None):
     tag = 'vv1|' + (f'{SPEEDS[speed]}|' if speed else '')
+    # Clips with a set pitch accent or a different text to read get their own file (old clips keep their names).
+    if opts:
+        tag += json.dumps(opts, ensure_ascii=False, sort_keys=True) + '|'
     return hashlib.sha1((tag + clip_key(text, voice, speed)).encode()).hexdigest()[:12] + '.mp3'
 
 
@@ -86,10 +89,30 @@ def synthesizer():
     return _synth
 
 
-def synth(text, voice, speed, out):
+def mora_count(kana):
+    return len(re.sub(r'[ゃゅょぁぃぅぇぉゎャュョァィゥェォヮ]', '', kana))
+
+
+def synth(text, voice, speed, out, opts=None):
+    """opts: 'say' = text to read instead (when Open JTalk misreads the written form), 'accent' = downstep
+    (0 = flat) to force on a single word, so the clip matches the pitch the app shows."""
+    from voicevox_core import AudioQuery
     s = synthesizer()
     style = VOICES[voice][1]
-    q = s.create_audio_query(SAY_AS.get(text, text), style)
+    opts = opts or {}
+    say = opts.get('say') or SAY_AS.get(text, text)
+    if 'accent' in opts:
+        phrases = s.create_accent_phrases(say, style)
+        if len(phrases) == 1:
+            ph = phrases[0]
+            n = len(ph.moras)
+            want = opts['accent'] or n   # VOICEVOX writes flat as "accent on the last mora"
+            if 1 <= want <= n and want != ph.accent:
+                ph.accent = want
+                phrases = s.replace_mora_pitch(phrases, style)
+        q = AudioQuery.from_accent_phrases(phrases)
+    else:
+        q = s.create_audio_query(say, style)
     q.speed_scale = SPEEDS[speed]
     with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
         tmp = f.name
@@ -121,14 +144,16 @@ def build_clips(clips):
     table = {}
     keep = {'silence.mp3'}
     made = 0
-    for text, voice in clips:
+    for text, voice, opts in clips:
         for speed in SPEEDS:
-            name = clip_name(text, voice, speed)
+            name = clip_name(text, voice, speed, opts)
             keep.add(name)
             path = os.path.join(AUDIO, name)
             if not os.path.exists(path):
-                synth(text, voice, speed, path)
+                synth(text, voice, speed, path, opts)
                 made += 1
+                if made % 100 == 0:
+                    print(f'  {made} clips made...', flush=True)
             table[clip_key(text, voice, speed)] = name
     for f in os.listdir(AUDIO):
         if f not in keep:
@@ -157,8 +182,21 @@ def strip_marks(s):
 
 def char_readings_from_pair(jp, reading):
     """Per-run readings for a jp text with a known (spaced) reading, e.g. story lines."""
-    parts = align(strip_marks(jp), strip_marks(reading))
-    return parts
+    # Punctuation splits kanji runs (夜、母に… is 夜 + 母, not one run 夜母): align piece by piece when the
+    # reading has the same punctuation, so neighbouring kanji runs can't swallow each other's readings.
+    marks = r'[、。！？!?…「」『』（）()・〜~,.]+'
+    jp_pieces = [x for x in re.split(marks, jp) if strip_marks(x)]
+    rd_pieces = [x for x in re.split(marks, reading) if strip_marks(x)]
+    if len(jp_pieces) > 1 and len(jp_pieces) == len(rd_pieces):
+        out = []
+        for a, b in zip(jp_pieces, rd_pieces):
+            parts = align(strip_marks(a), strip_marks(b))
+            if parts is None:
+                break
+            out.extend(parts)
+        else:
+            return out
+    return align(strip_marks(jp), strip_marks(reading))
 
 
 def char_readings_openjtalk(text):
@@ -228,7 +266,7 @@ def source_texts():
     texts = set()
     for dirpath, _, files in os.walk(os.path.join(ROOT, 'js')):
         for f in files:
-            if not f.endswith('.js') or f in ('readings.js', 'clips.js'):
+            if not f.endswith('.js') or f in ('readings.js', 'clips.js', 'n5.js'):
                 continue
             src = open(os.path.join(dirpath, f), encoding='utf-8').read()
             for m in JS_STR.finditer(src):
@@ -239,7 +277,15 @@ def source_texts():
     return texts
 
 
-def build_readings(pairs):
+def existing_readings():
+    src = open(os.path.join(ROOT, 'js', 'readings.js'), encoding='utf-8').read()
+    get = lambda name: json.loads(re.search(r'export const ' + name + r' = (\{.*?\});\n', src, re.S).group(1))
+    return get('RUNS'), get('SEGMENTS')
+
+
+def build_readings(pairs, merge=False):
+    """merge=True (no pyopenjtalk): add the readings written in the data to the current js/readings.js, keeping
+    everything already there, instead of rebuilding it from scratch."""
     segments = {}
     conflicts = []
     run_votes = defaultdict(Counter)
@@ -265,17 +311,23 @@ def build_readings(pairs):
             continue
         take(segments_with_parts(jp, parts), 'data')
     # 2. Everything else in the source, via Open JTalk.
-    for text in sorted(source_texts()):
-        take(segments_with_parts(text, char_readings_openjtalk(text)), 'ojt')
+    if not merge:
+        for text in sorted(source_texts()):
+            take(segments_with_parts(text, char_readings_openjtalk(text)), 'ojt')
 
     runs = {t: c.most_common(1)[0][0] for t, c in run_votes.items()}
+    old_segments = {}
+    if merge:
+        old_runs, old_segments = existing_readings()
+        runs.update(old_runs)
     runs.update(RUN_OVERRIDE)
     for seg in list(segments):
         segments[seg] = [[t, RUN_OVERRIDE.get(t, r) if seg == t or t in WRONG else r] for t, r in segments[seg]]
     # Only keep segments whose parts differ from what the run table would produce.
     def from_runs(seg):
         return [[t, runs.get(t) if IS_KANJI.search(t) else None] for t in RUN_RE.findall(seg)]
-    seg_out = {s: p for s, p in segments.items() if p != from_runs(s)}
+    seg_out = {s: p for s, p in segments.items() if p != from_runs(s) and s not in old_segments}
+    seg_out.update(old_segments)
     with open(os.path.join(ROOT, 'js', 'readings.js'), 'w') as f:
         f.write('// Generated by tools/build_assets.py. Readings for furigana/romaji: story and word readings from data.js,\n')
         f.write('// everything else from Open JTalk. RUNS: kanji run -> hiragana. SEGMENTS: exceptions, segment -> [text, reading].\n')
@@ -305,13 +357,38 @@ def build_sw():
     print(f'sw.js: {len(files)} files to precache')
 
 
+# ---------------- N5 deck ----------------
+
+def build_n5():
+    """tools/n5.tsv -> js/n5.js. Columns: jp, kana, English, pitch accent (downstep, 0 = flat), example, its reading,
+    its English, then optional texts for the voice to read instead of the word / the example when Open JTalk misreads."""
+    rows = []
+    for line in open(os.path.join(ROOT, 'tools', 'n5.tsv'), encoding='utf-8'):
+        line = line.rstrip('\n')
+        if not line or line.startswith('#'):
+            continue
+        f = line.split('\t')
+        row = f[:3] + [int(f[3])] + f[4:7]
+        extra = (f[7:9] + ['', ''])[:2]
+        if any(extra):
+            row += [extra[0] or 0, extra[1] or 0]
+        rows.append(row)
+    with open(os.path.join(ROOT, 'js', 'n5.js'), 'w', encoding='utf-8') as f:
+        f.write('// Generated by tools/build_assets.py from tools/n5.tsv. JLPT N5 deck, in teaching order:\n')
+        f.write('// [jp, kana, English, pitch accent (0 = flat), example, example reading, example English, voice says?, example voice says?]\n')
+        f.write('export const N5 = [\n' + ''.join(json.dumps(r, ensure_ascii=False) + ',\n' for r in rows) + '];\n')
+    print(f'n5: {len(rows)} words')
+
+
 def main():
+    build_n5()
     data = json.loads(subprocess.run(['node', os.path.join(ROOT, 'tools', 'collect.mjs')], capture_output=True, check=True, text=True).stdout)
-    build_clips([tuple(c) for c in data['clips']])
+    build_clips([(c[0], c[1], c[2] if len(c) > 2 else None) for c in data['clips']])
     if pyopenjtalk:
         build_readings(data['pairs'])
     else:
-        print('readings: pyopenjtalk not installed, js/readings.js left as is')
+        print('readings: pyopenjtalk not installed, so only adding readings written in the data to js/readings.js')
+        build_readings(data['pairs'], merge=True)
     build_sw()
 
 

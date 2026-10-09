@@ -9,7 +9,7 @@ const FILE_COUNT = [.../const FILES = \[([\s\S]*?)\];/.exec(SW)[1].matchAll(/'([
 test.use({ serviceWorkers: 'allow' });
 
 test('service worker registers, precaches everything and the app works offline', async ({ page, context }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(300_000);   // the install caches every file, ~4,700 with the N5 deck's clips
   await page.goto('./');
   await expect(page.locator('#today-h')).toBeVisible();
   const scope = await page.evaluate(async () => (await navigator.serviceWorker.ready).scope);
@@ -19,7 +19,7 @@ test('service worker registers, precaches everything and the app works offline',
   await expect.poll(async () => page.evaluate(async (v) => {
     if (!(await caches.has(v))) return 0;
     return (await (await caches.open(v)).keys()).length;
-  }, CACHE_VERSION), { timeout: 90_000, intervals: [500] }).toBeGreaterThanOrEqual(FILE_COUNT);
+  }, CACHE_VERSION), { timeout: 270_000, intervals: [1000] }).toBeGreaterThanOrEqual(FILE_COUNT);
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
 
   await context.setOffline(true);
