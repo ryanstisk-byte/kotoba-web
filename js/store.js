@@ -21,7 +21,7 @@ function blank() {
     forged: [],         // forged kanji
     dojo: [],           // cleared Reading Dojo lesson ids
     storyReplays: {},   // chapter id -> last replay ms (to rotate replays in the daily plan)
-    settings: { latencyMs: 0, quiet: false, length: 'standard', hideIosHint: false, theme: 'auto', readingHelp: 'auto', voice: 'clips' },
+    settings: { latencyMs: 0, quiet: false, length: 'standard', hideIosHint: false, theme: 'auto', readingHelp: 'auto', voiceSrc: 'auto', speed: 'normal' },
     days: {},           // 'YYYY-MM-DD' -> { ok, tot, rev, newc, studied, blocks: { id: 'done'|'skipped' } }
   };
 }
@@ -61,7 +61,9 @@ function normalize(raw) {
     s.settings.hideIosHint = !!st.hideIosHint;
     s.settings.theme = ['light', 'dark'].includes(st.theme) ? st.theme : 'auto';
     s.settings.readingHelp = ['romaji', 'kana', 'off'].includes(st.readingHelp) ? st.readingHelp : 'auto';
-    s.settings.voice = st.voice === 'device' ? 'device' : 'clips';
+    // voiceSrc replaced the older 'voice' setting, whose default was the built-in clips.
+    s.settings.voiceSrc = ['clips', 'device'].includes(st.voiceSrc) ? st.voiceSrc : 'auto';
+    s.settings.speed = st.speed === 'slow' ? 'slow' : 'normal';
   }
   if (raw.days && typeof raw.days === 'object') {
     for (const [k, d] of Object.entries(raw.days)) {

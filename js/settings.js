@@ -50,11 +50,19 @@ export function mount(el, ctx) {
 
         <section class="panel stack-sm">
           <h2 class="section-title">Voice</h2>
-          <div class="seg" role="radiogroup">
-            <button class="seg-btn ${st.voice === 'clips' ? 'on' : ''}" data-act="voice" data-v="clips" role="radio" aria-checked="${st.voice === 'clips'}">Built-in (works everywhere)</button>
-            <button class="seg-btn ${st.voice === 'device' ? 'on' : ''}" data-act="voice" data-v="device" role="radio" aria-checked="${st.voice === 'device'}">Device voices</button>
+          <div class="seg seg-wrap" role="radiogroup">
+            ${[['auto', 'Best available'], ['clips', 'Built-in'], ['device', 'All device voices']].map(([v, t]) => `<button class="seg-btn ${st.voiceSrc === v ? 'on' : ''}" data-act="voice" data-v="${v}" role="radio" aria-checked="${st.voiceSrc === v}">${t}</button>`).join('')}
           </div>
-          <p class="small dim">The built-in voice is recorded into the app, so it plays offline and on any device. Device voices sound more natural and vary more, but only if your device has Japanese voices installed. Lines without a built-in clip always use a device voice.</p>
+          <p class="small">${{
+            auto: speaker.natural.length ? `Using natural device voices: ${esc(speaker.natural.map((v) => v.name).join(', '))}.` : 'No natural-sounding device voice found, so the built-in voice plays. Edge on PC has the best free ones (Nanami, Keita).',
+            clips: 'Always the built-in voice: works offline and on any device, but sounds synthetic.',
+            device: 'Rotates through every Japanese voice on this device, for variety.',
+          }[st.voiceSrc]}</p>
+          <div><span class="strong">Speed</span>
+            <div class="seg" role="radiogroup">
+              ${[['normal', 'Normal'], ['slow', '🐢 Slow']].map(([v, t]) => `<button class="seg-btn ${st.speed === v ? 'on' : ''}" data-act="speed" data-v="${v}" role="radio" aria-checked="${st.speed === v}">${t}</button>`).join('')}
+            </div>
+            <p class="small dim">Or tap 🐢 at the top of any screen.</p></div>
           <div class="row2"><button class="btn" data-act="testvoice" data-v="clips">🔊 Built-in</button><button class="btn" data-act="testvoice" data-v="device">🔊 Device</button></div>
           ${!speaker.supported ? '<p class="small miss-c">This browser has no device voices.</p>'
             : voices.length ? `<p class="small">${voices.length} Japanese device voice${voices.length === 1 ? '' : 's'}: <span class="dim">${voices.map((v) => esc(v.name) + (v.localService ? '' : ' (online)')).join(' · ')}</span></p>`
@@ -230,7 +238,8 @@ export function mount(el, ctx) {
       else { const prev = speaker.source; speaker.source = 'clips'; speaker.speak('こんにちは', { mps: 4 }); speaker.source = prev; }
     },
     ruby: (b) => { store.setSetting('readingHelp', b.dataset.v); ctx.refreshChrome(); ctx.rerender(); },
-    voice: (b) => { store.setSetting('voice', b.dataset.v); ctx.refreshChrome(); render(); },
+    voice: (b) => { store.setSetting('voiceSrc', b.dataset.v); ctx.refreshChrome(); render(); },
+    speed: (b) => { store.setSetting('speed', b.dataset.v); ctx.refreshChrome(); render(); },
     mictest: toggleMic,
     calib: startCalib,
     savecalib: () => { setLatency(calib.result); calib = null; toast('Latency saved.'); render(); },
