@@ -5,6 +5,8 @@ import { test, expect, seed, saved, view } from './helpers.js';
 
 const FIXTURE = JSON.parse(readFileSync(new URL('./fixtures/progress-v1.json', import.meta.url), 'utf8'));
 const FIXTURE_V2 = JSON.parse(readFileSync(new URL('./fixtures/progress-v2.json', import.meta.url), 'utf8'));
+/** v4 adds the Story saga block (js/store.js migrateStory); older saves get it empty. */
+const EMPTY_SAGA = { mined: [], seq: 0, quiz: {}, challenge: {} };
 
 /** Every word, review date, chapter, kanji, lesson, setting and study day in `before` is still in `after`, unchanged. */
 function expectNothingLost(before, after) {
@@ -48,20 +50,21 @@ test.describe('saved progress from the current version (v1)', () => {
     expect(after.settings).toEqual(expect.objectContaining(FIXTURE.settings));
   });
 
-  test('migrating a v1 blob to v3 is lossless and adds the new settings (what import and load both use)', async ({ page }) => {
+  test('migrating a v1 blob to the current version is lossless and adds the new settings (what import and load both use)', async ({ page }) => {
     await page.goto('./');
     const out = await page.evaluate(async (blob) => (await import('./js/store.js')).store.parseImport(JSON.stringify(blob)), FIXTURE);
     expectNothingLost(FIXTURE, out);
-    expect(out.v).toBe(3);
+    expect(out.v).toBe(4);
+    expect(out.saga).toEqual(EMPTY_SAGA);
     expect(out.settings).toEqual({ ...FIXTURE.settings, textSize: 'm', sfx: true, haptics: true, pace: 'normal' });
   });
 
-  test('a v1 blob in storage is saved back as v3 with nothing lost', async ({ page }) => {
+  test('a v1 blob in storage is saved back as the current version with nothing lost', async ({ page }) => {
     await seed(page, FIXTURE);
     await page.goto('./');
     await expect(page.locator('#view')).not.toBeEmpty();
     const s = await saved(page);
-    expect(s.v).toBe(3);
+    expect(s.v).toBe(4);
     expectNothingLost(FIXTURE, s);
     expect(s.settings).toEqual(expect.objectContaining({ textSize: 'm', sfx: true, haptics: true }));
   });
@@ -94,7 +97,7 @@ test.describe('saved progress from v2', () => {
     await expect(page.locator('#view')).not.toBeEmpty();
     const s = await saved(page);
     expectNothingLost(FIXTURE_V2, s);
-    expect(s.v).toBe(3);   // migrated to v3 (tests/engine.spec.js covers v3 itself)
+    expect(s.v).toBe(4);   // migrated to the current version (engine.spec.js covers v3, story-saga.spec.js v4)
     expectNothingLost(FIXTURE_V2, await page.evaluate(async (blob) => (await import('./js/store.js')).store.parseImport(JSON.stringify(blob)), FIXTURE_V2));
   });
 

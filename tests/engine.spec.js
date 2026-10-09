@@ -150,7 +150,7 @@ test.describe('migration to v3', () => {
       const before = FIX(v);
       await page.goto('./');
       const out = await parse(page, before);
-      expect(out.v).toBe(3);
+      expect(out.v).toBeGreaterThanOrEqual(3);   // v3 = engine; later versions add more
       expectKept(before, out);
       expect(out.items.arigatou).toEqual(expect.objectContaining({ s: 7, d: 5, lr: before.items.arigatou.due - 7 * DAY }));
       expect(out.items.konnichiwa).toEqual(expect.objectContaining({ s: 0, lr: 0 }));   // never reviewed
@@ -164,17 +164,18 @@ test.describe('migration to v3', () => {
       await page.goto('./#/garden');
       await expect(view(page).locator('.plant').first()).toBeVisible();
       const s = await saved(page);
-      expect(s.v).toBe(3);
+      expect(s.v).toBeGreaterThanOrEqual(3);
       expectKept(before, s);
     });
   }
 
-  test('a v3 blob round-trips unchanged (import, load and save)', async ({ page }) => {
-    const v3 = FIX(3);
+  test('a v3 blob loads unchanged (import, load and save); v4 only adds the empty story saga block', async ({ page }) => {
+    const fx = FIX(3);
+    const v3 = { ...fx, v: 4, saga: { mined: [], seq: 0, quiz: {}, challenge: {} } };
     await page.goto('./');
-    expect(await parse(page, v3)).toEqual(v3);
+    expect(await parse(page, fx)).toEqual(v3);
     await page.goto('about:blank');
-    await seed(page, v3);
+    await seed(page, fx);
     await page.goto('./#/progress');
     await expect(view(page).locator('svg.chart').first()).toBeVisible();
     const s = await saved(page);
