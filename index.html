@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Kotoba Beat</title>
+  <meta name="description" content="Personal Japanese study: spaced review garden, story, particles, kanji, rhythm, pitch accent and speaking games.">
+  <meta name="theme-color" content="#fbf7f3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#120f1c" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#120f1c">
+  <meta name="color-scheme" content="light dark">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Kotoba Beat">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <button id="back" class="iconbtn" aria-label="Back" hidden>‹</button>
+    <span id="title" class="topbar-title">Kotoba Beat</span>
+    <span id="quiet-badge" class="tag" hidden>🤫 quiet</span>
+    <a href="#/settings" class="iconbtn" aria-label="Settings">⚙︎</a>
+  </header>
+  <div id="banner" class="banner-wrap" hidden></div>
+  <main id="view" class="view"></main>
+  <noscript><p style="padding:16px">Kotoba Beat needs JavaScript.</p></noscript>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
