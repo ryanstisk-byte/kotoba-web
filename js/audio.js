@@ -16,6 +16,8 @@ export function setAudioSession(type) {
 
 // A short silent clip, played on the first tap to unlock the audio element (iOS needs one gesture).
 const SILENCE = 'audio/silence.mp3';
+const NATURAL_RE = /natural|online|neural|google|enhanced|premium|siri|拡張|高品質/i;
+const SLOW_FILES = new Set(Object.entries(CLIPS).filter(([k]) => k.endsWith('#slow')).map(([, f]) => f));
 
 /**
  * Reads Japanese aloud. Uses the app's built-in voice clips when there is one for the text (works on every
@@ -26,11 +28,13 @@ class Speaker {
   constructor() {
     this.supported = typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
     this.voices = [];
+    this.natural = [];
     this.voiceIndex = 0;
     this.currentVoiceName = '';
     this.unlocked = false;
     this.listeners = new Set();
-    this.source = 'clips';        // 'clips' | 'device' (set from settings)
+    this.source = 'auto';         // 'auto' | 'clips' | 'device' (set from settings)
+    this.speed = 'normal';        // 'normal' | 'slow' (set from settings)
     this.lastMethod = '';         // 'clip' | 'device' | 'none'
     this.lastError = '';
     this.audio = typeof Audio !== 'undefined' ? new Audio() : null;
@@ -84,8 +88,12 @@ class Speaker {
       const ja = all.filter((v) => /^ja([-_]|$)/i.test(v.lang || ''));
       // Prefer local voices first so offline still works, but keep all of them in the rotation.
       ja.sort((a, b) => (b.localService ? 1 : 0) - (a.localService ? 1 : 0));
+      // Best-sounding first: neural/online voices (Edge "Natural", Google, Apple Enhanced/Premium/Siri).
+      const rank = (v) => (NATURAL_RE.test(v.name) ? 0 : 1);
+      ja.sort((a, b) => rank(a) - rank(b));
       const changed = ja.length !== this.voices.length;
       this.voices = ja;
+      this.natural = ja.filter((v) => NATURAL_RE.test(v.name));
       if (changed) this.listeners.forEach((fn) => fn());
     } catch (e) { /* ignore */ }
   }
@@ -93,10 +101,23 @@ class Speaker {
   onVoices(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
 
   /** The built-in clip for this text and voice, if the app has one. */
-  clipFor(text, voice) {
+  clipFor(text, voice, speed = this.speed) {
     const v = voice === null || voice === undefined ? 0 : Math.abs(voice);
+    if (speed === 'slow') {
+      const slow = CLIPS[text + '#' + v + '#slow'] || CLIPS[text + '#0#slow'];
+      if (slow) return slow;
+    }
     return CLIPS[text + '#' + v] || CLIPS[text + '#0'] || null;
   }
+
+  /** Which voice plays by default: a natural-sounding device voice if there is one, else the built-in clips. */
+  get usesDevice() {
+    if (this.source === 'device') return this.voices.length > 0;
+    if (this.source === 'auto') return this.natural.length > 0;
+    return false;
+  }
+
+  isSlowClip(file) { return SLOW_FILES.has(file); }
 
   hasClip(text) { return !!this.clipFor(text, 0); }
 
@@ -107,7 +128,7 @@ class Speaker {
   speak(text, { mps = 4, voice = null, onend = null } = {}) {
     this.stop();
     if (!text) { if (onend) setTimeout(onend, 0); return; }
-    const clip = this.source !== 'device' || !this.voices.length ? this.clipFor(text, voice) : null;
+    const clip = this.usesDevice ? null : this.clipFor(text, voice);
     if (clip && this.audio) return this.playClip(clip, mps, onend, text, voice);
     this.speakDevice(text, { mps, voice, onend });
   }
@@ -133,8 +154,8 @@ class Speaker {
     a.onended = done;
     a.onerror = () => fallback(a.error);
     a.src = 'audio/' + file;
-    // Clips are recorded slightly slow; speed them to the requested pace (pitch stays the same).
-    const rate = Math.min(Math.max(mps / 4.5, 0.75), 1.15);
+    // Clips are recorded at natural and slow speed; only stretch when a slow recording is missing.
+    const rate = this.speed === 'slow' && !this.isSlowClip(file) ? 0.75 : 1;
     a.playbackRate = rate;
     a.defaultPlaybackRate = rate;
     a.volume = 1;
@@ -158,13 +179,14 @@ class Speaker {
     u.lang = 'ja-JP';
     if (this.voices.length) {
       let v;
+      const pool = this.source === 'auto' && this.natural.length ? this.natural : this.voices;
       if (voice !== null && voice !== undefined) {
-        v = this.voices[Math.abs(voice) % this.voices.length];
+        v = pool[Math.abs(voice) % pool.length];
         // Shift the overall pitch per character so they sound different even with one voice installed.
         const shifts = [1.0, 0.8, 1.2, 0.9, 1.1, 1.3];
         u.pitch = shifts[Math.abs(voice) % shifts.length];
       } else {
-        v = this.voices[this.voiceIndex % this.voices.length];
+        v = pool[this.voiceIndex % pool.length];
         this.voiceIndex += 1;
       }
       u.voice = v;
@@ -175,7 +197,7 @@ class Speaker {
     }
     // Map our speed to the speech rate scale (1 is the voice's normal speed).
     const normalized = Math.min(Math.max(mps / 7, 0.3), 1);
-    u.rate = 0.45 + 0.55 * normalized;
+    u.rate = (0.45 + 0.55 * normalized) * (this.speed === 'slow' ? 0.7 : 1);
     if (onend) { u.onend = onend; u.onerror = onend; }
     this.keep = u;
     this.lastMethod = 'device';

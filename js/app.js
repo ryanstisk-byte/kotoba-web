@@ -25,6 +25,7 @@ const titleEl = document.getElementById('title');
 const backBtn = document.getElementById('back');
 const quietBadge = document.getElementById('quiet-badge');
 const rubyBtn = document.getElementById('ruby-toggle');
+const slowBtn = document.getElementById('slow-toggle');
 let cleanup = null;
 
 // ---------- theme ----------
@@ -38,7 +39,12 @@ function applyTheme() {
 
 function refreshChrome() {
   quietBadge.hidden = !store.settings.quiet;
-  speaker.source = store.settings.voice;
+  speaker.source = store.settings.voiceSrc;
+  speaker.speed = store.settings.speed;
+  slowBtn.classList.toggle('on', store.settings.speed === 'slow');
+  slowBtn.title = store.settings.speed === 'slow' ? 'Slow speech is on (tap for normal speed)' : 'Normal speed (tap for slow speech)';
+  slowBtn.setAttribute('aria-pressed', String(store.settings.speed === 'slow'));
+  slowBtn.setAttribute('aria-label', slowBtn.title);
   const labels = { auto: 'Auto', romaji: 'Romaji', kana: 'Kana', off: 'Off' };
   rubyBtn.textContent = 'ふa';
   rubyBtn.title = `Reading help: ${labels[store.settings.readingHelp]} (tap to change)`;
@@ -256,6 +262,12 @@ backBtn.addEventListener('click', () => {
   else history.back();
 });
 window.addEventListener('hashchange', route);
+slowBtn.addEventListener('click', () => {
+  const slow = store.settings.speed !== 'slow';
+  store.setSetting('speed', slow ? 'slow' : 'normal');
+  refreshChrome();
+  toast(slow ? '🐢 Slow speech on' : 'Normal speech speed');
+});
 rubyBtn.addEventListener('click', () => {
   const order = ['auto', 'romaji', 'kana', 'off'];
   const next = order[(order.indexOf(store.settings.readingHelp) + 1) % order.length];

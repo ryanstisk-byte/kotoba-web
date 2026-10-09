@@ -24,7 +24,9 @@ AUDIO = os.path.join(ROOT, 'audio')
 
 # Per-character voices: one synthetic voice, shifted in pitch (semitones). Index = `voice` in speaker.speak().
 HALF_TONE = [0, -3, -6, -4, -5, 3]
-SPEED = 0.9          # a touch slow; the app speeds clips up or down per mode
+# Two recordings of every line: natural speed, and a slow one for the 🐢 setting (slowing at synthesis
+# sounds far cleaner than stretching in the browser).
+SPEEDS = {'': 1.0, 'slow': 0.6}
 # Readings to use when a kanji run appears on its own or in text the build hasn't seen (Open JTalk's pick is off).
 RUN_OVERRIDE = {'一': 'いち', '二': 'に', '三': 'さん', '四': 'よん', '五': 'ご', '明': 'めい', '鍛冶': 'かじ', '生': 'せい'}
 WRONG = {'鍛冶'}   # misread everywhere, not just alone
@@ -41,13 +43,20 @@ def hira(s):
     return ''.join(chr(ord(c) - 0x60) if 0x30a1 <= ord(c) <= 0x30f6 else c for c in s)
 
 
-def clip_name(text, voice):
-    return hashlib.sha1(f'{text}#{voice}'.encode()).hexdigest()[:12] + '.mp3'
+def clip_key(text, voice, speed=''):
+    return f'{text}#{voice}' + (f'#{speed}' if speed else '')
 
 
-def synth(text, voice, out):
-    x, sr = pyopenjtalk.tts(SAY_AS.get(text, text), speed=SPEED, half_tone=HALF_TONE[voice])
-    x = np.clip(x, -32768, 32767).astype(np.int16)
+def clip_name(text, voice, speed=''):
+    tag = 'v2|' + (f'{SPEEDS[speed]}|' if speed else '')
+    return hashlib.sha1((tag + clip_key(text, voice, speed)).encode()).hexdigest()[:12] + '.mp3'
+
+
+def synth(text, voice, speed, out):
+    x, sr = pyopenjtalk.tts(SAY_AS.get(text, text), speed=SPEEDS[speed], half_tone=HALF_TONE[voice])
+    # Open JTalk often peaks well above 16-bit range: scale down instead of clipping (clipping sounded harsh and cut off).
+    peak = float(np.max(np.abs(x))) or 1.0
+    x = (x * (0.9 * 32767 / peak)).astype(np.int16)
     with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
         tmp = f.name
     with wave.open(tmp, 'wb') as w:
@@ -55,11 +64,11 @@ def synth(text, voice, out):
         w.setsampwidth(2)
         w.setframerate(sr)
         w.writeframes(x.tobytes())
-    # Trim leading/trailing silence, add a short lead-in (some phones clip the first 50 ms), normalize loudness.
+    # Trim silence, then add a short lead-in and tail so phones never swallow the first or last sound.
     subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', tmp, '-af',
-                    'silenceremove=start_periods=1:start_threshold=-50dB,areverse,silenceremove=start_periods=1:start_threshold=-50dB,areverse,'
-                    'adelay=60,loudnorm=I=-16:TP=-1.5,aresample=24000',
-                    '-ac', '1', '-c:a', 'libmp3lame', '-b:a', '40k', out], check=True)
+                    'silenceremove=start_periods=1:start_threshold=-55dB,areverse,silenceremove=start_periods=1:start_threshold=-55dB,areverse,'
+                    'afade=t=in:d=0.01,adelay=120,apad=pad_dur=0.25,aresample=24000',
+                    '-ac', '1', '-c:a', 'libmp3lame', '-b:a', '48k', out], check=True)
     os.remove(tmp)
 
 
@@ -73,13 +82,14 @@ def build_clips(clips):
     keep = {'silence.mp3'}
     made = 0
     for text, voice in clips:
-        name = clip_name(text, voice)
-        keep.add(name)
-        path = os.path.join(AUDIO, name)
-        if not os.path.exists(path):
-            synth(text, voice, path)
-            made += 1
-        table[f'{text}#{voice}'] = name
+        for speed in SPEEDS:
+            name = clip_name(text, voice, speed)
+            keep.add(name)
+            path = os.path.join(AUDIO, name)
+            if not os.path.exists(path):
+                synth(text, voice, speed, path)
+                made += 1
+            table[clip_key(text, voice, speed)] = name
     for f in os.listdir(AUDIO):
         if f not in keep:
             os.remove(os.path.join(AUDIO, f))
