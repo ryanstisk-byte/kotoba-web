@@ -1,7 +1,8 @@
 // Playwright config. The site has no build step; these tests only serve it as-is and drive it in Chromium.
 import { defineConfig, devices } from '@playwright/test';
 
-const PORT = 4173;
+// PORT lets several checkouts run their tests side by side.
+const PORT = Number(process.env.PORT || 4173);
 
 export default defineConfig({
   testDir: './tests',

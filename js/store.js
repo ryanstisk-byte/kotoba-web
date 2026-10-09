@@ -12,6 +12,9 @@ export const DAILY_REVIEW_CAP = 20;
 export const DAILY_REVIEW_CAP_SHORT = 10;
 export const DAILY_NEW_CAP = 5;
 
+/** Skill areas the learner model tracks. Every graded action in every mode feeds one of these (see store.grade). */
+export const SKILLS = ['kana', 'kanji', 'vocab', 'grammar', 'listening', 'pitch', 'speaking', 'counters'];
+
 /** Version of the saved progress shape. Bump it and add a step to MIGRATIONS whenever the shape changes. */
 export const STATE_VERSION = 2;
 
@@ -188,6 +191,18 @@ class Store {
   daysStudiedThisMonth() {
     const prefix = dateKey().slice(0, 7);
     return Object.entries(this.s.days).filter(([k, d]) => k.startsWith(prefix) && d.studied).length;
+  }
+
+  // ----- skill model -----
+  /**
+   * Records one graded action for the skill model: `skill` is one of SKILLS, `id` the item it was about (optional),
+   * `ok` whether it was right, `firstTry` false for a retry after a miss. It only feeds skill tracking: callers still
+   * use log()/recordReview()/recordDojo()/... for scheduling and daily accuracy, exactly as before.
+   * (Contract for the learning engine; the full implementation lands with it.)
+   */
+  grade({ skill, id = null, ok, firstTry = true } = {}) {
+    if (!SKILLS.includes(skill)) return;
+    void id; void ok; void firstTry;
   }
 
   // ----- review items -----
