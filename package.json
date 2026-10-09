@@ -1,0 +1,14 @@
+{
+  "name": "kotoba-web-tests",
+  "private": true,
+  "type": "module",
+  "description": "Test tooling only. The site itself has no build step and no runtime dependencies.",
+  "scripts": {
+    "test": "playwright test",
+    "test:static": "node tests/static-checks.mjs",
+    "serve": "node tests/server.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1"
+  }
+}

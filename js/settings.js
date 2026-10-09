@@ -247,11 +247,13 @@ export function mount(el, ctx) {
     copycode: copyCode,
     download,
     importtext: () => tryImport(el.querySelector('#import-text').value),
-    confirmimport: () => { store.applyImport(pending); pending = null; ctx.applyTheme(); toast('Progress imported.'); render(); },
+    // The import can change quiet mode, speed, theme and how much reading help is shown, so redraw everything.
+    confirmimport: () => { store.applyImport(pending); pending = null; ctx.applyTheme(); ctx.refreshChrome(); ctx.rerender(); toast('Progress imported.'); },
     cancelimport: () => { pending = null; render(); },
     reset: () => {
       if (!resetArmed) { resetArmed = true; render(); return; }
-      store.resetAll(); resetArmed = false; toast('Progress erased.'); render();
+      // Erasing Dojo lessons turns romaji back on (Auto reading help), so redraw everything.
+      store.resetAll(); resetArmed = false; ctx.refreshChrome(); ctx.rerender(); toast('Progress erased.');
     },
   });
 
