@@ -1,0 +1,125 @@
+{
+  "v": 2,
+  "items": {
+    "arigatou": {
+      "level": 4,
+      "due": 1791000000000,
+      "best": 0,
+      "r": 6,
+      "pl": 1789000000000
+    },
+    "ohayou": {
+      "level": 2,
+      "due": 1790500000000,
+      "best": 0.92,
+      "r": 3,
+      "pl": 1789100000000
+    },
+    "konnichiwa": {
+      "level": 0,
+      "due": 1789900000000,
+      "best": 0,
+      "r": 0,
+      "pl": 1789200000000
+    },
+    "sumimasen": {
+      "level": 6,
+      "due": 1793000000000,
+      "best": 1,
+      "r": 12,
+      "pl": 1788000000000
+    },
+    "k:休": {
+      "level": 1,
+      "due": 1790000000000,
+      "best": 0,
+      "r": 1,
+      "pl": 1789300000000
+    },
+    "kana:あ": {
+      "level": 3,
+      "due": 1790800000000,
+      "best": 0,
+      "r": 4,
+      "pl": 1789000000000
+    },
+    "kana:キ": {
+      "level": 1,
+      "due": 1789950000000,
+      "best": 0,
+      "r": 2,
+      "pl": 1789400000000
+    },
+    "kj:一": {
+      "level": 2,
+      "due": 1790600000000,
+      "best": 0,
+      "r": 2,
+      "pl": 1789500000000
+    }
+  },
+  "lastSession": 1789990000000,
+  "chapters": [
+    "ch1",
+    "ch2"
+  ],
+  "forged": [
+    "休",
+    "明"
+  ],
+  "dojo": [
+    "h1",
+    "h2",
+    "h3",
+    "k1",
+    "j1"
+  ],
+  "storyReplays": {
+    "ch1": 1789800000000
+  },
+  "settings": {
+    "latencyMs": 120,
+    "quiet": true,
+    "length": "short",
+    "hideIosHint": true,
+    "theme": "dark",
+    "readingHelp": "kana",
+    "voiceSrc": "clips",
+    "speed": "slow",
+    "textSize": "l",
+    "sfx": false,
+    "haptics": false
+  },
+  "days": {
+    "2026-09-28": {
+      "ok": 17,
+      "tot": 20,
+      "rev": 12,
+      "newc": 3,
+      "studied": true,
+      "blocks": {
+        "garden": "done",
+        "input": "done",
+        "speak": "skipped"
+      }
+    },
+    "2026-10-01": {
+      "ok": 8,
+      "tot": 9,
+      "rev": 5,
+      "newc": 5,
+      "studied": true,
+      "blocks": {
+        "dojo": "done"
+      }
+    },
+    "2026-10-03": {
+      "ok": 0,
+      "tot": 0,
+      "rev": 0,
+      "newc": 0,
+      "studied": false,
+      "blocks": {}
+    }
+  }
+}

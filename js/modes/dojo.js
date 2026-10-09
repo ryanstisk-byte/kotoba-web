@@ -5,6 +5,7 @@ import { speaker } from '../audio.js';
 import { LESSONS, KANJI_LESSONS, ALL_LESSONS, LESSON_BY_ID, TRACKS, READ_WORDS } from '../dojo-data.js';
 import { romaji } from '../romaji.js';
 import { esc, shuffle, delegate } from '../ui.js';
+import * as fx from '../fx.js';
 
 // ---------- lookups ----------
 const KANA = {};      // 'kana:あ' -> { id, k, r, m, track, lesson }
@@ -296,6 +297,8 @@ export function mount(el, ctx) {
     }
     say(soundOf(cur));
     render();
+    if (ok) fx.hit(); else fx.miss();
+    fx.announce(ok ? 'Right.' : `Not quite. The answer is ${cur.answer}.`);
     if (ok) {
       const at = quiz.i;
       setTimeout(() => { if (quiz && quiz.answered && quiz.i === at && screen === 'quiz') next(); }, 1100);
@@ -323,6 +326,7 @@ export function mount(el, ctx) {
     else store.markStudied();
     screen = 'result';
     render();
+    fx.hit({ big: true, el: el.querySelector('.score-huge') });
     if (ctx.today) ctx.today.done();
   }
 

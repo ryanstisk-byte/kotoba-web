@@ -3,6 +3,7 @@ import { store } from '../store.js';
 import { speaker } from '../audio.js';
 import { CHAPTERS, CAST } from '../data.js';
 import { esc, delegate } from '../ui.js';
+import * as fx from '../fx.js';
 
 export function mount(el, ctx) {
   let chapter = null;
@@ -74,6 +75,7 @@ export function mount(el, ctx) {
       speaker.stop();
       finished = true;
       render();
+      fx.hit({ big: true, el: el.querySelector('h2') });
       if (ctx.today) ctx.today.done();
     }
   }
@@ -152,6 +154,7 @@ export function mount(el, ctx) {
         wrongReply = ch.wrongReply;
       }
       render();
+      if (i === ch.answer) fx.hit(); else fx.miss();
     },
   });
 

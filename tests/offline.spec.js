@@ -25,6 +25,7 @@ test('service worker registers, precaches everything and the app works offline',
   await context.setOffline(true);
   await page.reload();
   await expect(page.locator('#today-h')).toBeVisible();
+  await page.goto('./#/modes');
   await expect(view(page).locator('.mode-card')).toHaveCount(9);
 
   // Modes and screens load from the cache.

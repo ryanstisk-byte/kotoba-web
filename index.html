@@ -19,16 +19,26 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <a class="skip-link" href="#view">Skip to content</a>
   <header class="topbar">
-    <button id="back" class="iconbtn" aria-label="Back" hidden>‹</button>
+    <button id="back" class="iconbtn" aria-label="Back" title="Back (Esc)" hidden>‹</button>
     <span id="title" class="topbar-title">Kotoba Beat</span>
+    <span class="spacer"></span>
     <span id="quiet-badge" class="tag" hidden>🤫 quiet</span>
     <button id="slow-toggle" class="iconbtn slow-toggle" aria-pressed="false">🐢</button>
     <button id="ruby-toggle" class="iconbtn ruby-toggle" lang="ja" data-noruby>ふa</button>
-    <a href="#/settings" class="iconbtn" aria-label="Settings">⚙︎</a>
   </header>
+  <nav id="tabs" class="tabbar" aria-label="Main" data-noruby>
+    <a class="tab" href="#/" data-tab="today"><span class="tab-k" lang="ja" aria-hidden="true">今</span><span>Today</span></a>
+    <a class="tab" href="#/modes" data-tab="modes"><span class="tab-k" lang="ja" aria-hidden="true">技</span><span>Modes</span></a>
+    <a class="tab" href="#/garden" data-tab="garden"><span class="tab-k" lang="ja" aria-hidden="true">庭</span><span>Garden</span></a>
+    <a class="tab" href="#/progress" data-tab="progress"><span class="tab-k" lang="ja" aria-hidden="true">道</span><span>Progress</span></a>
+    <a class="tab" href="#/settings" data-tab="settings"><span class="tab-k" lang="ja" aria-hidden="true">設</span><span>Settings</span></a>
+  </nav>
   <div id="banner" class="banner-wrap" hidden></div>
-  <main id="view" class="view"></main>
+  <main id="view" class="view" tabindex="-1"></main>
+  <div id="fx" class="fx-layer" aria-hidden="true"></div>
+  <div id="live" class="sr-only" aria-live="polite"></div>
   <noscript><p style="padding:16px">Kotoba Beat needs JavaScript.</p></noscript>
   <script type="module" src="js/app.js"></script>
 </body>

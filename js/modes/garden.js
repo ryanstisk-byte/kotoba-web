@@ -3,6 +3,7 @@ import { store, DAILY_REVIEW_CAP } from '../store.js';
 import { speaker } from '../audio.js';
 import { gardenStage } from '../data.js';
 import { esc, shuffle, delegate } from '../ui.js';
+import * as fx from '../fx.js';
 
 export function mount(el, ctx) {
   const cap = ctx.cap || DAILY_REVIEW_CAP;
@@ -83,6 +84,7 @@ export function mount(el, ctx) {
       if (ctx.today) ctx.today.done();
     }
     render();
+    if (ok) fx.hit({ big: !session.length }); else fx.miss();
   }
 
   const off = delegate(el, {

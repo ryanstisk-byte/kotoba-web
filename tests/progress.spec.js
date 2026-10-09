@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { test, expect, seed, saved, view } from './helpers.js';
 
 const FIXTURE = JSON.parse(readFileSync(new URL('./fixtures/progress-v1.json', import.meta.url), 'utf8'));
+const FIXTURE_V2 = JSON.parse(readFileSync(new URL('./fixtures/progress-v2.json', import.meta.url), 'utf8'));
 
 /** Every word, review date, chapter, kanji, lesson, setting and study day in `before` is still in `after`, unchanged. */
 function expectNothingLost(before, after) {
@@ -42,13 +43,23 @@ test.describe('saved progress from the current version (v1)', () => {
     const after = await saved(page);
     expect(Object.keys(after.items)).toEqual(expect.arrayContaining(Object.keys(FIXTURE.items)));
     expect(after.chapters).toEqual(FIXTURE.chapters);
-    expect(after.settings).toEqual(FIXTURE.settings);
+    expect(after.settings).toEqual(expect.objectContaining(FIXTURE.settings));
   });
 
-  test('normalizing a v1 blob is lossless (what import and load both use)', async ({ page }) => {
+  test('migrating a v1 blob to v2 is lossless and adds the new settings (what import and load both use)', async ({ page }) => {
     await page.goto('./');
     const out = await page.evaluate(async (blob) => (await import('./js/store.js')).store.parseImport(JSON.stringify(blob)), FIXTURE);
-    expect(out).toEqual(FIXTURE);
+    expect(out).toEqual({ ...FIXTURE, v: 2, settings: { ...FIXTURE.settings, textSize: 'm', sfx: true, haptics: true } });
+  });
+
+  test('a v1 blob in storage is saved back as v2 with nothing lost', async ({ page }) => {
+    await seed(page, FIXTURE);
+    await page.goto('./');
+    await expect(page.locator('#view')).not.toBeEmpty();
+    const s = await saved(page);
+    expect(s.v).toBe(2);
+    expectNothingLost(FIXTURE, s);
+    expect(s.settings).toEqual(expect.objectContaining({ textSize: 'm', sfx: true, haptics: true }));
   });
 
   test('an older blob missing newer settings keeps its progress and gets defaults', async ({ page }) => {
@@ -69,6 +80,27 @@ test.describe('saved progress from the current version (v1)', () => {
     await page.addInitScript(() => { if (!sessionStorage.getItem('x')) { sessionStorage.setItem('x', '1'); localStorage.setItem('kotobaBeat.v1', '{not json'); } });
     await page.goto('./');
     await expect(page.locator('#today-h')).toBeVisible();
+  });
+});
+
+test.describe('saved progress from v2', () => {
+  test('loads with nothing lost, including the v2 settings', async ({ page }) => {
+    await seed(page, FIXTURE_V2);
+    await page.goto('./');
+    await expect(page.locator('#view')).not.toBeEmpty();
+    const s = await saved(page);
+    expectNothingLost(FIXTURE_V2, s);
+    expect(s.v).toBe(2);
+    expect(await page.evaluate(async (blob) => (await import('./js/store.js')).store.parseImport(JSON.stringify(blob)), FIXTURE_V2)).toEqual(FIXTURE_V2);
+  });
+
+  test('a v1 progress code still imports into this version', async ({ page }) => {
+    await page.goto('./#/settings');
+    const code = 'KOTOBA1:' + Buffer.from(JSON.stringify(FIXTURE)).toString('base64');
+    await page.locator('#import-text').fill(code);
+    await page.getByRole('button', { name: 'Import pasted' }).click();
+    await page.getByRole('button', { name: 'Replace' }).click();
+    expectNothingLost(FIXTURE, await saved(page));
   });
 });
 
@@ -179,6 +211,6 @@ test.describe('reload persistence', () => {
     const s = await saved(page);
     expect(s.items).toEqual({});
     expect(s.chapters).toEqual([]);
-    expect(s.settings).toEqual(FIXTURE.settings);
+    expect(s.settings).toEqual(expect.objectContaining(FIXTURE.settings));
   });
 });

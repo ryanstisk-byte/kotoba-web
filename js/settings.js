@@ -3,6 +3,7 @@ import { store } from './store.js';
 import { speaker, recognitionSupported, micSupported, PitchTracker, audioContext, click, micHelp } from './audio.js';
 import { esc, delegate, toast } from './ui.js';
 import { median } from './modes/rhythm.js';
+import * as fx from './fx.js';
 
 export function mount(el, ctx) {
   let calib = null;        // { beats: [perfMs], taps: [perfMs], timers, result }
@@ -17,11 +18,11 @@ export function mount(el, ctx) {
     const st = store.settings;
     const voices = speaker.voices;
     el.innerHTML = `
-      <div class="stack">
+      <div class="settings-grid">
         <section class="panel stack-sm">
           <h2 class="section-title">Study</h2>
           <label class="switch-row"><span><span class="strong">Quiet mode</span><br><span class="small dim">For trains and planes. Speaking modes switch to listen-and-choose, and the daily plan skips anything that needs the mic.</span></span>
-            <input type="checkbox" data-act="quiet" ${st.quiet ? 'checked' : ''}></label>
+            <input type="checkbox" role="switch" data-act="quiet" ${st.quiet ? 'checked' : ''}></label>
           <div><span class="strong">Daily session</span>
             <div class="seg" role="radiogroup">
               <button class="seg-btn ${st.length === 'standard' ? 'on' : ''}" data-act="len" data-v="standard" role="radio" aria-checked="${st.length === 'standard'}">Standard ~20 min</button>
@@ -31,6 +32,19 @@ export function mount(el, ctx) {
             <div class="seg" role="radiogroup">
               ${['auto', 'light', 'dark'].map((t) => `<button class="seg-btn ${st.theme === t ? 'on' : ''}" data-act="theme" data-v="${t}" role="radio" aria-checked="${st.theme === t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}
             </div></div>
+        </section>
+
+        <section class="panel stack-sm">
+          <h2 class="section-title">Comfort</h2>
+          <div><span class="strong" id="ts-label">Text size</span>
+            <div class="seg" role="radiogroup" aria-labelledby="ts-label">
+              ${[['s', 'Small'], ['m', 'Medium'], ['l', 'Large'], ['xl', 'Extra large']].map(([v, t]) => `<button class="seg-btn ${st.textSize === v ? 'on' : ''}" data-act="textsize" data-v="${v}" role="radio" aria-checked="${st.textSize === v}">${t}</button>`).join('')}
+            </div></div>
+          <p class="text-preview" lang="ja">今日 から 修行だ！</p>
+          <label class="switch-row"><span><span class="strong">Sound effects</span><br><span class="small dim">A chime for right answers, a soft tone for misses.</span></span>
+            <input type="checkbox" role="switch" data-act="sfx" ${st.sfx ? 'checked' : ''}></label>
+          <label class="switch-row"><span><span class="strong">Vibration</span><br><span class="small dim">${'vibrate' in navigator ? 'A short buzz on answers (phones that support it).' : 'This device or browser can\'t vibrate (iPhone Safari doesn\'t allow it).'}</span></span>
+            <input type="checkbox" role="switch" data-act="haptics" ${st.haptics ? 'checked' : ''} ${'vibrate' in navigator ? '' : 'disabled'}></label>
         </section>
 
         <section class="panel stack-sm">
@@ -91,7 +105,7 @@ export function mount(el, ctx) {
           <label class="small">Fine-tune <input type="range" min="-100" max="400" step="10" value="${st.latencyMs}" data-act="latrange" aria-label="Latency offset in milliseconds"></label>
         </section>
 
-        <section class="panel stack-sm">
+        <section class="panel stack-sm full">
           <h2 class="section-title">Move progress between devices</h2>
           <p class="small dim">Export here, then import on your PC or phone. Importing replaces the progress on that device.</p>
           <div class="row2"><button class="btn" data-act="copycode">📋 Copy code</button><button class="btn" data-act="download">⬇ Download .json</button></div>
@@ -110,8 +124,10 @@ export function mount(el, ctx) {
           ${store.saveOk ? '' : '<p class="miss-c small">Saving is blocked in this browser (private mode?). Progress will not persist.</p>'}
           <button class="btn ${resetArmed ? 'danger' : ''}" data-act="reset">${resetArmed ? 'Tap again to erase all progress' : 'Reset all progress'}</button>
         </section>
-        <p class="tiny dim center-text">Kotoba Beat web · works offline once loaded</p>
-        <p class="tiny dim center-text" lang="ja" data-noruby>Voices: VOICEVOX:四国めたん · VOICEVOX:白上虎太郎 · VOICEVOX:青山龍星 · VOICEVOX:玄野武宏 · VOICEVOX:東北イタコ · VOICEVOX:ずんだもん</p>
+        <div class="full stack-sm">
+          <p class="tiny dim center-text">Kotoba Beat web · works offline once loaded</p>
+          <p class="tiny dim center-text" lang="ja" data-noruby>Voices: VOICEVOX:四国めたん · VOICEVOX:白上虎太郎 · VOICEVOX:青山龍星 · VOICEVOX:玄野武宏 · VOICEVOX:東北イタコ · VOICEVOX:ずんだもん</p>
+        </div>
       </div>`;
   }
 
@@ -233,6 +249,7 @@ export function mount(el, ctx) {
 
   const off = delegate(el, {
     len: (b) => { store.setSetting('length', b.dataset.v); render(); },
+    textsize: (b) => { store.setSetting('textSize', b.dataset.v); ctx.applyTheme(); render(); el.querySelector(`[data-act=textsize][data-v="${b.dataset.v}"]`)?.focus(); },
     theme: (b) => { store.setSetting('theme', b.dataset.v); ctx.applyTheme(); render(); },
     testvoice: (b) => {
       if (b.dataset.v === 'device') speaker.speakDevice('こんにちは', { mps: 4 });
@@ -260,6 +277,8 @@ export function mount(el, ctx) {
   const onChange = (ev) => {
     const t = ev.target;
     if (t.matches('[data-act=quiet]')) { store.setSetting('quiet', t.checked); ctx.refreshChrome(); }
+    if (t.matches('[data-act=sfx]')) { store.setSetting('sfx', t.checked); if (t.checked) fx.sound('hit'); }
+    if (t.matches('[data-act=haptics]')) { store.setSetting('haptics', t.checked); if (t.checked) fx.buzz(20); }
     if (t.matches('[data-act=latrange]')) { setLatency(+t.value); }
     if (t.matches('[data-act-change=file]') && t.files && t.files[0]) {
       const r = new FileReader();
