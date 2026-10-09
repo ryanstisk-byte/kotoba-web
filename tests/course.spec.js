@@ -103,7 +103,12 @@ test.describe('course path and units', () => {
   test('playing an example with no voice clip falls back to the device voice without errors', async ({ page }) => {
     await page.goto('./#/course/p0-1');
     const v = view(page);
-    const hasClip = await page.evaluate(async () => (await import('./js/audio.js')).speaker.hasClip('師匠は 先生です。'));
+    // Every line ships with a clip, so take this one's clips away to exercise the fallback.
+    const hasClip = await page.evaluate(async () => {
+      const { CLIPS } = await import('./js/clips.js');
+      for (const k of Object.keys(CLIPS)) if (k.startsWith('師匠は 先生です。#')) delete CLIPS[k];
+      return (await import('./js/audio.js')).speaker.hasClip('師匠は 先生です。');
+    });
     expect(hasClip).toBe(false);
     await v.locator('section.gp[aria-label="は marks the topic"]').getByRole('button', { name: /Play/ }).click();
     await page.waitForTimeout(300);
