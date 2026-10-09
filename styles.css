@@ -255,7 +255,8 @@ body:not(.has-tabs) .tabbar { display: none; }
 .view.enter-fwd { animation: enter-fwd var(--dur) var(--ease-out); }
 .view.enter-back { animation: enter-back var(--dur) var(--ease-out); }
 .view.enter-fade { animation: enter-fade var(--dur) var(--ease-out); }
-@keyframes enter-fwd { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+/* Forward: a slight zoom in. Never shift right: content pushed past the right edge widens the page mid-transition. */
+@keyframes enter-fwd { from { opacity: 0; transform: scale(0.985); } to { opacity: 1; transform: none; } }
 @keyframes enter-back { from { opacity: 0; transform: translateX(-18px); } to { opacity: 1; transform: none; } }
 @keyframes enter-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 

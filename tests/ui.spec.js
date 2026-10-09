@@ -51,6 +51,22 @@ test.describe('navigation', () => {
     expect(page.url()).toContain('/kotoba-web/');
   });
 
+  test('screen transitions never widen the page, even mid-animation', async ({ page }) => {
+    await page.goto('./');
+    const widest = await page.evaluate(async () => {
+      let max = 0;
+      const sample = () => { max = Math.max(max, document.documentElement.scrollWidth - document.documentElement.clientWidth); };
+      for (const hash of ['#/modes', '#/progress', '#/play/forge', '#/settings', '#/']) {
+        location.hash = hash;
+        for (let i = 0; i < 20; i++) { sample(); await new Promise((r) => requestAnimationFrame(r)); }
+        history.back();
+        for (let i = 0; i < 20; i++) { sample(); await new Promise((r) => requestAnimationFrame(r)); }
+      }
+      return max;
+    });
+    expect(widest).toBe(0);
+  });
+
   test('Escape goes back on PC', async ({ page }) => {
     await page.goto('./#/modes');
     await view(page).locator('.mode-card', { hasText: 'Garden' }).first().click();
