@@ -20,7 +20,9 @@ createServer(async (req, res) => {
   let rel = decodeURIComponent(url.pathname.slice(BASE.length)) || 'index.html';
   if (rel.endsWith('/')) rel += 'index.html';
   const file = normalize(join(ROOT, rel));
-  if (!file.startsWith(ROOT) || file.split(sep).some((p) => p.startsWith('.') && p.length > 1) || file.includes(`${sep}node_modules${sep}`)) {
+  // Only look at the path inside the repo: the repo itself may live under a dot-folder (e.g. .claude/worktrees).
+  const inside = file.startsWith(ROOT) ? file.slice(ROOT.length).split(sep) : null;
+  if (!inside || inside.some((p) => (p.startsWith('.') && p.length > 1) || p === 'node_modules')) {
     res.writeHead(404); res.end(); return;
   }
   try {

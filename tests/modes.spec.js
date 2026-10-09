@@ -171,6 +171,8 @@ test.describe('modes', () => {
   });
 
   test('Speak Slice: quiet mode listen-and-choose, through to the round summary', async ({ page }) => {
+    // The game advances at most 50 ms per animation frame, so playing out a 60-second round takes ~1,200 frames.
+    test.setTimeout(90_000);
     await page.clock.install();
     await seed(page, { items: {}, settings: { quiet: true } });
     await page.goto('./#/play/slice');
