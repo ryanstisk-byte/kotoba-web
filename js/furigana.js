@@ -64,9 +64,32 @@ export function romajiIfWanted(kana) {
 
 const escHTML = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+// Characters a chunk may not start with (they belong to the kana before them).
+const NO_START = new Set([...'ゃゅょぁぃぅぇぉゎャュョァィゥェォヮー']);
+const CHUNK = 6;
+
+/**
+ * Ruby can't wrap, so a long kana word with romaji over it (ありがとうございました → arigatougozaimashita) can be
+ * wider than a phone screen. Long kana-only segments get their romaji in chunks of about 6 kana, which can wrap.
+ */
+function chunkedRomaji(seg) {
+  const chars = [...seg];
+  const parts = [];
+  let cur = '';
+  chars.forEach((ch, i) => {
+    cur += ch;
+    const next = chars[i + 1];
+    if ([...cur].length >= CHUNK && next && !NO_START.has(next) && ch !== 'っ' && ch !== 'ッ') { parts.push(cur); cur = ''; }
+  });
+  if (cur) parts.push(cur);
+  // Only the last chunk can end in a particle (は read as "wa").
+  return parts.map((t, i) => `<ruby>${escHTML(t)}<rt>${escHTML(romaji(t, { particles: i === parts.length - 1 }))}</rt></ruby>`).join('');
+}
+
 function annotateSegment(seg, cfg) {
   const hasKanji = KANJI_RE.test(seg);
   const wantRomaji = (HIRA_RE.test(seg) && cfg.hira) || (KATA_RE.test(seg) && cfg.kata) || (hasKanji && cfg.kanji === 'romaji');
+  if (wantRomaji && !hasKanji && [...seg].length > CHUNK + 2) return chunkedRomaji(seg);
   if (wantRomaji) {
     const reading = readingOf(seg);
     const r = reading ? romaji(reading) : null;
