@@ -192,7 +192,37 @@ export const TRAINS = [
   { cars: ['日本', 'ともだち', 'あいます'],
     gaps: [G(['で'], WHY.place), G(['に', 'と'], 'あう (meet) takes に (or と, "meet with") for the person you meet.')],
     en: 'I meet a friend in Japan.' },
+  // More trains (12 on), mostly in kana, so every particle gets several sentences. Course units add the ones that only
+  // use particles taught so far (see course.js), so a unit never repeats just its own two or three trains.
+  { cars: ['ねこ', 'かわいいです'], gaps: [G(['は'], WHY.topic)], en: 'The cat is cute.' },
+  { cars: ['きょう', 'あついです'], gaps: [G(['は'], WHY.topic)], en: 'It is hot today.' },
+  { cars: ['せんせい', 'やさしいです'], gaps: [G(['は'], WHY.topic)], en: 'The teacher is kind.' },
+  { cars: ['わたし', 'なまえ', 'レンです'], gaps: [G(['の'], WHY.possessive), G(['は'], WHY.topic)], en: 'My name is Ren.' },
+  { cars: ['これ', 'だれ', 'かさですか'], gaps: [G(['は'], WHY.topic), G(['の'], WHY.possessive)], en: 'Whose umbrella is this?' },
+  { cars: ['それ', 'わたし', 'くつです'], gaps: [G(['は'], WHY.topic), G(['の'], WHY.possessive)], en: 'Those are my shoes.' },
+  { cars: ['まいにち', 'にほんご', 'べんきょうします'], gaps: [null, G(['を'], WHY.object)], en: 'I study Japanese every day.' },
+  { cars: ['テレビ', 'みます'], gaps: [G(['を'], WHY.object)], en: 'I watch TV.' },
+  { cars: ['パン', 'かいます'], gaps: [G(['を'], WHY.object)], en: 'I buy bread.' },
+  { cars: ['こうえん', 'あそびます'], gaps: [G(['で'], WHY.place)], en: 'I play in the park.' },
+  { cars: ['はし', 'たべます'], gaps: [G(['で'], 'で also marks the tool you use: eat WITH chopsticks.')], en: 'I eat with chopsticks.' },
+  { cars: ['としょかん', 'ほん', 'よみます'], gaps: [G(['で'], WHY.place), G(['を'], WHY.object)], en: 'I read a book at the library.' },
+  { cars: ['がっこう', 'いきます'], gaps: [G(['に', 'へ'], WHY.goal)], en: 'I go to school.' },
+  { cars: ['うち', 'かえります'], gaps: [G(['に', 'へ'], WHY.goal)], en: 'I go home.' },
+  { cars: ['レン', 'どうじょう', 'きました'], gaps: [G(['は'], WHY.topic), G(['に', 'へ'], WHY.goal)], en: 'Ren came to the dojo.' },
+  { cars: ['さんじ', 'おわります'], gaps: [G(['に'], WHY.time)], en: 'It ends at three.' },
+  { cars: ['ろくじ', 'ねます'], gaps: [G(['に'], WHY.time)], en: 'I go to bed at six.' },
+  { cars: ['ともだち', 'えいが', 'みます'], gaps: [G(['と'], WHY.with), G(['を'], WHY.object)], en: 'I watch a movie with a friend.' },
+  { cars: ['パン', 'たまご', 'たべます'], gaps: [G(['と'], WHY.with), G(['を'], WHY.object)], en: 'I eat bread and eggs.' },
+  { cars: ['わたし', 'がくせいです'], gaps: [G(['も'], WHY.also)], en: "I'm a student too." },
+  { cars: ['いぬ', 'すきです'], gaps: [G(['も'], WHY.also)], en: 'I like dogs too.' },
+  { cars: ['ねこ', 'すきです'], gaps: [G(['が'], 'すき (like) takes が for the thing you like.')], en: 'I like cats.' },
+  { cars: ['なに', 'ありますか'], gaps: [G(['が'], WHY.newSubject)], en: 'What is there?' },
+  { cars: ['あめ', 'ふっています'], gaps: [G(['が'], 'Weather and things you just notice take が: rain IS falling.')], en: "It's raining." },
+  { cars: ['カイト', 'ししょう', 'はなしました'], gaps: [G(['は'], WHY.topic), G(['と'], WHY.with)], en: 'Kaito talked with the master.' },
 ];
+
+/** The particles a train teaches: the first correct answer for each gap. */
+export const trainParticles = (t) => t.gaps.filter(Boolean).map((g) => g.correct[0]);
 
 export function assembleTrain(t, filled) {
   let s = '';
