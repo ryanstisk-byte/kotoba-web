@@ -3,7 +3,7 @@
 import { PHRASES, PHRASE_BY_ID, GARDEN_CATALOG, CHAPTERS, N5_WORDS } from './data.js';
 import { ALL_LESSONS, LESSON_BY_ID } from './dojo-data.js';
 import * as srs from './srs.js';
-import { blankEngine, normalizeEngine, recordGrade, dayNumber } from './skills.js';
+import { blankEngine, normalizeEngine, recordGrade, dayNumber, prune } from './skills.js';
 import { newPerDay } from './tuning.js';
 
 export const STORAGE_KEY = 'kotobaBeat.v1';
@@ -231,6 +231,148 @@ function normalizeSaga(raw) {
   return g;
 }
 
+// ---------- merging two devices' progress (cross-device sync) ----------
+
+const union = (a, b) => [...new Set([...(a || []), ...(b || [])])];
+const BLOCK_RANK = { done: 2, skipped: 1 };
+
+/** The review item with the most recent review wins whole; its best score never drops. */
+function mergeItem(a, b) {
+  const later = (b.lr || 0) > (a.lr || 0)
+    || ((b.lr || 0) === (a.lr || 0) && ((b.r || 0) > (a.r || 0) || ((b.r || 0) === (a.r || 0) && (b.due || 0) > (a.due || 0))));
+  const w = later ? b : a;
+  const pl = [a.pl, b.pl].filter((x) => x > 0);
+  return { ...w, best: Math.max(a.best || 0, b.best || 0), pl: pl.length ? Math.min(...pl) : 0 };
+}
+
+/** Latest result wins, but personal bests and replay counts never drop. */
+function mergeResults(a, b) {
+  const out = { ...a };
+  for (const [k, r] of Object.entries(b)) {
+    const l = out[k];
+    if (!l) { out[k] = r; continue; }
+    const w = (r.at || 0) > (l.at || 0) ? r : l;
+    out[k] = { ...w, best: Math.max(l.best || 0, r.best || 0) };
+    if ('runs' in l || 'runs' in r) out[k].runs = Math.max(l.runs || 0, r.runs || 0);
+  }
+  return out;
+}
+
+function mergeEngine(a, b, todayKey) {
+  const e = { ...a, tally: {}, recent: { ...a.recent }, mastery: { ...a.mastery } };
+  for (const k of union(Object.keys(a.tally), Object.keys(b.tally))) {
+    const da = a.tally[k] || {}, db = b.tally[k] || {};
+    e.tally[k] = {};
+    // Each device's day tally is a running count: keep the larger one (the same day synced twice must not double).
+    for (const sk of union(Object.keys(da), Object.keys(db))) {
+      const ta = da[sk] || [0, 0], tb = db[sk] || [0, 0];
+      e.tally[k][sk] = tb[1] > ta[1] || (tb[1] === ta[1] && tb[0] > ta[0]) ? [...tb] : [...ta];
+    }
+  }
+  for (const [sk, r] of Object.entries(b.recent)) if (r.length > (e.recent[sk] || '').length) e.recent[sk] = r;
+  for (const [k, m] of Object.entries(b.mastery)) {
+    const l = e.mastery[k];
+    if (!l || m[2] > l[2] || (m[2] === l[2] && m[1] > l[1])) e.mastery[k] = [...m];
+  }
+  const pa = a.placement, pb = b.placement;
+  e.placement = pa && pb ? { at: Math.max(pa.at, pb.at), lessons: union(pa.lessons, pb.lessons) } : (pa || pb || null);
+  e.placementSkip = a.placementSkip || b.placementSkip;
+  e.checkin = a.checkin > b.checkin ? a.checkin : b.checkin;   // ISO weeks sort as text
+  prune(e, todayKey);
+  return e;
+}
+
+/**
+ * Mined Story lines from both devices. A line is the same line wherever its Japanese text matches. Two devices can
+ * hand out the same 'mine:<n>' to different lines between syncs, so ids are reassigned deterministically: oldest
+ * line first, each takes its lowest id not already taken, else a fresh number. Every device computes the same
+ * answer, so syncing again changes nothing. Each line's Garden card moves with it (merged if both devices had one).
+ */
+function mergeMined(a, b, aItems, bItems) {
+  const byJp = new Map();
+  for (const [g, items] of [[a, aItems], [b, bItems]]) {
+    for (const m of g.mined) {
+      let e = byJp.get(m.jp);
+      if (!e) byJp.set(m.jp, e = { line: m, ids: new Set(), cards: [], at: m.at || 0 });
+      e.ids.add(m.id);
+      if (items[m.id]) e.cards.push(items[m.id]);
+      if (m.at && (!e.at || m.at < e.at)) e.at = m.at;
+    }
+  }
+  const idNum = (id) => Number(id.slice(5));
+  const lines = [...byJp.values()].sort((x, y) => x.at - y.at || (x.line.jp < y.line.jp ? -1 : x.line.jp > y.line.jp ? 1 : 0));
+  const taken = new Set();
+  let seq = Math.max(a.seq, b.seq, ...lines.flatMap((e) => [...e.ids].map(idNum)));
+  const mined = [], cards = {}, oldIds = new Set();
+  for (const e of lines) {
+    e.ids.forEach((id) => oldIds.add(id));
+    const id = [...e.ids].sort((x, y) => idNum(x) - idNum(y)).find((x) => !taken.has(x)) || 'mine:' + (++seq);
+    taken.add(id);
+    mined.push({ ...e.line, id, at: e.at });
+    if (e.cards.length) cards[id] = e.cards.reduce((x, y) => mergeItem(x, y));
+  }
+  return { mined, seq, cards, oldIds };
+}
+
+/**
+ * Merges two devices' progress without losing anything from either: `local` is this device, `remote` the copy
+ * synced from another. Pure: neither input is changed. Both may be raw or older-version blobs.
+ * - Review items: the copy with the most recent review wins (best score kept from both).
+ * - Cleared lessons, chapters, forged kanji, course units: union.
+ * - Counters (days, story replays, course tallies, skill tallies): the larger value.
+ * - Settings and the course on/off switch: this device's (they stay per device).
+ */
+export function mergeProgress(local, remote, now = Date.now()) {
+  const a = normalize(local), b = normalize(remote);
+  const out = { ...a, v: STATE_VERSION };
+
+  const mined = mergeMined(a.saga, b.saga, a.items, b.items);
+  out.items = {};
+  for (const [items, other] of [[a.items, b.items], [b.items, a.items]]) {
+    for (const [id, p] of Object.entries(items)) {
+      if (mined.oldIds.has(id) || out.items[id]) continue;   // mined lines' cards are placed below
+      out.items[id] = other[id] ? mergeItem(p, other[id]) : { ...p };
+    }
+  }
+  Object.assign(out.items, mined.cards);
+  out.saga = {
+    mined: mined.mined, seq: mined.seq,
+    quiz: mergeResults(a.saga.quiz, b.saga.quiz), challenge: mergeResults(a.saga.challenge, b.saga.challenge),
+  };
+
+  out.chapters = union(a.chapters, b.chapters);
+  out.forged = union(a.forged, b.forged);
+  out.dojo = union(a.dojo, b.dojo);
+  out.lastSession = Math.max(a.lastSession || 0, b.lastSession || 0) || null;
+  out.storyReplays = { ...a.storyReplays };
+  for (const [k, t] of Object.entries(b.storyReplays)) out.storyReplays[k] = Math.max(out.storyReplays[k] || 0, t || 0);
+
+  out.days = {};
+  for (const k of union(Object.keys(a.days), Object.keys(b.days))) {
+    const x = a.days[k], y = b.days[k];
+    if (!x || !y) { out.days[k] = JSON.parse(JSON.stringify(x || y)); continue; }
+    const blocks = { ...x.blocks };
+    for (const [id, st] of Object.entries(y.blocks)) if ((BLOCK_RANK[st] || 0) > (BLOCK_RANK[blocks[id]] || 0)) blocks[id] = st;
+    out.days[k] = {
+      ok: Math.max(x.ok, y.ok), tot: Math.max(x.tot, y.tot), rev: Math.max(x.rev, y.rev), newc: Math.max(x.newc, y.newc),
+      studied: x.studied || y.studied, blocks,
+    };
+  }
+
+  out.engine = mergeEngine(a.engine, b.engine, dateKey(new Date(now)));
+
+  const c = { ...a.course, reached: union(a.course.reached, b.course.reached), done: union(a.course.done, b.course.done), read: union(a.course.read, b.course.read), tally: { ...a.course.tally } };
+  if (!c.current) c.current = b.course.current;
+  for (const [id, t] of Object.entries(b.course.tally)) {
+    const l = c.tally[id];
+    if (!l || t.tot > l.tot || (t.tot === l.tot && t.ok > l.ok)) c.tally[id] = { ...t };
+  }
+  out.course = c;
+
+  out.settings = { ...a.settings };
+  return out;
+}
+
 function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -260,6 +402,7 @@ const newItem = (now = Date.now()) => ({ level: 0, due: 0, best: 0, r: 0, pl: no
 
 const listeners = new Set();
 const gradeListeners = new Set();
+const milestoneListeners = new Set();
 
 class Store {
   constructor() {
@@ -315,6 +458,7 @@ class Store {
     d.blocks[id] = status;
     if (status === 'done') d.studied = true;
     this.save();
+    if (status === 'done') milestoneListeners.forEach((fn) => { try { fn({ block: id }); } catch (e) { /* ignore */ } });
   }
 
   weekAccuracy() {
@@ -635,6 +779,34 @@ class Store {
     this.s = normalize(state);
     this.save();
   }
+
+  // ----- cross-device sync (js/sync.js) -----
+  /** The progress to share with other devices: everything except this device's settings. */
+  syncData() {
+    const { settings, ...rest } = this.s;
+    return rest;
+  }
+
+  /**
+   * Puts merged progress in place, keeping this device's settings. Top-level objects and arrays are updated in
+   * place, so a screen that holds one (the Garden's items, the saga) keeps seeing current data.
+   */
+  applySynced(state) {
+    const next = normalize(state);
+    next.settings = this.s.settings;
+    for (const [k, nv] of Object.entries(next)) {
+      const cur = this.s[k];
+      if (Array.isArray(cur) && Array.isArray(nv)) cur.splice(0, cur.length, ...nv);
+      else if (cur && nv && typeof cur === 'object' && typeof nv === 'object' && !Array.isArray(cur) && !Array.isArray(nv) && cur !== nv) {
+        for (const x of Object.keys(cur)) delete cur[x];
+        Object.assign(cur, nv);
+      } else this.s[k] = nv;
+    }
+    this.save();
+  }
+
+  /** Milestones worth syncing right away (a Today block finished). Returns an unsubscribe function. */
+  onMilestone(fn) { milestoneListeners.add(fn); return () => milestoneListeners.delete(fn); }
 
   resetAll() {
     const settings = this.s.settings;

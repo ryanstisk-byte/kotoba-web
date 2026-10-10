@@ -5,6 +5,7 @@ import { esc, delegate, toast } from './ui.js';
 import { CLIPS } from './clips.js';
 import { median } from './modes/rhythm.js';
 import * as fx from './fx.js';
+import * as sync from './sync.js';
 
 export function mount(el, ctx) {
   let calib = null;        // { beats: [perfMs], taps: [perfMs], timers, result }
@@ -112,6 +113,8 @@ export function mount(el, ctx) {
           <label class="small">Fine-tune <input type="range" min="-100" max="400" step="10" value="${st.latencyMs}" data-act="latrange" aria-label="Latency offset in milliseconds"></label>
         </section>
 
+        <section class="panel stack-sm full" id="sync-panel" aria-labelledby="sync-h">${syncHTML()}</section>
+
         <section class="panel stack-sm full">
           <h2 class="section-title">Move progress between devices</h2>
           <p class="small dim">Export here, then import on your PC or phone. Importing replaces the progress on that device.</p>
@@ -130,6 +133,7 @@ export function mount(el, ctx) {
           <p class="small">On iPhone: Share › Add to Home Screen keeps your progress safe. Safari can clear website data after about 7 days without a visit, but not for Home Screen apps. Export now and then as a backup.</p>
           <p class="small" id="offline-status">${offlineText}</p>
           ${store.saveOk ? '' : '<p class="miss-c small">Saving is blocked in this browser (private mode?). Progress will not persist.</p>'}
+          ${sync.status().connected ? '<p class="small dim">Sync is on: a reset only erases this device, and the next sync brings your progress back from GitHub. Disconnect sync first to start over everywhere.</p>' : ''}
           <button class="btn ${resetArmed ? 'danger' : ''}" data-act="reset">${resetArmed ? 'Tap again to erase all progress' : 'Reset all progress'}</button>
         </section>
         <div class="full stack-sm">
@@ -139,6 +143,38 @@ export function mount(el, ctx) {
         </div>
       </div>`;
     checkOffline();
+  }
+
+  function syncHTML() {
+    const st = sync.status();
+    const head = '<h2 class="section-title" id="sync-h">Sync across devices</h2>';
+    if (!st.connected) {
+      return `${head}
+        <p class="small">Optional. Keeps your progress the same on your PC and iPhone (Safari and the Home Screen app) through one private GitHub gist. Studying on two devices between syncs is fine: both are kept.</p>
+        <label class="stack-sm"><span class="strong">GitHub token</span>
+          <input type="password" id="sync-token" class="text-input" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…" aria-describedby="sync-help"></label>
+        ${syncMsg ? `<p class="small note-c" role="status">${esc(syncMsg)}</p>` : ''}
+        <button class="btn primary" data-act="syncconnect">Connect</button>
+        <p class="small dim" id="sync-help">Make a fine-grained token on github.com with only the Gists permission (read and write). It stays on this device only: it is never in an export code and is only ever sent to api.github.com.</p>`;
+    }
+    const when = st.lastSync ? new Date(st.lastSync).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '';
+    return `${head}
+      <p class="small"><span class="good-c strong">Connected.</span> Syncs when the app opens, after each session or Today block, and when you switch away.</p>
+      <p class="small" id="sync-last" role="status">${st.busy ? 'Syncing…' : when ? `Last synced: ${esc(when)}` : 'Not synced yet.'}</p>
+      ${st.note ? `<p class="small note-c" id="sync-note">${esc(st.note)}</p>` : ''}
+      <div class="row2"><button class="btn primary" data-act="syncnow" ${st.busy ? 'disabled' : ''}>⟳ Sync now</button><button class="btn" data-act="syncoff">Disconnect</button></div>
+      <p class="small dim">Settings like theme, voice and text size stay separate on each device. Disconnect forgets the token and gist on this device; the gist stays in your GitHub account. Export / Import below still works as a manual backup.</p>`;
+  }
+  let syncMsg = '';
+  function drawSync() {
+    const p = el.querySelector('#sync-panel');
+    if (!p) return;
+    const typed = p.querySelector('#sync-token')?.value || '';
+    const focused = p.contains(document.activeElement) ? document.activeElement.dataset.act || document.activeElement.id : '';
+    p.innerHTML = syncHTML();
+    const input = p.querySelector('#sync-token');
+    if (input) input.value = typed;
+    if (focused) (p.querySelector(`[data-act="${focused}"]`) || p.querySelector('#' + focused) || p.querySelector('button'))?.focus();
   }
 
   // How many voice clips the service worker has saved, so it's clear when the app is ready to use offline.
@@ -306,6 +342,21 @@ export function mount(el, ctx) {
     // The import can change quiet mode, speed, theme and how much reading help is shown, so redraw everything.
     confirmimport: () => { store.applyImport(pending); pending = null; ctx.applyTheme(); ctx.refreshChrome(); ctx.rerender(); toast('Progress imported.'); },
     cancelimport: () => { pending = null; render(); },
+    syncconnect: async () => {
+      const input = el.querySelector('#sync-token');
+      const token = (input?.value || '').trim();
+      if (!sync.looksLikeToken(token)) {
+        syncMsg = token ? 'That doesn\'t look like a GitHub token. It should start with github_pat_. Copy the whole token and try again.' : 'Paste your GitHub token first.';
+        drawSync();
+        return;
+      }
+      syncMsg = '';
+      if (input) input.value = '';
+      const ok = await sync.connect(token);
+      if (ok) toast('Sync is on.');
+    },
+    syncnow: async () => { if (await sync.sync({ force: true })) toast('Synced.'); },
+    syncoff: () => { sync.disconnect(); syncMsg = ''; toast('Sync is off on this device.'); render(); },
     reset: () => {
       if (!resetArmed) { resetArmed = true; render(); return; }
       // Erasing Dojo lessons turns romaji back on (Auto reading help), so redraw everything.
@@ -343,10 +394,11 @@ export function mount(el, ctx) {
   el.addEventListener('pointerdown', onPointer);
   window.addEventListener('keydown', onKey);
   const offVoices = speaker.onVoices(render);
+  const offSync = sync.onStatus(drawSync);
   render();
 
   return () => {
-    off(); offVoices(); stopCalib();
+    off(); offVoices(); offSync(); stopCalib();
     el.removeEventListener('change', onChange);
     el.removeEventListener('input', onInput);
     el.removeEventListener('pointerdown', onPointer);
