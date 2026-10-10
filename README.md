@@ -8,6 +8,43 @@ Live site: https://ryanstisk-byte.github.io/kotoba-web/
 - Progress is saved in the browser on each device. To keep devices in step, turn on Settings > Sync across devices (optional, below). Export / Import still works as a manual backup.
 - When you change any file, bump `CACHE_VERSION` in `sw.js` so installed copies update.
 
+## Garden review cards
+
+The Garden's daily watering (`store.dailyGardenQueue`) mixes several kinds of card, each with its own FSRS schedule:
+
+| Card | What you do | Comes in |
+|---|---|---|
+| 👁 Meaning | See the Japanese, recall the meaning. | Every word. The plant's growth stage follows this card only. |
+| 🎧 Listen | Hear the word's clip with no text, recall the meaning. | Once a word's Meaning card reaches stage 3. |
+| 🗣 Say it | See the English (the example's English as an optional hint) and say the Japanese. Graded by speech recognition when it's there; otherwise, or in Quiet mode, you grade yourself after the reveal. | After the word's Listen card. |
+| 📐 Grammar | Fill the blank in one of a course grammar point's example sentences. The examples rotate. | When the lesson is read or the unit is done. |
+| 🔁 Conjugation | Pick a conjugated form, for example the て-form of 食べる. | When the form is practised in Conjugation Dojo. |
+
+The daily review cap covers every card. New cards each day:
+- up to 5 words
+- up to 2 grammar cards
+- up to 3 Listen / Say it cards
+
+Fewer come in while recent accuracy is under ~80%, and none under ~70% (`tuning.js`).
+
+Other modes can read the due grammar cards with `store.dueGrammar()` and record results with `store.reviewGrammar(key, ok)`. The cards and their fill-in blanks live in `js/grammar-cards.js`.
+
+**Stuck words.** A card missed 4 times is marked as needing help. Its plant shows a 🩹; plants never wilt or die. The next time the card comes up, a help panel shows first:
+- the word slowed down
+- an example sentence
+- a picture mnemonic (`js/mnemonics.js`, English only, so no new clips)
+- any look-alike or sound-alike word side by side (`js/word-help.js`, drawn from the app's own words, so each one can be played)
+
+Two right answers in a row clear the mark. The Garden screen's "Needs help" button practises these cards on purpose.
+
+**Saved progress.** These cards are saved progress v6:
+- `items[id].dirs` holds the Listen and Say it cards.
+- `grammar` holds the grammar cards.
+- `lapses`, `help` and `ok2` track the needs-help mark.
+- `newd` and `newg` count each day's new directions and grammar cards.
+
+The migration plants grammar cards for lessons already read and conjugation forms already practised. The sync merge keeps each card's own most recent review.
+
 ## Quick recap
 
 Anything that teaches something new ends with a short recap quiz (`js/recap.js`, one shared component). Each place builds its own questions:
@@ -84,6 +121,7 @@ Actions (`.github/workflows/tests.yml`).
 - `tests/today.spec.js`: the Today plan for each weekday, Short and Quiet sessions, beginners, and running every block.
 - `tests/course.spec.js`: the guided course (path, units, lesson, grammar search, Today drawing from the current unit, unit completion, the saved `course` field).
 - `tests/progress.spec.js`: saved progress loads with nothing lost (`tests/fixtures/progress-v1.json`), export/import, reload, reset.
+- `tests/garden-cards.spec.js`: Listen and Say it cards, grammar and conjugation cards, the needs-help mark and panel, the daily limits, and the v5 → v6 migration (`tests/fixtures/progress-v5.json`).
 - `tests/recap.spec.js`: the recap quiz in lessons, story scenes, the Garden and Kanji Forge (misses, retries, skipping, quiet mode, reading help, earlier Garden reviews, every spoken line having a clip).
 - `tests/sync.spec.js`: the sync merge (phone-vs-PC conflict, idempotence, mined-line clashes), and syncing against a mocked api.github.com (connect, find the gist, the automatic syncs, offline, bad token, Disconnect, the token never leaking).
 - `tests/offline.spec.js`: the service worker precaches everything and the app works with no network.

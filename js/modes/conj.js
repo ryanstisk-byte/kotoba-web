@@ -6,6 +6,7 @@ import { CONJ_WORDS, VERB_FORMS, ADJ_FORMS, FORM_LABEL, conjugate, conjPrompt, c
 import { esc, shuffle, pick, delegate } from '../ui.js';
 import { choiceButtons, shuffled } from '../practice-ui.js';
 import * as fx from '../fx.js';
+import { conjKey } from '../grammar-cards.js';
 
 const ROUND = 12;
 
@@ -97,6 +98,7 @@ export function mount(el, ctx) {
     if (firstTry) store.log(ok);
     store.grade({ skill: 'grammar', id: `conj:${key}`, ok, firstTry });
     if (cur.word.garden) store.plant(cur.word.garden);
+    store.plantGrammar(conjKey(cur.word.jp, cur.form));   // this form now comes back in the Garden on a schedule
     if (!ok) {
       missedWords.push(cur);
       if (firstTry) {

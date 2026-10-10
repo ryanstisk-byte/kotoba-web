@@ -923,6 +923,27 @@ p:has(> .jr), .small:has(> .jr), .lead:has(> .jr), .strong:has(> .jr), span:has(
 .word-tile.placed { background: var(--accent-soft); }
 .word-tile:disabled { cursor: default; box-shadow: none; }
 .build-answer { font-family: var(--font-jp); font-size: var(--fs-jp-lg); font-weight: 800; word-break: break-word; }
+/* Garden card directions, grammar cards and help (js/modes/garden.js) */
+.card-head { width: 100%; gap: var(--sp-2); }
+.card-dir { font-weight: 800; }
+.card-dir-listen { border-color: var(--accent); }
+.card-dir-say { border-color: var(--good); }
+.card-dir-grammar, .card-dir-conj { border-color: var(--border-strong); }
+.listen-orb { font-size: 3.2rem; line-height: 1; margin-top: 4vh; }
+.say-en { font-size: var(--fs-2xl); font-weight: 900; line-height: 1.25; margin: var(--sp-2) 0 0; word-break: break-word; }
+.gram-show { font-family: var(--font-jp); font-size: var(--fs-jp-lg); font-weight: 800; line-height: var(--lh-ruby); word-break: break-word; margin: var(--sp-2) 0 0; }
+.card-gram .choice-grid { width: 100%; }
+.card-gram .note { width: 100%; }
+.key-hint { display: none; font-size: var(--fs-xs, 0.75rem); opacity: 0.6; font-family: var(--font-mono); margin-right: 2px; }
+@media (hover: hover) and (pointer: fine) { .key-hint { display: inline; } }
+.help-panel .help-jp { margin-top: 0; }
+.mnemonic { font-size: var(--fs-lg); font-weight: 700; line-height: 1.4; margin: 0; word-break: break-word; }
+.help-ex p { margin: 0 0 var(--sp-1); }
+.alike-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--sp-2); }
+.alike { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; padding: var(--sp-3); min-width: 0; }
+.alike-this { border-color: var(--accent); }
+.alike-jp { font-family: var(--font-jp); font-size: var(--fs-jp-md); font-weight: 900; line-height: var(--lh-ruby); word-break: break-word; }
+.plant .bandage { position: absolute; left: -4px; bottom: -2px; font-size: 0.9rem; }
 /* Quick recap (js/recap.js) */
 .recap-head { gap: var(--sp-2); flex-wrap: wrap; }
 .recap-head .section-label { margin: 0; }

@@ -54,7 +54,7 @@ test.describe('saved progress from the current version (v1)', () => {
     await page.goto('./');
     const out = await page.evaluate(async (blob) => (await import('./js/store.js')).store.parseImport(JSON.stringify(blob)), FIXTURE);
     expectNothingLost(FIXTURE, out);
-    expect(out.v).toBe(5);
+    expect(out.v).toBe(6);
     expect(out.saga).toEqual(EMPTY_SAGA);
     expect(out.settings).toEqual({ ...FIXTURE.settings, textSize: 'm', sfx: true, haptics: true, pace: 'normal' });
   });
@@ -64,7 +64,7 @@ test.describe('saved progress from the current version (v1)', () => {
     await page.goto('./');
     await expect(page.locator('#view')).not.toBeEmpty();
     const s = await saved(page);
-    expect(s.v).toBe(5);
+    expect(s.v).toBe(6);
     expectNothingLost(FIXTURE, s);
     expect(s.settings).toEqual(expect.objectContaining({ textSize: 'm', sfx: true, haptics: true }));
   });
@@ -97,7 +97,7 @@ test.describe('saved progress from v2', () => {
     await expect(page.locator('#view')).not.toBeEmpty();
     const s = await saved(page);
     expectNothingLost(FIXTURE_V2, s);
-    expect(s.v).toBe(5);   // migrated to the current version (engine.spec.js covers v3, story-saga.spec.js v4)
+    expect(s.v).toBe(6);   // migrated to the current version (engine.spec.js covers v3, story-saga.spec.js v4, garden-cards.spec.js v6)
     expectNothingLost(FIXTURE_V2, await page.evaluate(async (blob) => (await import('./js/store.js')).store.parseImport(JSON.stringify(blob)), FIXTURE_V2));
   });
 
