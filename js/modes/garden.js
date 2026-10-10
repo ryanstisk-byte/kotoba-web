@@ -1,7 +1,8 @@
 // Garden (GardenView.swift): every word becomes a plant that needs watering at growing intervals. Nothing ever dies.
 import { store, DAILY_REVIEW_CAP } from '../store.js';
 import { speaker } from '../audio.js';
-import { gardenStage, accentMorae, accentName, toMorae, N5_WORDS } from '../data.js';
+import { gardenStage, accentMorae, accentName, toMorae, N5_WORDS, GARDEN_CATALOG } from '../data.js';
+import { mountRecap, listenQuestion, meaningQuestion, withReading } from '../recap.js';
 import { esc, shuffle, delegate, melodySVG } from '../ui.js';
 import * as fx from '../fx.js';
 
@@ -11,16 +12,20 @@ export function mount(el, ctx) {
   let position = 0;
   let revealed = false;
   let sessionDone = 0;
+  let fresh = [];          // words seen for the first time this session (recapped at the end)
+  let recapOff = null;
 
   function startDaily() {
     const { queue } = store.dailyGardenQueue(cap);
     session = shuffle(queue);
+    fresh = session.filter((item) => !(store.item(item.id)?.r));
     position = 0;
     revealed = false;
     render();
   }
 
   function render() {
+    if (recapOff) return;   // the recap draws itself
     if (session.length && position < session.length) return renderCard(session[position]);
     renderOverview();
   }
@@ -100,14 +105,42 @@ export function mount(el, ctx) {
     if (position >= session.length) {
       session = [];
       if (ctx.today) ctx.today.done();
+      if (fresh.length) startRecap();
     }
     render();
     if (ok) fx.hit({ big: !session.length }); else fx.miss();
   }
 
+  /**
+   * A quick recap of today's new words: with one or two, each is asked twice (hear it, pick the meaning; see the
+   * meaning, pick the word); with more, each once, taking turns. A miss brings that word back by tomorrow.
+   */
+  function gardenRecap(all) {
+    const words = all.filter((w) => w.en);
+    const planted = store.planted().map((p) => p.item);
+    const pool = (key, self, deck) => [
+      ...shuffle(planted.filter((x) => !words.includes(x)).map((x) => x[key])),
+      ...shuffle(Object.values(GARDEN_CATALOG).filter((x) => !!x.deck === !!deck).map((x) => x[key])),
+    ].filter((v) => v && v !== self);
+    // Lines mined from shows have no voice clip, so they're only asked by meaning.
+    const listen = (w) => (w.mined ? meaning(w) : listenQuestion({ jp: w.jp, en: w.en, say: sayOf(w), pool: pool('en', w.en, w.deck), skill: 'vocab', gradeId: w.id, garden: [w.id], why: `${withReading(w.jp, w.reading)} means "${w.en}".`, what: 'the word' }));
+    const meaning = (w) => meaningQuestion({ jp: w.jp, en: w.en, say: sayOf(w), pool: pool('jp', w.jp, w.deck), gradeId: w.id, garden: [w.id], noruby: w.id.includes('|'), why: `"${w.en}" is ${withReading(w.jp, w.reading)}.` });
+    if (words.length <= 2) return [...words.map(listen), ...words.filter((w) => !w.mined).map(meaning)];
+    return words.slice(0, 6).map((w, i) => (i % 2 ? meaning(w) : listen(w)));
+  }
+
+  function startRecap() {
+    const words = fresh;
+    fresh = [];
+    recapOff = mountRecap(el, {
+      questions: gardenRecap(words), title: 'New words recap', quiet: !!ctx.quiet, doneLabel: 'Back to the garden',
+      onDone: () => { if (recapOff) recapOff(); recapOff = null; render(); window.scrollTo(0, 0); },
+    });
+  }
+
   const off = delegate(el, {
     water: startDaily,
-    extra: () => { session = shuffle(store.thirsty().slice(0, 20)); position = 0; revealed = false; render(); },
+    extra: () => { session = shuffle(store.thirsty().slice(0, 20)); fresh = session.filter((item) => !(store.item(item.id)?.r)); position = 0; revealed = false; render(); },
     check: () => { revealed = true; speaker.speak(sayOf(session[position]), { mps: 3.5 }); render(); },
     hear: () => speaker.speak(sayOf(session[position]), { mps: 3.5 }),
     slow: () => speaker.speak(sayOf(session[position]), { mps: 2.5, speed: 'slow' }),
@@ -133,5 +166,5 @@ export function mount(el, ctx) {
     render();
   }
 
-  return () => { off(); window.removeEventListener('keydown', onKey); speaker.stop(); };
+  return () => { off(); if (recapOff) recapOff(); window.removeEventListener('keydown', onKey); speaker.stop(); };
 }

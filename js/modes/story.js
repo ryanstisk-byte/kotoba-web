@@ -4,7 +4,8 @@
 import { store } from '../store.js';
 import { earlyHint } from '../tuning.js';
 import { speaker } from '../audio.js';
-import { CHAPTERS, CAST, ARCS, QUIZZES } from '../data.js';
+import { CHAPTERS, CAST, ARCS, QUIZZES, STORY_WORDS } from '../data.js';
+import { mountRecap, listenQuestion, meaningQuestion, withReading } from '../recap.js';
 import { esc, delegate, shuffle } from '../ui.js';
 import * as fx from '../fx.js';
 import { mountMine } from './story-mine.js';
@@ -25,6 +26,7 @@ export function mount(el, ctx) {
   let choiceMissed = false;
   let quiz = null;         // { qs: [{ ...q, order }], i, picked, ok }
   let mineOff = null;
+  let recapOff = null;     // a scene recap while it's showing
 
   const beat = () => chapter.beats[Math.min(index, chapter.beats.length - 1)];
   const byId = (id) => CHAPTERS.find((c) => c.id === id);
@@ -128,10 +130,15 @@ export function mount(el, ctx) {
       return;
     }
     if (partial()) {
-      // A scene that stops short of the chapter's end: studied, but the chapter isn't cleared (and no questions yet).
+      // A scene that stops short of the chapter's end: studied, but the chapter isn't cleared. Its questions wait for
+      // the whole chapter; instead a quick recap of the scene's words and lines (skippable).
       store.markStudied();
       speaker.stop();
-      finish();
+      if (ctx.today) ctx.today.done();
+      recapOff = mountRecap(el, {
+        questions: sceneRecap(), title: 'Scene recap', quiet: !!ctx.quiet,
+        onDone: () => { if (recapOff) recapOff(); recapOff = null; window.scrollTo(0, 0); finish(); },
+      });
       return;
     }
     store.clearChapter(chapter.id);
@@ -149,6 +156,29 @@ export function mount(el, ctx) {
     }
   }
 
+  /** 2-3 questions on the scene just read: its new words (hear one, pick the meaning; see a meaning, pick the word)
+   *  and one of its lines (hear it, pick the meaning). Only the scene's own voiced words and lines are played. */
+  function sceneRecap() {
+    const beats = chapter.beats.slice(firstBeat(), lastBeat() + 1);
+    const seen = new Set();
+    const words = shuffle(beats.flatMap((b) => b.words).filter((w) => !seen.has(w.jp) && seen.add(w.jp)));
+    const others = (key, self) => [
+      ...shuffle(words.map((w) => w[key])), ...shuffle(STORY_WORDS.map((w) => w[key])),
+    ].filter((v) => v !== self);
+    const lines = shuffle(beats.filter((b) => !b.choice && HAS_JP.test(b.jp) && b.jp.length >= 4));
+    const linePool = (self) => [
+      ...shuffle(chapter.beats.map((b) => b.en)), ...shuffle(CHAPTERS.flatMap((c) => c.beats.map((b) => b.en))),
+    ].filter((v) => v !== self);
+    const qs = [];
+    const [w1, w2] = words;
+    if (w1) qs.push(listenQuestion({ jp: w1.jp, en: w1.en, say: w1.reading, pool: others('en', w1.en), skill: 'vocab', gradeId: w1.gardenID, garden: [w1.gardenID], why: `${withReading(w1.jp, w1.reading)} means "${w1.en}".`, what: 'the word' }));
+    if (w2) qs.push(meaningQuestion({ jp: w2.jp, en: w2.en, say: w2.reading, pool: others('jp', w2.jp), gradeId: w2.gardenID, garden: [w2.gardenID], why: `${withReading(w2.jp, w2.reading)} means "${w2.en}".` }));
+    for (const b of lines.slice(0, qs.length >= 2 ? 1 : 3 - qs.length)) {
+      qs.push(listenQuestion({ jp: b.jp, en: b.en, voice: b.speaker.voice, pool: linePool(b.en), gradeId: `${chapter.id}:${chapter.beats.indexOf(b)}`, garden: b.words.map((w) => w.gardenID), why: `${b.speaker.name}: ${b.jp} = "${b.en}"`, what: 'the line' }));
+    }
+    return qs;
+  }
+
   function finish() {
     if (quiz) store.recordStoryQuiz(chapter.id, quiz.ok, quiz.qs.length, { challenge });
     finished = true;
@@ -158,6 +188,7 @@ export function mount(el, ctx) {
   }
 
   function render() {
+    if (recapOff) return;   // the recap draws itself
     if (!chapter) return renderList();
     if (finished) return renderFinished();
     if (quiz) return renderQuiz();
@@ -304,7 +335,7 @@ export function mount(el, ctx) {
     open: (b) => { closeMine(); open(byId(b.dataset.id)); },
     challenge: (b) => open(byId(b.dataset.id), { asChallenge: true }),
     mine: showMine,
-    list: () => { chapter = null; quiz = null; challenge = false; speaker.stop(); render(); },
+    list: () => { if (recapOff) { recapOff(); recapOff = null; } chapter = null; quiz = null; challenge = false; speaker.stop(); render(); },
     furi: () => { showReading = !showReading; render(); },
     meaning: () => { showEnglish = !showEnglish; render(); },
     word: (b) => { selectedWord = beat().words[+b.dataset.i]; speaker.speak(selectedWord.reading, { mps: 3 }); render(); },
@@ -340,5 +371,5 @@ export function mount(el, ctx) {
   } else {
     render();
   }
-  return () => { off(); closeMine(); speaker.stop(); };
+  return () => { off(); closeMine(); if (recapOff) recapOff(); speaker.stop(); };
 }

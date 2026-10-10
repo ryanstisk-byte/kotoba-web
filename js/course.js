@@ -5,10 +5,11 @@
 import { store } from './store.js';
 import { speaker } from './audio.js';
 import { TRAINS, CHAPTERS, COUNTERS, PHRASE_BY_ID, MODE_BY_ID, N5_WORDS, accentMorae, accentName, toMorae } from './data.js';
-import { PHASES, UNITS, UNIT_BY_ID, STUDY_UNITS, UNIT_TARGET, UNIT_MIN_ANSWERS, UNIT_WINDOW } from './course-data.js';
-import { esc, delegate, toast, melodySVG } from './ui.js';
+import { PHASES, UNITS, UNIT_BY_ID, STUDY_UNITS, UNIT_TARGET, UNIT_MIN_ANSWERS, UNIT_WINDOW, COURSE_EXAMPLES } from './course-data.js';
+import { esc, delegate, toast, melodySVG, shuffle } from './ui.js';
 import { romaji, toHiragana } from './romaji.js';
 import * as fx from './fx.js';
+import { mountRecap, particleQuestion, orderQuestion, listenQuestion, meaningQuestion } from './recap.js';
 
 /** N5 deck words by written form (the first entry wins for the rare shared spelling). */
 const N5_BY_JP = new Map();
@@ -375,12 +376,84 @@ export function renderGrammar(view) {
 }
 
 // ---------- lesson: grammar points and examples, one card at a time (also Today's Input block) ----------
+// ---------- lesson recap ----------
+/**
+ * The particle each grammar point teaches, for its fill-in question, with wrong options picked for that sentence
+ * pattern: never one that would also make a correct sentence (へやの テレビが あります, かばんに あります).
+ */
+const POINT_PARTICLES = {
+  wa: [['は'], ['を', 'に', 'で']],
+  no: [['の'], ['を', 'に', 'で']],
+  suki: [['が'], ['に', 'で', 'へ', 'の']],
+  'nani-ga': [['が'], ['に', 'で', 'へ', 'の']],
+  'qword-ga': [['が'], ['を', 'で', 'の']],
+  arimasu: [['が'], ['を', 'で', 'へ']],
+  imasu: [['が'], ['を', 'で', 'へ']],
+  mo: [['も'], ['を', 'で', 'へ']],
+  'to-and': [['と'], ['を', 'へ', 'で']],
+  'to-with': [['と'], ['を', 'へ', 'で']],
+  wo: [['を'], ['に', 'で', 'の']],
+  kudasai: [['を'], ['に', 'で', 'の']],
+  'count-order': [['を'], ['に', 'で', 'の']],
+  'ni-he': [['に', 'へ'], ['を', 'で', 'の']],
+  'ni-exist': [['に'], ['を', 'へ', 'が']],
+  'ji-ni': [['に'], ['を', 'で', 'へ']],
+  'de-place': [['で'], ['を', 'へ', 'が']],
+  'de-means': [['で'], ['を', 'へ', 'に']],
+};
+
+/**
+ * 4-6 recap questions on a unit's lesson: one per grammar point, then more examples until there are at least four.
+ * At most two fill-the-particle questions; the rest take turns: hear it, pick the Japanese, put it in order.
+ */
+export function lessonRecap(u) {
+  const items = u.points.flatMap((p) => p.examples.map((ex) => ({ p, ex })));
+  const words = unitWords(u);
+  const others = shuffle(COURSE_EXAMPLES.filter((e) => !items.some((x) => x.ex === e)));
+  const pool = (key, self) => [...shuffle(items.map((x) => x.ex[key]).filter((v) => v !== self)), ...others.map((e) => e[key])];
+  const build = (p, ex, kind) => {
+    const b = {
+      jp: ex.jp, en: ex.en, voice: ex.voice, gradeId: `${u.id}:${p.id}`,
+      garden: words.filter((w) => ex.jp.includes(w.jp)).map((w) => w.id),
+    };
+    if (kind === 'particle') {
+      const pp = POINT_PARTICLES[p.id];
+      return pp ? particleQuestion({ ...b, particles: pp[0], distractors: pp[1], why: `${p.title}. ${ex.jp} = "${ex.en}"` }) : null;
+    }
+    if (kind === 'order') return orderQuestion({ ...b, why: `${ex.jp}: ${p.title}.` });
+    if (kind === 'listen') return listenQuestion({ ...b, pool: pool('en', ex.en), why: `${ex.jp} = "${ex.en}"`, what: 'the line' });
+    return meaningQuestion({ ...b, skill: 'grammar', pool: pool('jp', ex.jp), why: `"${ex.en}" is ${ex.jp}` });
+  };
+  const kinds = ['listen', 'meaning', 'order'];
+  const out = [];
+  const used = new Set();
+  let turn = 0;
+  let particles = 0;
+  const add = (p, ex) => {
+    if (particles < 2) {
+      const q = build(p, ex, 'particle');
+      if (q) { particles++; out.push(q); used.add(ex); return; }
+    }
+    for (let k = 0; k < kinds.length; k++) {
+      const q = build(p, ex, kinds[(turn + k) % kinds.length]);
+      if (q) { turn = (turn + k + 1) % kinds.length; out.push(q); used.add(ex); return; }
+    }
+  };
+  for (const p of u.points) if (out.length < 6) add(p, p.examples[0]);
+  for (const { p, ex } of items) { if (out.length >= 4) break; if (!used.has(ex)) add(p, ex); }
+  // A unit with few examples: ask about the same lines another way.
+  for (const { p, ex } of items) { if (out.length >= 4) break; particles = 2; add(p, ex); }
+  return out.slice(0, 6);
+}
+
 export function mountLesson(el, ctx) {
   const u = UNIT_BY_ID[ctx.unitId] || currentUnit() || STUDY_UNITS[0];
   const cards = u.points.flatMap((p) => p.examples.map((ex, i) => ({ p, ex, first: i === 0 })));
   let i = 0;
   let showEnglish = false;
   let finished = false;
+  let recapOff = null;     // the recap quiz, while it's showing
+  let recap = null;        // its result once done or skipped
   markReached(u.id);
 
   function render() {
@@ -388,6 +461,7 @@ export function mountLesson(el, ctx) {
       el.innerHTML = `<div class="stack course">
         <h2 class="section-title">Lesson read ✓</h2>
         <p>${esc(unitLabel(u))} · ${esc(u.title)}. Now practise it: your first-try answers count toward the unit.</p>
+        ${recap && !recap.skipped ? `<p class="small dim">Recap: ${recap.ok} of ${recap.total} right on the first try.</p>` : ''}
         <div class="mode-grid">${practiceList(u).map((pr) => `<a class="panel mode-card" href="#/course/${u.id}/${pr.mode}">
           <span class="grow"><span class="strong big">${esc(pr.label)}</span><br><span class="small dim" lang="ja">${esc(pr.detail)}</span></span><span class="dim chev" aria-hidden="true">›</span></a>`).join('')}</div>
         ${ctx.today ? '' : `<a class="btn wide" href="#/course/${u.id}">Back to the unit</a>`}
@@ -429,9 +503,19 @@ export function mountLesson(el, ctx) {
       markRead(u.id);
       store.markStudied();
       speaker.stop();
-      render();
-      fx.hit({ big: true, el: el.querySelector('.section-title') });
       if (ctx.today) ctx.today.done();
+      // A quick recap before the practice list: skippable, and the lesson already counts as read.
+      recapOff = mountRecap(el, {
+        questions: lessonRecap(u), title: 'Lesson recap', quiet: store.settings.quiet, doneLabel: 'On to practice ▶',
+        onDone: (r) => {
+          if (recapOff) recapOff();
+          recapOff = null;
+          recap = r;
+          render();
+          window.scrollTo(0, 0);
+          fx.hit({ big: true, el: el.querySelector('.section-title') });
+        },
+      });
     }
   }
 
@@ -444,7 +528,7 @@ export function mountLesson(el, ctx) {
   if (ctx.today) ctx.today.report(`1/${cards.length}`);
   render();
   speak();
-  return () => { off(); speaker.stop(); };
+  return () => { off(); if (recapOff) recapOff(); speaker.stop(); };
 }
 
 // ---------- #/course/<id>/<mode>: tagged practice ----------

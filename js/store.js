@@ -572,6 +572,23 @@ class Store {
     this.log(ok);
   }
 
+  /**
+   * Words missed in a recap quiz come back sooner: a planted one is due again by tomorrow at the latest, and a Garden
+   * word not planted yet is planted (so it joins the new words). Levels and stability are never lowered.
+   */
+  recapMissed(ids, now = Date.now()) {
+    const tomorrow = new Date(now);
+    tomorrow.setHours(24, 0, 0, 0);
+    let changed = false;
+    for (const id of ids) {
+      if (!this.catalogItem(id)) continue;
+      const p = this.s.items[id];
+      if (!p) { this.s.items[id] = newItem(now); changed = true; }
+      else if (p.due > tomorrow.getTime()) { p.due = tomorrow.getTime(); changed = true; }
+    }
+    if (changed) this.save();
+  }
+
   clearChapter(id) {
     if (!this.s.chapters.includes(id)) this.s.chapters.push(id);
     this.save();
