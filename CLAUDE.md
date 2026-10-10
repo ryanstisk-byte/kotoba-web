@@ -16,6 +16,8 @@ The README covers how the app is built and how the voice clips are generated. Re
 
 ## Conventions
 - Plain JavaScript with no build step and no external network calls. Every path is relative, because the site is served from `/kotoba-web/` on GitHub Pages and the main branch deploys automatically.
+  - The one allowed exception is the optional sync across devices (`js/sync.js`). It's opt-in and does nothing until Hyreign pastes a GitHub token in Settings. After that it talks only to `api.github.com`, using one private gist. The token lives only in this device's storage (`kotobaBeat.sync`), never in progress or an export code, and is never logged.
+  - Sync merges and never overwrites. The merge is `mergeProgress` in `store.js`. If the saved progress shape changes, update `mergeProgress` and `tests/sync.spec.js` along with the migration.
 - Bump `CACHE_VERSION` in `sw.js` on every change, or installed phones keep showing the old version.
 - After changing any Japanese text, regenerate the clips and readings with `tools/build_assets.py`. The README has the steps.
 - Keep the VOICEVOX credits in Settings, because the voice terms require them.

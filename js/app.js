@@ -28,6 +28,7 @@ import { checkinCard, checkinHandlers } from './checkin.js';
 import { initReadingHelp, clearReadingHelp, readingConfig } from './furigana.js';
 import * as course from './course.js';
 import { UNIT_BY_ID } from './course-data.js';
+import * as sync from './sync.js';
 
 const MOUNTS = { dojo, garden, story, particle, forge, rhythm, duel, slice, shop, listen, conj, build, kata, numbers };
 /** Screens the Today plan can open that aren't modes (the course lesson). */
@@ -124,6 +125,7 @@ function parse() {
 }
 
 let lastPath = null;
+let inSession = false;   // on a screen outside the tabs (a mode, a lesson): leaving it ends the session
 
 function route() {
   if (cleanup) { try { cleanup(); } catch (e) { console.warn(e); } cleanup = null; }
@@ -139,6 +141,8 @@ function route() {
   refreshChrome();
   const tab = a === undefined ? 'today' : TABS[a] && !b ? TABS[a] : null;
   document.body.classList.toggle('has-tabs', !!tab);
+  if (!tab) inSession = true;
+  else if (inSession) { inSession = false; sync.sync({ force: true }); }
   tabs.querySelectorAll('.tab').forEach((t) => {
     if (t.dataset.tab === tab) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current');
   });
@@ -506,6 +510,14 @@ if (history.state && typeof history.state.kbDepth === 'number') {
 }
 stack[depth] = currentHash();
 route();
+
+// Optional sync across devices (Settings › Sync across devices). Does nothing until a token is pasted.
+// When it brings in progress from another device, redraw a tab screen; a game in progress is left alone.
+sync.onChange(() => {
+  const [a, b] = parse();
+  if (!b && (a === undefined || a === 'modes' || a === 'progress') && !document.querySelector('.reward')) route();
+});
+sync.init();
 
 // Ask the browser not to evict our storage (helps on Chrome; Safari needs Add to Home Screen).
 try { navigator.storage?.persist?.().catch(() => {}); } catch (e) { /* ignore */ }

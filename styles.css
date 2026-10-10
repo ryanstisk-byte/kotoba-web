@@ -635,6 +635,13 @@ textarea {
   width: 100%; font: var(--fs-sm)/1.4 var(--font-mono); padding: var(--sp-3); border-radius: var(--r-md);
   border: 2px solid var(--border-strong); background: var(--surface-2); color: var(--ink); resize: vertical;
 }
+.text-input {
+  /* 16px or more, or iPhone Safari zooms the page when the field is tapped. */
+  width: 100%; min-height: 44px; font: max(16px, 1rem)/1.4 var(--font-mono); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md);
+  border: 2px solid var(--border-strong); background: var(--surface-2); color: var(--ink);
+}
+/* A calm note (sync couldn't run this time): plain text on a soft panel, not an error colour. */
+.note-c { padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); background: var(--surface-2); border-left: 4px solid var(--border-strong); color: var(--ink); }
 .filebtn { cursor: pointer; }
 .filebtn:focus-within { outline: 3px solid var(--focus); outline-offset: 2px; }
 details summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
