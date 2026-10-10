@@ -8,6 +8,26 @@ Live site: https://ryanstisk-byte.github.io/kotoba-web/
 - Progress is saved in the browser on each device. To keep devices in step, turn on Settings > Sync across devices (optional, below). Export / Import still works as a manual backup.
 - When you change any file, bump `CACHE_VERSION` in `sw.js` so installed copies update.
 
+## Quick recap
+
+Anything that teaches something new ends with a short recap quiz (`js/recap.js`, one shared component). Each place builds its own questions:
+
+| Where | Questions |
+|---|---|
+| Course lessons | 4-6 on the lesson's grammar points and examples. Comes before the practice list, including the Today Input block. |
+| Story course scenes | 2-3 on the scene's words and one of its lines, for scenes that stop partway through a chapter. Whole chapters keep their own comprehension questions. |
+| Garden | The day's new words, after watering. |
+| Kanji Forge | After each round of three new kanji. |
+
+How it works:
+- **Question types.** It asks for recall: hear it and pick the meaning, see the meaning and pick the Japanese, fill the particle, or put a short sentence in order.
+- **Wrong options.** Particle questions only offer options that would make the sentence wrong.
+- **Reading help.** It's switched off (`data-noruby`) wherever furigana would give the answer away.
+- **Misses.** A miss shows the answer with a one-line reason, and the question comes back once at the end. The missed item's Garden word comes up for review by tomorrow (`store.recapMissed`).
+- **Difficulty.** It shows three options instead of four while a skill's recent accuracy is under ~80%, to stay near 85%.
+- **Never blocking.** It's always skippable, and the lesson or block already counts as done.
+- **Audio.** It only speaks lines that already have VOICEVOX clips. Quiet mode shows the Japanese instead of playing it.
+
 ## Sync across devices (optional)
 
 Settings > Sync across devices keeps progress the same on the PC and the iPhone (Safari and the Home Screen app) through one private GitHub gist. It is the app's only network call outside its own site, and it does nothing until a token is pasted.
@@ -64,6 +84,7 @@ Actions (`.github/workflows/tests.yml`).
 - `tests/today.spec.js`: the Today plan for each weekday, Short and Quiet sessions, beginners, and running every block.
 - `tests/course.spec.js`: the guided course (path, units, lesson, grammar search, Today drawing from the current unit, unit completion, the saved `course` field).
 - `tests/progress.spec.js`: saved progress loads with nothing lost (`tests/fixtures/progress-v1.json`), export/import, reload, reset.
+- `tests/recap.spec.js`: the recap quiz in lessons, story scenes, the Garden and Kanji Forge (misses, retries, skipping, quiet mode, reading help, earlier Garden reviews, every spoken line having a clip).
 - `tests/sync.spec.js`: the sync merge (phone-vs-PC conflict, idempotence, mined-line clashes), and syncing against a mocked api.github.com (connect, find the gist, the automatic syncs, offline, bad token, Disconnect, the token never leaking).
 - `tests/offline.spec.js`: the service worker precaches everything and the app works with no network.
 - `tests/smoke.spec.js` and `tests/store.spec.js`: settings, the `#/check` screen, layout and store bookkeeping.

@@ -923,6 +923,17 @@ p:has(> .jr), .small:has(> .jr), .lead:has(> .jr), .strong:has(> .jr), span:has(
 .word-tile.placed { background: var(--accent-soft); }
 .word-tile:disabled { cursor: default; box-shadow: none; }
 .build-answer { font-family: var(--font-jp); font-size: var(--fs-jp-lg); font-weight: 800; word-break: break-word; }
+/* Quick recap (js/recap.js) */
+.recap-head { gap: var(--sp-2); flex-wrap: wrap; }
+.recap-head .section-label { margin: 0; }
+.recap-ask { outline: none; }
+.recap-show-jp { font-family: var(--font-jp); font-size: var(--fs-jp-lg); font-weight: 800; line-height: var(--lh-ruby); word-break: break-word; }
+.recap-opts .btn { min-height: 52px; word-break: break-word; }
+.recap-play { align-self: flex-start; }
+.answer-row.is-shown { border: 2px solid var(--border-strong); }
+.recap-feedback { padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); background: var(--surface-2); }
+.recap-feedback p { margin: 0; }
+.recap-feedback p + p { margin-top: var(--sp-1); }
 /* Katakana Rush */
 .rush-bar { height: 12px; border-radius: var(--r-pill); background: var(--surface-2); border: 1.5px solid var(--border-strong); overflow: hidden; }
 .rush-bar > span { display: block; height: 100%; background: var(--electric); }

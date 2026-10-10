@@ -5,6 +5,7 @@ import { speaker } from '../audio.js';
 import { KANJI, PART_NAMES } from '../data.js';
 import { esc, shuffle, delegate, pick } from '../ui.js';
 import * as fx from '../fx.js';
+import { mountRecap, withDistractors, optionCount, withReading } from '../recap.js';
 
 export function mount(el, ctx) {
   const GOAL = 3;
@@ -17,6 +18,8 @@ export function mount(el, ctx) {
   let practice = false;   // all 12 forged: re-forge old ones for practice
   let done = 0;
   let firstTry = true;
+  let newForged = [];      // kanji forged for the first time this visit (recapped after each round of GOAL)
+  let recapOff = null;
 
   function nextTarget() {
     forged = false;
@@ -38,6 +41,7 @@ export function mount(el, ctx) {
       <span class="part-k">${esc(part)}</span><span class="part-n">${esc(PART_NAMES[part] || '')}</span></button>`;
 
   function render() {
+    if (recapOff) return;   // the recap draws itself
     const have = store.forgedKanji;
     const t = target;
     el.innerHTML = `
@@ -83,6 +87,7 @@ export function mount(el, ctx) {
       if (!practice) {
         store.forge(t.kanji);
         store.plant(t.gardenID);
+        newForged.push(t);
       }
       speaker.speak(t.reading, { mps: 3 });
       done++;
@@ -101,12 +106,46 @@ export function mount(el, ctx) {
     if (forged) fx.hit({ big: true, el: el.querySelector('.forged-k') }); else fx.miss({ el: el.querySelector('.anvil') });
   }
 
+  /** Two questions per new kanji: see its word and pick the meaning, then hear the word and pick how it's written
+   *  (reading help off there, since furigana would give the answer away). */
+  function forgeRecap(ks) {
+    const see = ks.map((k) => ({
+      type: 'choice', ask: 'What does this word mean?', show: k.word, showJa: true, noruby: false,
+      options: withDistractors(k.wordEn, shuffle(KANJI.map((x) => x.wordEn)), optionCount('kanji')),
+      after: { text: k.reading, voice: 0 }, why: `${withReading(k.word, k.reading)} means "${k.wordEn}". ${k.story}`,
+      skill: 'kanji', gradeId: k.kanji, garden: [k.gardenID],
+    }));
+    const hear = ks.map((k) => ({
+      type: 'choice', ask: 'Listen. Which word is it?', askQuiet: `Which word is read ${k.reading}?`,
+      say: { text: k.reading, voice: 0 }, show: null,
+      options: withDistractors(k.word, [...shuffle(ks.map((x) => x.word)), ...shuffle(KANJI.map((x) => x.word))], optionCount('kanji')),
+      optsJa: true, optsNoruby: true,
+      why: `${k.reading} is written ${k.word}: ${k.meaning} (${k.parts.join(' + ')}).`, skill: 'kanji', gradeId: k.kanji, garden: [k.gardenID],
+    }));
+    return [...see, ...hear].slice(0, 6);
+  }
+
+  function nextOrRecap() {
+    const remaining = KANJI.some((k) => !store.forgedKanji.has(k.kanji));
+    if (newForged.length >= GOAL || (newForged.length && !remaining)) {
+      const ks = newForged;
+      newForged = [];
+      recapOff = mountRecap(el, {
+        questions: forgeRecap(ks), title: 'Kanji recap', quiet: !!ctx.quiet, doneLabel: 'Back to the forge',
+        onDone: () => { if (recapOff) recapOff(); recapOff = null; nextTarget(); render(); window.scrollTo(0, 0); },
+      });
+      return;
+    }
+    nextTarget();
+    render();
+  }
+
   const off = delegate(el, {
     story: () => { showStory = true; render(); },
     add: (b) => { if (anvil.length < 3) { anvil.push(tray[+b.dataset.i]); render(); } },
     unplace: (b) => { anvil.splice(+b.dataset.i, 1); render(); },
     strike,
-    next: () => { nextTarget(); render(); },
+    next: nextOrRecap,
     practice: () => { practice = true; nextTarget(); render(); },
   });
 
@@ -114,5 +153,5 @@ export function mount(el, ctx) {
   nextTarget();
   if (ctx.today) ctx.today.report(`0/${GOAL}`);
   render();
-  return () => { off(); speaker.stop(); };
+  return () => { off(); if (recapOff) recapOff(); speaker.stop(); };
 }

@@ -129,8 +129,11 @@ test.describe('course path and units', () => {
       await expect(v.locator('.trace-c')).toBeVisible();
       await v.getByRole('button', { name: /Next|Finish/ }).click();
     }
-    await expect(v.getByText('Lesson read ✓')).toBeVisible();
+    // A short recap comes first; the lesson already counts as read, and the recap can be skipped.
+    await expect(v.getByText('LESSON RECAP')).toBeVisible();
     expect((await saved(page)).course.read).toEqual(['p0-2']);
+    await v.getByRole('button', { name: 'Skip recap' }).click();
+    await expect(v.getByText('Lesson read ✓')).toBeVisible();
   });
 });
 
@@ -184,8 +187,10 @@ test.describe('Today follows the course', () => {
     await view(page).locator('.block-row', { hasText: 'Lesson' }).getByRole('link', { name: 'Start' }).click();
     await expect(page.locator('#banner')).toContainText('Today · block 2');
     const v = view(page);
-    for (let i = 0; i < 6 && !(await v.getByText('Lesson read ✓').isVisible()); i++) await v.getByRole('button', { name: /Next|Finish/ }).click();
-    await expect(page.locator('#banner')).toContainText('Block 2 done');
+    for (let i = 0; i < 6 && !(await v.locator('.recap').isVisible()); i++) await v.getByRole('button', { name: /Next|Finish/ }).click();
+    await expect(page.locator('#banner')).toContainText('Block 2 done');   // done as soon as it's read, before the recap
+    await v.getByRole('button', { name: 'Skip recap' }).click();
+    await expect(v.getByText('Lesson read ✓')).toBeVisible();
     expect((await saved(page)).course.read).toContain('p1-3');
 
     // Tomorrow's input is the unit's story scene.
@@ -297,10 +302,11 @@ test.describe('unit completion', () => {
     await page.goto('./#/course/p1-3/story');
     await pastWords(view(page));
     // Chapter 2, lines 1-6: six beats, then the scene ends without clearing the chapter.
-    for (let i = 0; i < 12 && !(await view(page).getByText('シーン クリア').isVisible()); i++) {
+    for (let i = 0; i < 12 && !(await view(page).locator('.recap').isVisible()); i++) {
       const choice = view(page).locator('[data-act=choice]').first();
       if (await choice.isVisible()) await choice.click(); else await view(page).getByRole('button', { name: 'Next' }).click();
     }
+    await view(page).getByRole('button', { name: 'Skip recap' }).click();   // the scene's recap (tests/recap.spec.js)
     await expect(view(page).getByText('シーン クリア')).toBeVisible();
     expect((await saved(page)).chapters).toEqual([]);
   });
