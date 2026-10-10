@@ -1,5 +1,5 @@
 // Every mode loads and completes at least one real interaction, and the result is saved.
-import { test, expect, seed, saved, plainText, view } from './helpers.js';
+import { test, expect, seed, saved, plainText, view, pastWords } from './helpers.js';
 
 test.describe('modes', () => {
   test('Reading Dojo: learn the first lesson and clear its quiz', async ({ page }) => {
@@ -53,7 +53,7 @@ test.describe('modes', () => {
     await page.goto('./#/play/story');
     const v = view(page);
     await v.locator('[data-act=open]').first().click();
-    await expect(v.locator('.line-jp')).toBeVisible();
+    await pastWords(v);
     await v.getByRole('button', { name: 'Meaning', exact: true }).click();
     await expect(v.locator('.line-card .trace-c')).toBeVisible();
     await v.getByRole('button', { name: 'Next', exact: true }).click();
@@ -67,6 +67,7 @@ test.describe('modes', () => {
     await page.goto('./#/play/story');
     const v = view(page);
     await v.locator('[data-act=open]').first().click();
+    await pastWords(v);
     for (let i = 0; i < 60; i++) {
       if (await v.getByText(/クリア/).isVisible()) break;
       const choices = v.locator('[data-act=choice]');

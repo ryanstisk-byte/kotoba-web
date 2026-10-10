@@ -1,7 +1,7 @@
 // The guided course: the path, a unit, playing examples, the grammar reference, Today drawing from the current unit,
 // unit completion from practice, and the saved course field (migration and round-trip).
 import { readFileSync } from 'node:fs';
-import { test, expect, seed, saved, readerState, view, expectNoHorizontalScroll } from './helpers.js';
+import { test, expect, seed, saved, readerState, view, expectNoHorizontalScroll, pastWords } from './helpers.js';
 
 const FIXTURE_V1 = JSON.parse(readFileSync(new URL('./fixtures/progress-v1.json', import.meta.url), 'utf8'));
 const FIXTURE_V2 = JSON.parse(readFileSync(new URL('./fixtures/progress-v2.json', import.meta.url), 'utf8'));
@@ -300,7 +300,7 @@ test.describe('unit completion', () => {
     await v.locator('[data-act=greet]').first().click();
     await expect(page.locator('#banner')).toContainText('1 answer ·');
     await page.goto('./#/course/p1-3/story');
-    await expect(view(page).locator('.line-jp')).toBeVisible();
+    await pastWords(view(page));
     // Chapter 2, lines 1-6: six beats, then the scene ends without clearing the chapter.
     for (let i = 0; i < 12 && !(await view(page).locator('.recap').isVisible()); i++) {
       const choice = view(page).locator('[data-act=choice]').first();

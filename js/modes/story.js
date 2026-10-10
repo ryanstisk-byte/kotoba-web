@@ -8,6 +8,7 @@ import { CHAPTERS, CAST, ARCS, QUIZZES, STORY_WORDS } from '../data.js';
 import { mountRecap, listenQuestion, meaningQuestion, withReading } from '../recap.js';
 import { esc, delegate, shuffle } from '../ui.js';
 import * as fx from '../fx.js';
+import { romaji } from '../romaji.js';
 import { mountMine } from './story-mine.js';
 
 const HAS_JP = /[ぁ-ゖァ-ヺ一-鿿]/;
@@ -26,6 +27,7 @@ export function mount(el, ctx) {
   let choiceMissed = false;
   let quiz = null;         // { qs: [{ ...q, order }], i, picked, ok }
   let mineOff = null;
+  let pre = null;          // words taught before a first read: { words, phase: 'learn' | 'check', i, picked, opts, ok }
   let recapOff = null;     // a scene recap while it's showing
 
   const beat = () => chapter.beats[Math.min(index, chapter.beats.length - 1)];
@@ -102,6 +104,80 @@ export function mount(el, ctx) {
     isReplay = store.clearedChapters.has(ch.id);
     challenge = asChallenge && isReplay;
     showReading = !isReplay;
+    // On a first read, teach the scene's words before the story uses them.
+    const words = isReplay ? [] : sceneWords();
+    if (words.length) {
+      pre = { words, phase: 'learn', i: 0, picked: null, opts: [], ok: 0 };
+      for (const w of words) store.plant(w.gardenID);
+      render();
+    } else {
+      pre = null;
+      enterBeat();
+    }
+    window.scrollTo(0, 0);
+  }
+
+  /** The words tagged on the beats of this scene, each once. */
+  function sceneWords() {
+    const seen = new Set();
+    return chapter.beats.slice(firstBeat(), lastBeat() + 1).flatMap((b) => b.words).filter((w) => !seen.has(w.jp) && seen.add(w.jp));
+  }
+
+  // ---------- words before the scene ----------
+  function renderPre() {
+    const n = pre.words.length;
+    if (pre.phase === 'learn') {
+      el.innerHTML = `
+        <div class="stack">
+          <div class="row-between"><span class="small dim">${chapter.number}. ${esc(chapter.title)}</span>
+            ${ctx.today ? '' : '<button class="btn ghost small-btn" data-act="list">Chapters</button>'}</div>
+          <h2 class="section-title">New words in this scene</h2>
+          <p class="small dim">Learn these first, then the story uses them. Tap a word to hear it.</p>
+          <div class="learn-grid" data-noruby>
+            ${pre.words.map((w, i) => `<button class="panel learn-card" data-act="preword" data-i="${i}" aria-label="Hear ${esc(w.reading)}">
+              <span class="learn-k pre-word" lang="ja">${esc(w.jp)}</span>
+              <span class="small" lang="ja">${w.reading !== w.jp ? `${esc(w.reading)} · ` : ''}<span class="mono">${esc(romaji(w.reading))}</span></span>
+              <span class="small dim">${esc(w.en)}</span></button>`).join('')}
+          </div>
+          <button class="btn primary wide" data-act="precheck">Quick check (${n} word${n === 1 ? '' : 's'}) ▶</button>
+          <button class="btn ghost wide" data-act="prestart">Skip to the story</button>
+        </div>`;
+      return;
+    }
+    const w = pre.words[pre.i];
+    const done = pre.picked !== null;
+    el.innerHTML = `
+      <div class="stack">
+        <div class="row-between"><span class="small dim">Word check ${pre.i + 1}/${n}</span>
+          <button class="btn ghost small-btn" data-act="prestart">Skip to the story</button></div>
+        <div class="panel center-text stack-sm" data-noruby>
+          <span class="learn-k pre-word" lang="ja">${esc(w.jp)}</span>
+          <span lang="ja">${w.reading !== w.jp ? `${esc(w.reading)} · ` : ''}<span class="mono">${esc(romaji(w.reading))}</span></span>
+          <button class="btn ghost small-btn" data-act="preword" data-i="${pre.i}" aria-label="Hear it">🔊</button>
+        </div>
+        <p class="strong">What does it mean?</p>
+        <div class="stack-sm">
+          ${pre.opts.map((o) => {
+            const cls = !done ? '' : o === w.en ? 'good' : o === pre.picked ? 'wrong' : 'faded';
+            return `<button class="btn left ${cls}" data-act="preans" data-o="${esc(o)}" ${done ? 'disabled' : ''}>${esc(o)}</button>`;
+          }).join('')}
+        </div>
+        ${done ? `${pre.picked === w.en ? '<p class="good-c">Right!</p>' : `<p class="miss-c">It means "${esc(w.en)}". You'll see it again in the Garden.</p>`}
+          <button class="btn primary wide" data-act="prenext">${pre.i + 1 < n ? 'Next word ▶' : 'Start the story ▶'}</button>` : ''}
+      </div>`;
+  }
+
+  function preQuestion() {
+    const w = pre.words[pre.i];
+    const others = shuffle([...new Set([...pre.words, ...STORY_WORDS].map((x) => x.en))].filter((e) => e !== w.en)).slice(0, 2);
+    pre.opts = shuffle([w.en, ...others]);
+    pre.picked = null;
+    render();
+    speaker.speak(w.reading, { mps: 3 });
+  }
+
+  function startScene() {
+    pre = null;
     enterBeat();
     window.scrollTo(0, 0);
   }
@@ -190,6 +266,7 @@ export function mount(el, ctx) {
   function render() {
     if (recapOff) return;   // the recap draws itself
     if (!chapter) return renderList();
+    if (pre) return renderPre();
     if (finished) return renderFinished();
     if (quiz) return renderQuiz();
     const b = beat();
@@ -335,7 +412,22 @@ export function mount(el, ctx) {
     open: (b) => { closeMine(); open(byId(b.dataset.id)); },
     challenge: (b) => open(byId(b.dataset.id), { asChallenge: true }),
     mine: showMine,
-    list: () => { if (recapOff) { recapOff(); recapOff = null; } chapter = null; quiz = null; challenge = false; speaker.stop(); render(); },
+    preword: (b) => speaker.speak(pre.words[+b.dataset.i].reading, { mps: 3 }),
+    precheck: () => { pre.phase = 'check'; pre.i = 0; preQuestion(); },
+    preans: (b) => {
+      const w = pre.words[pre.i];
+      const ok = b.dataset.o === w.en;
+      pre.picked = b.dataset.o;
+      if (ok) pre.ok++;
+      store.log(ok);
+      store.grade({ skill: 'vocab', id: w.gardenID, ok, firstTry: true });
+      render();
+      if (ok) fx.hit(); else fx.miss();
+      el.querySelector('[data-act=prenext]')?.focus();
+    },
+    prenext: () => { if (pre.i + 1 < pre.words.length) { pre.i++; preQuestion(); } else startScene(); },
+    prestart: startScene,
+    list: () => { if (recapOff) { recapOff(); recapOff = null; } chapter = null; quiz = null; pre = null; challenge = false; speaker.stop(); render(); },
     furi: () => { showReading = !showReading; render(); },
     meaning: () => { showEnglish = !showEnglish; render(); },
     word: (b) => { selectedWord = beat().words[+b.dataset.i]; speaker.speak(selectedWord.reading, { mps: 3 }); render(); },

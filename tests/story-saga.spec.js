@@ -1,7 +1,7 @@
 // Story saga: chapters 5-12, comprehension questions, the chapter map with challenge replays, line mining
 // ("Paste a line") into the Garden, and the v3 saved shape (migration and round-trip).
 import { readFileSync } from 'node:fs';
-import { test, expect, seed, saved, view, expectNoHorizontalScroll, plainText } from './helpers.js';
+import { test, expect, seed, saved, view, expectNoHorizontalScroll, plainText, pastWords } from './helpers.js';
 
 const FIXTURE_V1 = JSON.parse(readFileSync(new URL('./fixtures/progress-v1.json', import.meta.url), 'utf8'));
 const FIXTURE_V2 = JSON.parse(readFileSync(new URL('./fixtures/progress-v2.json', import.meta.url), 'utf8'));
@@ -137,7 +137,7 @@ test.describe('reading a new chapter', () => {
     await page.goto('./#/play/story');
     const v = view(page);
     await v.locator('.saga-node.next [data-act=open]').click();
-    await expect(v.locator('.line-jp')).toBeVisible();
+    await pastWords(v);
     expect(await plainText(v.locator('.line-jp'))).toBe('ある 日、町に ポスターが ありました。');
     await readToQuestions(page);
     await expectNoHorizontalScroll(page);
@@ -167,6 +167,7 @@ test.describe('reading a new chapter', () => {
     expect(s.items['w:大会']).toBeTruthy();   // a new story word was planted
     expect(s.items['n5:お金']).toBeTruthy();  // an N5 word reuses the deck's card
     await v.getByRole('button', { name: /Chapter 6/ }).click();
+    await pastWords(v);
     expect(await plainText(v.locator('.line-jp'))).toContain('だんごの 店で');
   });
 
@@ -175,6 +176,7 @@ test.describe('reading a new chapter', () => {
     await page.goto('./#/play/story');
     const v = view(page);
     await v.locator('.saga-node.next [data-act=open]').click();
+    await pastWords(v);
     await v.getByRole('button', { name: 'Next', exact: true }).click();
     await expect(v.locator('.note')).toBeVisible();
     expect(await plainText(v.locator('.note'))).toContain('ねえ is rough speech for ない');

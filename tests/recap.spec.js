@@ -1,6 +1,6 @@
 // The quick recap quiz (js/recap.js) at the end of each place that teaches something new: course lessons, story
 // scenes that stop partway through a chapter, the Garden's new words and a round of new kanji in Kanji Forge.
-import { test, expect, seed, saved, view, expectNoHorizontalScroll } from './helpers.js';
+import { test, expect, seed, saved, view, expectNoHorizontalScroll, pastWords } from './helpers.js';
 
 /**
  * With Math.random pinned to 0, the app's shuffle always moves the first item to the end, so the right answer
@@ -111,6 +111,7 @@ test.describe('story scene recap', () => {
     await pinRandom(page);
     await page.goto('./#/course/p1-3/story');
     const v = view(page);
+    await pastWords(v);   // the scene's new words come first (they can be skipped)
     for (let i = 0; i < 14 && !(await v.locator('.recap').isVisible()); i++) {
       const choices = v.locator('[data-act=choice]');
       // Try each option until the right one (a wrong one just shows a reply).
@@ -135,6 +136,7 @@ test.describe('story scene recap', () => {
     await page.goto('./#/play/story');
     const v = view(page);
     await v.locator('[data-act=open]').first().click();
+    await pastWords(v);
     for (let i = 0; i < 60; i++) {
       if (await v.locator('.quiz-q, .recap').first().isVisible().catch(() => false)) break;
       if (await v.getByText(/クリア/).isVisible()) break;

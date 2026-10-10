@@ -66,3 +66,11 @@ export async function plainText(locator) {
 /** The app's main view, where each screen renders. */
 export const view = (page) => page.locator('#view');
 
+
+/** A first read of a story scene starts with its new words; skip them to reach the story lines. */
+export async function pastWords(v) {
+  await expect(v.locator('.line-jp, [data-act=prestart]').first()).toBeVisible();
+  const skip = v.locator('[data-act=prestart]');
+  if (await skip.count()) await skip.first().click();
+  await expect(v.locator('.line-jp')).toBeVisible();
+}
