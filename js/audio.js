@@ -67,6 +67,12 @@ class Speaker {
       }
     };
     for (const ev of ['pointerdown', 'touchend', 'click', 'keydown']) window.addEventListener(ev, unlock, { capture: true });
+    // iOS suspends Web Audio after a call, Siri or backgrounding ("interrupted"), and only a tap can resume it.
+    const wake = () => {
+      if (sharedCtx && sharedCtx.state !== 'running' && sharedCtx.state !== 'closed') sharedCtx.resume().catch(() => {});
+    };
+    window.addEventListener('pointerdown', wake, { capture: true });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });
     if (!this.supported) return;
     this.loadVoices();
     try {
