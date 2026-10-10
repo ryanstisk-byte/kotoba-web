@@ -249,7 +249,13 @@ test.describe('Paste a line (line mining)', () => {
     // It's a Garden card, due now, and comes first among today's new plants.
     await page.goto('./#/garden');
     await view(page).getByRole('button', { name: /Water \d+ plant/ }).click();
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 8; i++) {
+      // A grown word can also bring a Listen card (no text shown): just answer it.
+      if (!(await view(page).locator('.card-dir', { hasText: 'Meaning' }).count())) {
+        await view(page).getByRole('button', { name: /Check/ }).click();
+        await view(page).getByRole('button', { name: /Knew it/ }).click();
+        continue;
+      }
       const jp = await plainText(view(page).locator('.review-jp'));
       await view(page).getByRole('button', { name: /Check/ }).click();
       if (jp === '本気の 拳だ！') {

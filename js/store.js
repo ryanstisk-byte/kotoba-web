@@ -4,7 +4,8 @@ import { PHRASES, PHRASE_BY_ID, GARDEN_CATALOG, CHAPTERS, N5_WORDS } from './dat
 import { ALL_LESSONS, LESSON_BY_ID } from './dojo-data.js';
 import * as srs from './srs.js';
 import { blankEngine, normalizeEngine, recordGrade, dayNumber, prune } from './skills.js';
-import { newPerDay } from './tuning.js';
+import { newPerDay, newDirsPerDay, newGrammarPerDay } from './tuning.js';
+import { unitCardKeys, isCardKey } from './grammar-cards.js';
 
 export const STORAGE_KEY = 'kotobaBeat.v1';
 const DAY = 86_400_000;
@@ -16,16 +17,26 @@ export const DAILY_REVIEW_CAP = 20;
 export const DAILY_REVIEW_CAP_SHORT = 10;
 export const DAILY_NEW_CAP = 5;
 
+/** Extra card directions a well-grown word gets, each with its own schedule (in items[id].dirs). */
+export const DIRECTIONS = ['listen', 'say'];
+/** Garden stage a word's normal card must reach before its Listen and Say it cards are added. */
+export const DIRECTION_STAGE = 3;
+/** Misses (since the last time it was cleared) after which a card is marked as needing help. */
+export const HELP_AFTER = 4;
+/** Right answers in a row that clear the needs-help mark. */
+export const HELP_CLEAR = 2;
+
 /** Skill areas the learner model tracks. Every graded action in every mode feeds one of these (see store.grade). */
 export const SKILLS = ['kana', 'kanji', 'vocab', 'grammar', 'listening', 'pitch', 'speaking', 'counters'];
 
 /** Version of the saved progress shape. Bump it and add a step to MIGRATIONS whenever the shape changes. */
-export const STATE_VERSION = 5;
+export const STATE_VERSION = 6;
 
 function blank() {
   return {
     v: STATE_VERSION,
-    items: {},          // id -> { level, due (ms), best, r (reviews), pl (planted ms), s (stability, days), d (difficulty 1-10), lr (last review ms) }
+    items: {},          // id -> { level, due (ms), best, r (reviews), pl (planted ms), s (stability, days), d (difficulty 1-10), lr (last review ms),
+                        //        lapses, help, ok2 (needs-help bookkeeping, added in v6), dirs: { listen, say } (v6, see DIRECTIONS) }
     lastSession: null,
     chapters: [],       // cleared chapter ids
     forged: [],         // forged kanji
@@ -37,10 +48,40 @@ function blank() {
       pace: 'normal',                             // added in v3: 'less' = at most 3 new words a day
     },
     engine: blankEngine(),   // added in v3: the skill model, placement and weekly check-in (see skills.js)
-    days: {},           // 'YYYY-MM-DD' -> { ok, tot, rev, newc, studied, blocks: { id: 'done'|'skipped' } }
+    days: {},           // 'YYYY-MM-DD' -> { ok, tot, rev, newc, studied, blocks: { id: 'done'|'skipped' }, newd?, newg? (v6) }
     saga: blankSaga(),  // added in v4: Story line mining and chapter results (see migrateStory)
     course: blankCourse(),   // added in v5: the guided course (see migrateCourse)
+    grammar: {},        // added in v6: grammar review cards, key -> card (see migrateCards and js/grammar-cards.js)
   };
+}
+
+/**
+ * A review card that isn't a word's normal card: a word's Listen or Say it direction, or a grammar card.
+ * { due, s, d, lr, r, pl } like an item (no growth stage), plus lapses / help / ok2 for the needs-help mark.
+ */
+export const newCard = (now = Date.now()) => ({ due: 0, s: 0, d: 0, lr: 0, r: 0, pl: now });
+
+/**
+ * v5 -> v6: review cards in more directions and for grammar. Words keep every field; the grammar block starts with a
+ * card for each grammar point of the course units already read or done, and for each conjugation form already
+ * practised in Conjugation Dojo (from the skill model's per-item records). New cards wait to be introduced, at most
+ * 2 a day, like new words.
+ */
+export function migrateCards(raw) {
+  const grammar = raw.grammar && typeof raw.grammar === 'object' ? { ...raw.grammar } : {};
+  const course = raw.course && typeof raw.course === 'object' ? raw.course : {};
+  const units = [...new Set([...(Array.isArray(course.read) ? course.read : []), ...(Array.isArray(course.done) ? course.done : [])])];
+  let n = 0;
+  // Planted-at times are small counters, not the clock: every device migrating the same progress gets the same cards
+  // (so syncing two migrated copies changes nothing), in lesson order, ahead of anything planted later.
+  for (const u of units) for (const key of unitCardKeys(u)) if (!grammar[key]) grammar[key] = newCard(++n);
+  const mastery = raw.engine && raw.engine.mastery && typeof raw.engine.mastery === 'object' ? raw.engine.mastery : {};
+  for (const k of Object.keys(mastery)) {
+    const m = /^grammar\|conj:(.+)$/.exec(k);
+    const key = m && 'cj:' + m[1];
+    if (key && isCardKey(key) && !grammar[key]) grammar[key] = newCard(++n);
+  }
+  return { ...raw, grammar };
 }
 
 /**
@@ -96,6 +137,8 @@ const MIGRATIONS = {
   3: migrateStory,
   // v4 -> v5: the guided course (current unit, units reached and done, practice tallies).
   4: migrateCourse,
+  // v5 -> v6: Listen and Say it cards for words, grammar review cards, and the needs-help mark.
+  5: migrateCards,
 };
 
 /** Adds the guided-course field with defaults. Self-contained: it touches nothing else in the blob. */
@@ -131,7 +174,13 @@ function normalize(input) {
         s: Math.max(0, Number(m.s) || 0),
         d: Math.max(0, Math.min(10, Number(m.d) || 0)),
         lr: Math.max(0, Number(m.lr) || 0),
+        ...helpFields(p),
       };
+      if (p.dirs && typeof p.dirs === 'object') {
+        const dirs = {};
+        for (const dir of DIRECTIONS) { const c = normalizeCard(p.dirs[dir]); if (c) dirs[dir] = c; }
+        if (Object.keys(dirs).length) s.items[id].dirs = dirs;
+      }
     }
   }
   s.lastSession = typeof raw.lastSession === 'number' ? raw.lastSession : null;
@@ -163,11 +212,41 @@ function normalize(input) {
         ok: Number(d.ok) || 0, tot: Number(d.tot) || 0, rev: Number(d.rev) || 0, newc: Number(d.newc) || 0,
         studied: !!d.studied, blocks: d.blocks && typeof d.blocks === 'object' ? { ...d.blocks } : {},
       };
+      // New Listen / Say it and grammar cards introduced that day (v6): kept only when there were some.
+      if (Number(d.newd) > 0) s.days[k].newd = Number(d.newd);
+      if (Number(d.newg) > 0) s.days[k].newg = Number(d.newg);
     }
   }
   s.saga = normalizeSaga(raw.saga);
   s.course = normalizeCourse(raw.course);
+  if (raw.grammar && typeof raw.grammar === 'object') {
+    for (const [key, c] of Object.entries(raw.grammar)) {
+      const n = /^(g|cj):/.test(key) ? normalizeCard(c) : null;
+      if (n) s.grammar[key] = n;
+    }
+  }
   return s;
+}
+
+/** The needs-help fields, kept only when set (most cards never need them). */
+function helpFields(p) {
+  const out = {};
+  const lapses = Math.max(0, Math.floor(Number(p.lapses) || 0));
+  if (lapses) out.lapses = lapses;
+  if (p.help) out.help = true;
+  const ok2 = Math.max(0, Math.floor(Number(p.ok2) || 0));
+  if (ok2 && p.help) out.ok2 = ok2;
+  return out;
+}
+
+/** Cleans a direction or grammar card; null if it isn't one. */
+function normalizeCard(c) {
+  if (!c || typeof c !== 'object') return null;
+  return {
+    due: Number(c.due) || 0, s: Math.max(0, Number(c.s) || 0), d: Math.max(0, Math.min(10, Number(c.d) || 0)),
+    lr: Math.max(0, Number(c.lr) || 0), r: Math.max(0, Math.floor(Number(c.r) || 0)), pl: Number(c.pl) || 0,
+    ...helpFields(c),
+  };
 }
 
 const num = (x) => (Number.isFinite(Number(x)) ? Number(x) : 0);
@@ -236,13 +315,31 @@ function normalizeSaga(raw) {
 const union = (a, b) => [...new Set([...(a || []), ...(b || [])])];
 const BLOCK_RANK = { done: 2, skipped: 1 };
 
-/** The review item with the most recent review wins whole; its best score never drops. */
-function mergeItem(a, b) {
-  const later = (b.lr || 0) > (a.lr || 0)
-    || ((b.lr || 0) === (a.lr || 0) && ((b.r || 0) > (a.r || 0) || ((b.r || 0) === (a.r || 0) && (b.due || 0) > (a.due || 0))));
-  const w = later ? b : a;
+/** Whether card `b` was reviewed more recently than `a` (ties: more reviews, then the later due date). */
+const laterCard = (a, b) => (b.lr || 0) > (a.lr || 0)
+  || ((b.lr || 0) === (a.lr || 0) && ((b.r || 0) > (a.r || 0) || ((b.r || 0) === (a.r || 0) && (b.due || 0) > (a.due || 0))));
+
+/** A card (direction or grammar) from two devices: the one with the most recent review wins whole, miss count and
+ *  needs-help mark included, since they describe that same history. */
+function mergeCard(a, b) {
+  const w = laterCard(a, b) ? b : a;
   const pl = [a.pl, b.pl].filter((x) => x > 0);
-  return { ...w, best: Math.max(a.best || 0, b.best || 0), pl: pl.length ? Math.min(...pl) : 0 };
+  return { ...w, pl: pl.length ? Math.min(...pl) : 0 };
+}
+
+/** The review item with the most recent review wins whole; its best score never drops. Each extra direction
+ *  (Listen, Say it) has its own schedule, so each is merged on its own. */
+function mergeItem(a, b) {
+  const w = laterCard(a, b) ? b : a;
+  const pl = [a.pl, b.pl].filter((x) => x > 0);
+  const out = { ...w, best: Math.max(a.best || 0, b.best || 0), pl: pl.length ? Math.min(...pl) : 0 };
+  const dirs = {};
+  for (const dir of union(Object.keys(a.dirs || {}), Object.keys(b.dirs || {}))) {
+    const x = a.dirs && a.dirs[dir], y = b.dirs && b.dirs[dir];
+    dirs[dir] = x && y ? mergeCard(x, y) : { ...(x || y) };
+  }
+  if (Object.keys(dirs).length) out.dirs = dirs; else delete out.dirs;
+  return out;
 }
 
 /** Latest result wins, but personal bests and replay counts never drop. */
@@ -317,7 +414,8 @@ function mergeMined(a, b, aItems, bItems) {
 /**
  * Merges two devices' progress without losing anything from either: `local` is this device, `remote` the copy
  * synced from another. Pure: neither input is changed. Both may be raw or older-version blobs.
- * - Review items: the copy with the most recent review wins (best score kept from both).
+ * - Review items: the copy with the most recent review wins (best score kept from both); each Listen / Say it card
+ *   and each grammar card the same way, on its own, with its miss count and needs-help mark.
  * - Cleared lessons, chapters, forged kanji, course units: union.
  * - Counters (days, story replays, course tallies, skill tallies): the larger value.
  * - Settings and the course on/off switch: this device's (they stay per device).
@@ -357,6 +455,7 @@ export function mergeProgress(local, remote, now = Date.now()) {
       ok: Math.max(x.ok, y.ok), tot: Math.max(x.tot, y.tot), rev: Math.max(x.rev, y.rev), newc: Math.max(x.newc, y.newc),
       studied: x.studied || y.studied, blocks,
     };
+    for (const f of ['newd', 'newg']) { const v = Math.max(x[f] || 0, y[f] || 0); if (v) out.days[k][f] = v; }
   }
 
   out.engine = mergeEngine(a.engine, b.engine, dateKey(new Date(now)));
@@ -368,6 +467,12 @@ export function mergeProgress(local, remote, now = Date.now()) {
     if (!l || t.tot > l.tot || (t.tot === l.tot && t.ok > l.ok)) c.tally[id] = { ...t };
   }
   out.course = c;
+
+  out.grammar = {};
+  for (const key of union(Object.keys(a.grammar), Object.keys(b.grammar))) {
+    const x = a.grammar[key], y = b.grammar[key];
+    out.grammar[key] = x && y ? mergeCard(x, y) : { ...(x || y) };
+  }
 
   out.settings = { ...a.settings };
   return out;
@@ -399,6 +504,30 @@ function schedule(p, ok, now = Date.now()) {
 }
 
 const newItem = (now = Date.now()) => ({ level: 0, due: 0, best: 0, r: 0, pl: now, s: 0, d: 0, lr: 0 });
+
+/**
+ * Needs-help bookkeeping after a review of card `c` (mutated). Misses are counted; after HELP_AFTER the card gets the
+ * help mark (shown as 🩹, never as wilting). While marked, HELP_CLEAR right answers in a row clear it and its count.
+ */
+function trackHelp(c, ok) {
+  if (!ok) {
+    c.lapses = (c.lapses || 0) + 1;
+    if (c.help) delete c.ok2;
+    else if (c.lapses >= HELP_AFTER) c.help = true;
+    return;
+  }
+  if (!c.help) return;
+  c.ok2 = (c.ok2 || 0) + 1;
+  if (c.ok2 >= HELP_CLEAR) { delete c.help; delete c.ok2; delete c.lapses; }
+}
+
+/** Schedules a direction or grammar card (no growth stage). */
+function scheduleCard(c, ok, now = Date.now()) {
+  const next = srs.review(c, srs.gradeOf(ok), now);
+  c.s = next.s; c.d = next.d; c.lr = next.lr; c.due = next.due;
+  c.r = (c.r || 0) + 1;
+  return c;
+}
 
 const listeners = new Set();
 const gradeListeners = new Set();
@@ -564,6 +693,7 @@ class Store {
     const p = this.s.items[id] || newItem();
     const wasNew = !p.r;
     schedule(p, ok);
+    trackHelp(p, ok);
     p.r = (p.r || 0) + 1;
     this.s.items[id] = p;
     const d = this.day();
@@ -649,38 +779,176 @@ class Store {
 
   thirsty(now = Date.now()) { return this.planted().filter((p) => p.prog.due <= now).map((p) => p.item); }
 
+  /** New words not yet planted that today's watering would introduce, in order (starter phrases, then the N5 deck). */
+  freshWords(limit) {
+    const plants = this.planted();
+    const fresh = plants.filter((p) => !p.prog.r && p.prog.due <= Date.now())
+      // New plants oldest first, except lines the learner mined themselves, which come first.
+      .sort((a, b) => (b.item.mined ? 1 : 0) - (a.item.mined ? 1 : 0) || (a.prog.pl || 0) - (b.prog.pl || 0)).map((p) => p.item);
+    // If fewer than 5 planted words are waiting, introduce starter phrases in order, then the N5 deck in order.
+    if (fresh.length < limit) {
+      for (const ph of PHRASES) {
+        if (fresh.length >= limit) break;
+        if (!ph.isBoss && !this.s.items[ph.id]) fresh.push(GARDEN_CATALOG[ph.id]);
+      }
+    }
+    if (fresh.length < limit) {
+      // Skip N5 words already growing under another id (met in Story, Kanji Forge or the starter phrases).
+      const known = new Set(plants.map((p) => p.item.jp).concat(fresh.map((f) => f.jp)));
+      for (const w of N5_WORDS) {
+        if (fresh.length >= limit) break;
+        if (!this.s.items[w.id] && !known.has(w.jp)) { fresh.push(GARDEN_CATALOG[w.id]); known.add(w.jp); }
+      }
+    }
+    return fresh.slice(0, Math.max(0, limit));
+  }
+
   /**
-   * Today's garden queue: due reviews (most overdue first), then at most 5 new items a day,
-   * all within a daily cap so a backlog after a break never piles up. The rest simply wait.
+   * Every card due now, as Garden cards: a word's normal card ({ kind: 'word', dir: 'mean' }), its Listen and Say it
+   * cards (dir: 'listen' | 'say') and grammar cards ({ kind: 'gram' }). `reviewed`: only ones seen before.
+   */
+  dueCards(now = Date.now(), { reviewed = true } = {}) {
+    const out = [];
+    for (const { item, prog } of this.planted()) {
+      if (prog.due <= now && (!reviewed || prog.r)) out.push({ kind: 'word', dir: 'mean', id: item.id, item, due: prog.due, help: !!prog.help });
+      for (const [dir, c] of Object.entries(prog.dirs || {})) {
+        if (c.due <= now && (!reviewed || c.r)) out.push({ kind: 'word', dir, id: item.id, item, due: c.due, help: !!c.help });
+      }
+    }
+    for (const [key, c] of Object.entries(this.s.grammar)) {
+      if (c.due <= now && (!reviewed || c.r) && isCardKey(key)) out.push({ kind: 'gram', id: key, due: c.due, help: !!c.help });
+    }
+    return out.sort((a, b) => a.due - b.due);
+  }
+
+  /** Words grown enough (stage DIRECTION_STAGE) for a Listen or Say it card they don't have yet, oldest first. */
+  directionCandidates() {
+    const out = [];
+    // Not while a word needs help: it gets its new directions once it's steady again.
+    const plants = this.planted().filter(({ item, prog }) => prog.level >= DIRECTION_STAGE && !item.mined && !this.wordNeedsHelp(item.id))
+      .sort((a, b) => (a.prog.pl || 0) - (b.prog.pl || 0));
+    // One new direction per word at a time: Listen first (the easier one), Say it once Listen is under way. Words
+    // whose next step is Listen come first, so a day's few spread over different words.
+    for (const pass of DIRECTIONS) {
+      for (const { item, prog } of plants) {
+        const next = DIRECTIONS.find((dir) => !(prog.dirs && prog.dirs[dir]));
+        if (next === pass) out.push({ kind: 'word', dir: next, id: item.id, item, due: 0, isNew: true });
+      }
+    }
+    return out;
+  }
+
+  /** New grammar cards waiting to be introduced, in the order they were planted. */
+  freshGrammar() {
+    return Object.entries(this.s.grammar).filter(([key, c]) => !c.r && isCardKey(key))
+      .sort((a, b) => a[1].pl - b[1].pl).map(([key]) => ({ kind: 'gram', id: key, due: 0, isNew: true }));
+  }
+
+  /**
+   * Today's garden queue: due reviews of every kind (most overdue first), then new cards: at most 5 new words, 2 new
+   * grammar cards and 3 new Listen / Say it cards a day (fewer while accuracy is low), all within one daily cap, so a
+   * backlog after a break never piles up. The rest simply wait.
    */
   dailyGardenQueue(cap = DAILY_REVIEW_CAP) {
     const d = this.day();
     const remaining = Math.max(0, cap - d.rev);
-    const newLeft = Math.max(0, this.newCap() - d.newc);
-    const now = Date.now();
-    const plants = this.planted().filter((p) => p.prog.due <= now);
-    const reviews = plants.filter((p) => p.prog.r > 0).map((p) => p.item);
-    // New plants oldest first, except lines the learner mined themselves, which come first.
-    const fresh = plants.filter((p) => !p.prog.r)
-      .sort((a, b) => (b.item.mined ? 1 : 0) - (a.item.mined ? 1 : 0) || (a.prog.pl || 0) - (b.prog.pl || 0)).map((p) => p.item);
-    // If fewer than 5 planted words are waiting, introduce starter phrases in order, then the N5 deck in order.
-    if (fresh.length < newLeft) {
-      for (const ph of PHRASES) {
-        if (fresh.length >= newLeft) break;
-        if (!ph.isBoss && !this.s.items[ph.id]) fresh.push(GARDEN_CATALOG[ph.id]);
-      }
-    }
-    if (fresh.length < newLeft) {
-      // Skip N5 words already growing under another id (met in Story, Kanji Forge or the starter phrases).
-      const known = new Set(this.planted().map((p) => p.item.jp).concat(fresh.map((f) => f.jp)));
-      for (const w of N5_WORDS) {
-        if (fresh.length >= newLeft) break;
-        if (!this.s.items[w.id] && !known.has(w.jp)) { fresh.push(GARDEN_CATALOG[w.id]); known.add(w.jp); }
-      }
-    }
+    const reviews = this.dueCards();
     const q = reviews.slice(0, remaining);
-    const newSlots = Math.min(newLeft, remaining - q.length);
-    return { queue: q.concat(fresh.slice(0, Math.max(0, newSlots))), waiting: Math.max(0, reviews.length - q.length), remaining };
+    let slots = remaining - q.length;
+    const take = (list, n) => { const got = list.slice(0, Math.max(0, Math.min(n, slots))); slots -= got.length; return got; };
+    const words = take(this.freshWords(Math.max(0, this.newCap() - d.newc)).map((item) => ({ kind: 'word', dir: 'mean', id: item.id, item, due: 0, isNew: true })), Infinity);
+    const gram = take(this.freshGrammar(), Math.max(0, newGrammarPerDay(this.s.engine) - (d.newg || 0)));
+    const dirs = take(this.directionCandidates(), Math.max(0, newDirsPerDay(this.s.engine) - (d.newd || 0)));
+    return { queue: q.concat(words, gram, dirs), waiting: Math.max(0, reviews.length - q.length), remaining };
+  }
+
+  // ----- review cards in other directions, grammar cards, needs help -----
+  /** The saved state of a Garden card (a word's normal card is the item itself). */
+  cardState(card) {
+    if (card.kind === 'gram') return this.s.grammar[card.id] || null;
+    const p = this.s.items[card.id];
+    if (!p) return null;
+    return card.dir === 'mean' ? p : (p.dirs && p.dirs[card.dir]) || null;
+  }
+
+  /**
+   * Records one review of a Garden card of any kind: schedules it, counts it toward today's reviews (and today's new
+   * cards of its kind the first time), and keeps the needs-help count. Grades go through store.grade as before.
+   */
+  reviewCard(card, ok, now = Date.now()) {
+    if (card.kind === 'word' && card.dir === 'mean') {
+      this.recordReview(card.id, ok);
+      this.grade({ skill: 'vocab', id: card.id, ok });
+      return;
+    }
+    let c;
+    const d = this.day();
+    if (card.kind === 'gram') {
+      c = this.s.grammar[card.id] || (this.s.grammar[card.id] = newCard(now));
+      if (!c.r) d.newg = (d.newg || 0) + 1;
+    } else {
+      const p = this.s.items[card.id] || (this.s.items[card.id] = newItem(now));
+      p.dirs = p.dirs || {};
+      c = p.dirs[card.dir] || (p.dirs[card.dir] = newCard(now));
+      if (!c.r) d.newd = (d.newd || 0) + 1;
+    }
+    scheduleCard(c, ok, now);
+    trackHelp(c, ok);
+    d.rev += 1;
+    this.log(ok);
+    const skill = card.kind === 'gram' ? 'grammar' : card.dir === 'say' ? 'speaking' : 'listening';
+    this.grade({ skill, id: card.kind === 'gram' ? card.id : `${card.dir}:${card.id}`, ok });
+  }
+
+  /** Plants a grammar card (a course grammar point or a conjugation form). Does nothing if it's already planted. */
+  plantGrammar(key, now = Date.now()) {
+    if (this.s.grammar[key] || !isCardKey(key)) return false;
+    this.s.grammar[key] = newCard(now);
+    this.save();
+    return true;
+  }
+
+  /** Plants the grammar cards of a course unit (when its lesson is read, or the unit is done). */
+  plantUnitGrammar(unitId, now = Date.now()) {
+    let n = 0;
+    for (const key of unitCardKeys(unitId)) {
+      if (this.s.grammar[key]) continue;
+      this.s.grammar[key] = newCard(now + n++);
+    }
+    if (n) this.save();
+    return n;
+  }
+
+  /**
+   * Grammar cards due now that have been reviewed at least once, most overdue first: [{ key, due, help }].
+   * For other modes (a Rival Battle, say) to draw on; record their results with reviewGrammar().
+   */
+  dueGrammar(now = Date.now(), limit = Infinity) {
+    return Object.entries(this.s.grammar).filter(([key, c]) => c.r && c.due <= now && isCardKey(key))
+      .sort((a, b) => a[1].due - b[1].due).slice(0, limit).map(([key, c]) => ({ key, due: c.due, help: !!c.help }));
+  }
+
+  /** One grammar card result from any mode: scheduled like a Garden review. */
+  reviewGrammar(key, ok, now = Date.now()) {
+    if (!this.s.grammar[key] && !isCardKey(key)) return;
+    this.reviewCard({ kind: 'gram', id: key }, ok, now);
+  }
+
+  /** Every card with the needs-help mark, for the Garden's "Needs help" practice. */
+  helpCards() {
+    const out = [];
+    for (const { item, prog } of this.planted()) {
+      if (prog.help) out.push({ kind: 'word', dir: 'mean', id: item.id, item, due: prog.due, help: true });
+      for (const [dir, c] of Object.entries(prog.dirs || {})) if (c.help) out.push({ kind: 'word', dir, id: item.id, item, due: c.due, help: true });
+    }
+    for (const [key, c] of Object.entries(this.s.grammar)) if (c.help && isCardKey(key)) out.push({ kind: 'gram', id: key, due: c.due, help: true });
+    return out;
+  }
+
+  /** Whether a word (any of its cards) is marked as needing help: a 🩹 on its plant. */
+  wordNeedsHelp(id) {
+    const p = this.s.items[id];
+    return !!(p && (p.help || Object.values(p.dirs || {}).some((c) => c.help)));
   }
 
   // ----- story saga: line mining and chapter results -----

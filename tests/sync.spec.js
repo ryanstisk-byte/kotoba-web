@@ -116,13 +116,55 @@ test.describe('mergeProgress (pure merge in store.js)', () => {
       return { m, same: JSON.stringify(x) === bx && JSON.stringify(y) === by };
     }, [v1, now]);
     expect(result.same).toBe(true);
-    expect(result.m.v).toBe(5);
+    expect(result.m.v).toBe(await page.evaluate(async () => (await import('./js/store.js')).STATE_VERSION));
     expect(result.m.items.ohayou).toMatchObject({ level: 3, best: 0.8, r: 5 });
     expect(result.m.items.ohayou.s).toBeGreaterThan(0);   // migrated to the FSRS fields
     expect(result.m.items.arigatou).toBeTruthy();
     expect(result.m.chapters).toEqual(['ch1']);
     expect(result.m.dojo).toEqual(['h1']);
     expect(result.m.settings.theme).toBe('light');
+  });
+
+  test('card directions, grammar cards and miss counts: each card keeps its own most recent review', async ({ page }) => {
+    const card = (lr, extra = {}) => ({ due: lr + 2 * 24 * H, s: 2, d: 5, lr, r: 2, pl: T0 - 50 * H, ...extra });
+    // The phone reviewed the Listen card last and missed 切る a 4th time (needs help); the PC reviewed the Say it
+    // card, the grammar card and the Meaning card later, and has a grammar card the phone has never seen.
+    const phone = {
+      v: 6,
+      items: {
+        'n5:猫': item(T0 + 1 * H, { level: 4, dirs: { listen: card(T0 + 6 * H, { r: 5 }), say: card(T0 - 20 * H) } }),
+        'n5:切る': item(T0 + 5 * H, { lapses: 4, help: true }),
+      },
+      grammar: { 'g:p0-1:wa': card(T0 + 1 * H, { lapses: 2 }) },
+      days: { '2026-10-08': day(5, 6) },
+    };
+    phone.days['2026-10-08'].newd = 2;
+    const pc = {
+      v: 6,
+      items: {
+        'n5:猫': item(T0 + 3 * H, { level: 5, dirs: { listen: card(T0 - 10 * H), say: card(T0 + 4 * H, { r: 7 }) } }),
+        'n5:切る': item(T0 - 30 * H, { lapses: 2 }),
+      },
+      grammar: { 'g:p0-1:wa': card(T0 + 2 * H, { r: 4 }), 'cj:食べる|te': card(T0 + 3 * H) },
+      days: { '2026-10-08': day(7, 8) },
+    };
+    pc.days['2026-10-08'].newg = 1;
+
+    const m = await merge(page, phone, pc);
+    const cat = m.items['n5:猫'];
+    expect(cat.level).toBe(5);                 // the Meaning card: the PC reviewed it last
+    expect(cat.dirs.listen.r).toBe(5);         // Listen: the phone's
+    expect(cat.dirs.say.r).toBe(7);            // Say it: the PC's
+    expect(m.items['n5:切る']).toMatchObject({ lapses: 4, help: true });   // the most recent review's count and mark
+    expect(m.grammar['g:p0-1:wa'].r).toBe(4);  // the PC's later review (no misses since)
+    expect(m.grammar['g:p0-1:wa'].lapses).toBeUndefined();
+    expect(m.grammar['cj:食べる|te']).toBeTruthy();
+    expect(m.days['2026-10-08']).toMatchObject({ newd: 2, newg: 1, tot: 8 });
+    // Merged the other way round, and again: the same cards.
+    const m2 = await merge(page, pc, phone);
+    expect(m2.items).toEqual(m.items);
+    expect(m2.grammar).toEqual(m.grammar);
+    expect(await merge(page, m, pc)).toEqual(m);
   });
 
   test('lines mined on both devices under the same number are both kept, and both devices agree on ids', async ({ page }) => {

@@ -18,6 +18,34 @@ export function newPerDay(engine, settings = {}) {
   return Math.max(1, Math.min(NEW_CAP, n));
 }
 
+export const NEW_DIRS_CAP = 3;     // new Listen / Say it cards a day, at most
+export const NEW_GRAMMAR_CAP = 2;  // new grammar cards a day, at most
+
+/** Lowest recent first-try rate among these skills (null when none has enough answers yet). */
+function lowest(engine, skills) {
+  const rates = skills.map((sk) => recentRate(engine, sk)).filter((r) => r != null);
+  return rates.length ? Math.min(...rates) : null;
+}
+
+/**
+ * New Listen / Say it cards per day: 3, fewer while vocabulary, listening or speaking is below ~80%, none below
+ * ~70%. Only ever fewer, never more, so the ~85% target holds.
+ */
+export function newDirsPerDay(engine) {
+  const r = lowest(engine, ['vocab', 'listening', 'speaking']);
+  if (r != null && r < 0.7) return 0;
+  if (r != null && r < 0.8) return 1;
+  return NEW_DIRS_CAP;
+}
+
+/** New grammar cards per day: 2, one while grammar is below ~80%, none below ~70%. */
+export function newGrammarPerDay(engine) {
+  const r = recentRate(engine, 'grammar');
+  if (r != null && r < 0.7) return 0;
+  if (r != null && r < 0.8) return 1;
+  return NEW_GRAMMAR_CAP;
+}
+
 /** Rhythm tempo multiplier from recent speaking accuracy: 0.85 when it's hard, 1.1 when it's too easy. */
 export function rhythmSpeed(engine) {
   const r = recentRate(engine, 'speaking');
@@ -47,6 +75,8 @@ export function earlyHint(engine, skill) {
 export function knobs(engine, settings = {}) {
   return {
     newPerDay: newPerDay(engine, settings),
+    newDirsPerDay: newDirsPerDay(engine),
+    newGrammarPerDay: newGrammarPerDay(engine),
     rhythmSpeed: rhythmSpeed(engine),
     sliceSpawn: sliceSpawn(engine, settings.quiet),
     forgeHint: earlyHint(engine, 'kanji'),

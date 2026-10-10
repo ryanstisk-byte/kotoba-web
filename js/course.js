@@ -10,6 +10,7 @@ import { esc, delegate, toast, melodySVG, shuffle } from './ui.js';
 import { romaji, toHiragana } from './romaji.js';
 import * as fx from './fx.js';
 import { mountRecap, particleQuestion, orderQuestion, listenQuestion, meaningQuestion } from './recap.js';
+import { POINT_PARTICLES } from './grammar-cards.js';
 
 /** N5 deck words by written form (the first entry wins for the rare shared spelling). */
 const N5_BY_JP = new Map();
@@ -71,6 +72,7 @@ export function recordAnswer(id, ok) {
   if (!st.done && t.tot >= UNIT_MIN_ANSWERS && st.recent >= UNIT_TARGET) {
     completed = true;
     c.done.push(id);
+    store.plantUnitGrammar(id);   // its grammar points join the Garden's review cards
     if (c.current === id) c.current = null;
     const next = currentUnit();
     if (next && !c.reached.includes(next.id)) c.reached.push(next.id);
@@ -79,9 +81,11 @@ export function recordAnswer(id, ok) {
   return completed;
 }
 
+/** Marks a unit's lesson read, and plants a Garden review card for each of its grammar points. */
 export function markRead(id) {
   const c = C();
   if (!c.read.includes(id)) { c.read.push(id); store.save(); }
+  store.plantUnitGrammar(id);
 }
 
 /**
@@ -385,31 +389,6 @@ export function renderGrammar(view) {
 
 // ---------- lesson: grammar points and examples, one card at a time (also Today's Input block) ----------
 // ---------- lesson recap ----------
-/**
- * The particle each grammar point teaches, for its fill-in question, with wrong options picked for that sentence
- * pattern: never one that would also make a correct sentence (へやの テレビが あります, かばんに あります).
- */
-const POINT_PARTICLES = {
-  wa: [['は'], ['を', 'に', 'で']],
-  no: [['の'], ['を', 'に', 'で']],
-  suki: [['が'], ['に', 'で', 'へ', 'の']],
-  'nani-ga': [['が'], ['に', 'で', 'へ', 'の']],
-  'qword-ga': [['が'], ['を', 'で', 'の']],
-  arimasu: [['が'], ['を', 'で', 'へ']],
-  imasu: [['が'], ['を', 'で', 'へ']],
-  mo: [['も'], ['を', 'で', 'へ']],
-  'to-and': [['と'], ['を', 'へ', 'で']],
-  'to-with': [['と'], ['を', 'へ', 'で']],
-  wo: [['を'], ['に', 'で', 'の']],
-  kudasai: [['を'], ['に', 'で', 'の']],
-  'count-order': [['を'], ['に', 'で', 'の']],
-  'ni-he': [['に', 'へ'], ['を', 'で', 'の']],
-  'ni-exist': [['に'], ['を', 'へ', 'が']],
-  'ji-ni': [['に'], ['を', 'で', 'へ']],
-  'de-place': [['で'], ['を', 'へ', 'が']],
-  'de-means': [['で'], ['を', 'へ', 'に']],
-};
-
 /**
  * 4-6 recap questions on a unit's lesson: one per grammar point, then more examples until there are at least four.
  * At most two fill-the-particle questions; the rest take turns: hear it, pick the Japanese, put it in order.
