@@ -2,6 +2,7 @@
 import { store } from './store.js';
 import { speaker, recognitionSupported, micSupported, PitchTracker, audioContext, click, micHelp } from './audio.js';
 import { esc, delegate, toast } from './ui.js';
+import { CLIPS } from './clips.js';
 import { median } from './modes/rhythm.js';
 import * as fx from './fx.js';
 
@@ -127,6 +128,7 @@ export function mount(el, ctx) {
         <section class="panel stack-sm">
           <h2 class="section-title">Keep progress safe</h2>
           <p class="small">On iPhone: Share › Add to Home Screen keeps your progress safe. Safari can clear website data after about 7 days without a visit, but not for Home Screen apps. Export now and then as a backup.</p>
+          <p class="small" id="offline-status">${offlineText}</p>
           ${store.saveOk ? '' : '<p class="miss-c small">Saving is blocked in this browser (private mode?). Progress will not persist.</p>'}
           <button class="btn ${resetArmed ? 'danger' : ''}" data-act="reset">${resetArmed ? 'Tap again to erase all progress' : 'Reset all progress'}</button>
         </section>
@@ -136,6 +138,35 @@ export function mount(el, ctx) {
           <p class="tiny dim center-text">N5 deck readings checked against JMdict, © EDRDG, CC BY-SA 4.0.</p>
         </div>
       </div>`;
+    checkOffline();
+  }
+
+  // How many voice clips the service worker has saved, so it's clear when the app is ready to use offline.
+  let offlineText = 'Checking the offline download…';
+  async function checkOffline() {
+    let text;
+    try {
+      if (!('caches' in window) || !navigator.serviceWorker?.controller) {
+        text = 'Offline: not set up yet. Open the site once while online, then reload.';
+      } else {
+        const files = new Set(Object.values(CLIPS));
+        const saved = new Set();
+        for (const key of await caches.keys()) {
+          if (!key.startsWith('kotoba-beat-')) continue;
+          for (const req of await (await caches.open(key)).keys()) {
+            const name = new URL(req.url).pathname.split('/').pop();
+            if (files.has(name)) saved.add(name);
+          }
+        }
+        text = saved.size >= files.size
+          ? `Offline: ready. All ${files.size} voice clips are saved on this device.`
+          : `Offline: ${saved.size} of ${files.size} voice clips saved so far. Keep the app open on Wi-Fi to finish; missing lines use the device voice.`;
+      }
+    } catch (e) { text = 'Offline: could not check this browser\'s storage.'; }
+    if (text === offlineText) return;
+    offlineText = text;
+    const p = el.querySelector('#offline-status');
+    if (p) p.textContent = text;
   }
 
   function calibHTML() {
