@@ -33,6 +33,8 @@ test('service worker registers, precaches everything and the app works offline',
     await page.goto('./' + hash);
     await expect(page.locator('#title')).toHaveText(title);
   }
+  // Settings says the voice clips are all saved for offline use.
+  await expect(page.locator('#offline-status')).toContainText('Offline: ready.');
 
   // A voice clip is served from the cache, whole and as a byte range (Safari asks for ranges).
   const clip = await page.evaluate(async () => {
