@@ -4,7 +4,7 @@
 // units unlock in order, but any unit can be opened, read and practised at any time.
 import { store } from './store.js';
 import { speaker } from './audio.js';
-import { TRAINS, CHAPTERS, COUNTERS, PHRASE_BY_ID, MODE_BY_ID, N5_WORDS, accentMorae, accentName, toMorae } from './data.js';
+import { TRAINS, trainParticles, CHAPTERS, COUNTERS, PHRASE_BY_ID, MODE_BY_ID, N5_WORDS, accentMorae, accentName, toMorae } from './data.js';
 import { PHASES, UNITS, UNIT_BY_ID, STUDY_UNITS, UNIT_TARGET, UNIT_MIN_ANSWERS, UNIT_WINDOW } from './course-data.js';
 import { esc, delegate, toast, melodySVG } from './ui.js';
 import { romaji, toHiragana } from './romaji.js';
@@ -104,12 +104,20 @@ export function trackUnit(id, onUpdate = null) {
 // ---------- practice ----------
 const GOALS = { particle: '6 trains', shop: '3 customers', rhythm: '3 phrases', story: 'one scene' };
 
+/** Other trains that use only particles taught by this unit or earlier ones, so a unit's practice has variety. */
+export function extraTrains(u) {
+  const upto = UNITS.slice(0, UNITS.indexOf(u) + 1);
+  const taught = new Set(upto.flatMap((x) => (x.practice?.trains || []).flatMap((i) => (TRAINS[i] ? trainParticles(TRAINS[i]) : []))));
+  const own = new Set(u.practice?.trains || []);
+  return TRAINS.map((_, i) => i).filter((i) => !own.has(i) && trainParticles(TRAINS[i]).every((x) => taught.has(x)));
+}
+
 /** The practice a unit tags in each mode: [{ mode, label, detail, ctx }]. */
 export function practiceList(u) {
   const p = u.practice || {};
   const out = [];
   if (p.trains?.length) {
-    out.push({ mode: 'particle', label: 'Particle Train', ctx: { trainIds: p.trains },
+    out.push({ mode: 'particle', label: 'Particle Train', ctx: { trainIds: p.trains, extraTrainIds: extraTrains(u) },
       detail: p.trains.map((i) => TRAINS[i]?.en).filter(Boolean).join(' · ') });
   }
   if (p.story) {

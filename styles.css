@@ -697,6 +697,8 @@ p:has(> .jr), .small:has(> .jr), .lead:has(> .jr), .strong:has(> .jr), span:has(
 .learn-card { display: grid; justify-items: center; gap: var(--sp-1); text-align: center; cursor: pointer; color: inherit; font: inherit; }
 .learn-card:hover { border-color: var(--ink); }
 .learn-k { font-family: var(--font-jp); font-size: 4rem; font-weight: 700; line-height: 1.15; }
+.learn-k.pre-word { font-size: 1.9rem; }
+.learn-card > * { max-width: 100%; overflow-wrap: anywhere; }
 .quiz { max-width: 640px; margin: 0 auto; width: 100%; }
 .quiz-prompt { font-family: var(--font-jp); font-size: clamp(4rem, 18vw, 7rem); font-weight: 800; text-align: center; line-height: 1.15; padding: var(--sp-2) 0; }
 .quiz-prompt.latin { font-family: var(--font-mono); font-size: clamp(2.75rem, 12vw, 4.5rem); }
