@@ -30,7 +30,7 @@ export const HELP_CLEAR = 2;
 export const SKILLS = ['kana', 'kanji', 'vocab', 'grammar', 'listening', 'pitch', 'speaking', 'counters'];
 
 /** Version of the saved progress shape. Bump it and add a step to MIGRATIONS whenever the shape changes. */
-export const STATE_VERSION = 7;
+export const STATE_VERSION = 8;
 
 function blank() {
   return {
@@ -47,12 +47,14 @@ function blank() {
       textSize: 'm', sfx: true, haptics: true,   // added in v2
       pace: 'normal',                             // added in v3: 'less' = at most 3 new words a day
       pronCheck: true,                            // added in v7: show the 🎤 pronunciation check buttons
+      voice: null,                                // added in v8: { mid (Hz), lo, hi (semitones), n } learned by the Pitch Coach
     },
     engine: blankEngine(),   // added in v3: the skill model, placement and weekly check-in (see skills.js)
     days: {},           // 'YYYY-MM-DD' -> { ok, tot, rev, newc, studied, blocks: { id: 'done'|'skipped' }, newd?, newg? (v6) }
     saga: blankSaga(),  // added in v4: Story line mining and chapter results (see migrateStory)
     course: blankCourse(),   // added in v5: the guided course (see migrateCourse)
     grammar: {},        // added in v6: grammar review cards, key -> card (see migrateCards and js/grammar-cards.js)
+    coach: { ears: [] }, // added in v8: Pitch Coach; ears = words whose "where does it drop?" warm-up is done
   };
 }
 
@@ -142,6 +144,9 @@ const MIGRATIONS = {
   5: migrateCards,
   // v6 -> v7: the pronunciation check setting (on). A per-device setting, so sync never changes it.
   6: (raw) => ({ ...raw, settings: { pronCheck: true, ...(raw.settings || {}) } }),
+  // v7 -> v8: the Pitch Coach. The learner's voice range (a per-device setting, learned later, so none yet) and the
+  // words whose pitch ear-training is done.
+  7: (raw) => ({ ...raw, settings: { voice: null, ...(raw.settings || {}) }, coach: raw.coach && typeof raw.coach === 'object' ? raw.coach : { ears: [] } }),
 };
 
 /** Adds the guided-course field with defaults. Self-contained: it touches nothing else in the blob. */
@@ -207,6 +212,7 @@ function normalize(input) {
     s.settings.haptics = st.haptics !== false;
     s.settings.pace = st.pace === 'less' ? 'less' : 'normal';
     s.settings.pronCheck = st.pronCheck !== false;
+    s.settings.voice = normalizeVoice(st.voice);
   }
   s.engine = normalizeEngine(raw.engine, SKILLS);
   if (raw.days && typeof raw.days === 'object') {
@@ -223,6 +229,9 @@ function normalize(input) {
   }
   s.saga = normalizeSaga(raw.saga);
   s.course = normalizeCourse(raw.course);
+  if (raw.coach && typeof raw.coach === 'object' && Array.isArray(raw.coach.ears)) {
+    s.coach.ears = [...new Set(raw.coach.ears.filter((x) => typeof x === 'string' && x.length < 200))];
+  }
   if (raw.grammar && typeof raw.grammar === 'object') {
     for (const [key, c] of Object.entries(raw.grammar)) {
       const n = /^(g|cj):/.test(key) ? normalizeCard(c) : null;
@@ -230,6 +239,16 @@ function normalize(input) {
     }
   }
   return s;
+}
+
+/** A saved voice range, or null if it's missing or doesn't look like a human voice. */
+function normalizeVoice(v) {
+  if (!v || typeof v !== 'object') return null;
+  const mid = Number(v.mid);
+  if (!(mid >= 60 && mid <= 700)) return null;
+  const lo = Math.max(-12, Math.min(0, Number(v.lo) || -2));
+  const hi = Math.min(12, Math.max(0, Number(v.hi) || 2));
+  return { mid, lo, hi, n: Math.max(1, Math.floor(Number(v.n) || 1)) };
 }
 
 /** The needs-help fields, kept only when set (most cards never need them). */
@@ -477,6 +496,8 @@ export function mergeProgress(local, remote, now = Date.now()) {
     const x = a.grammar[key], y = b.grammar[key];
     out.grammar[key] = x && y ? mergeCard(x, y) : { ...(x || y) };
   }
+
+  out.coach = { ears: union(a.coach.ears, b.coach.ears) };
 
   out.settings = { ...a.settings };
   return out;
@@ -1093,6 +1114,14 @@ class Store {
     }
     this.save();
   }
+
+  // ----- Pitch Coach -----
+  /** The learner's voice range on this device ({ mid, lo, hi, n }), or null before the first attempt. */
+  get voice() { return this.s.settings.voice; }
+  setVoice(v) { this.s.settings.voice = v ? normalizeVoice(v) : null; this.save(); }
+  /** Whether a word's "where does the pitch drop?" warm-up is done (it comes first in its first Pitch Coach). */
+  earsDone(id) { return this.s.coach.ears.includes(id); }
+  markEars(id) { if (id && !this.s.coach.ears.includes(id)) { this.s.coach.ears.push(id); this.save(); } }
 
   /** Milestones worth syncing right away (a Today block finished). Returns an unsubscribe function. */
   onMilestone(fn) { milestoneListeners.add(fn); return () => milestoneListeners.delete(fn); }

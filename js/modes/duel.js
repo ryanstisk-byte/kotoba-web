@@ -4,6 +4,7 @@ import { speaker } from '../audio.js';
 import { PHRASES } from '../data.js';
 import { esc, shuffle, pick, delegate, melodySVG } from '../ui.js';
 import * as fx from '../fx.js';
+import { openCoach, phraseTarget, coachAvailable } from '../pitch-coach.js';
 
 /** Every standard Tokyo accent pattern for a word of n morae (type 0 = flat, type k = drop after mora k). */
 export function allPatterns(n) {
@@ -79,7 +80,8 @@ export function mount(el, ctx) {
           </button>`).join('')}
         ${chosen !== null ? `
           <p class="${ok ? 'good-c' : 'miss-c'}">${ok ? 'Yes! Listen once more to lock it in.' : 'Not quite. The green one is right: play it again and follow that melody.'}</p>
-          <button class="btn primary wide" data-act="next">Next ▶</button>` : ''}
+          <button class="btn primary wide" data-act="next">Next ▶</button>
+          ${coachAvailable() ? '<button class="btn ghost wide" data-act="coach">Pitch Coach warm-up: practise this melody</button>' : ''}` : ''}
         ${!speaker.hasClip(q.answer.speak) && speaker.supported && !speaker.voices.length ? '<p class="small miss-c">No Japanese voice found on this device. Install one (see Settings) for real pitch.</p>' : ''}
         <p class="tiny dim">Built-in voices usually get pitch accent right, but not always. Trust OJAD over the voice if they disagree.</p>
       </div>`;
@@ -107,6 +109,7 @@ export function mount(el, ctx) {
     play: () => { question.voice = (question.voice + 1) % 4; speaker.speak(question.answer.speak, { mps: 3.5, voice: question.voice }); showVoice(); },
     choose: (b) => choose(+b.dataset.i),
     next: nextQuestion,
+    coach: (b) => openCoach(phraseTarget(question.answer), { from: b }),
   });
   const offVoices = speaker.onVoices(() => question && render());
 

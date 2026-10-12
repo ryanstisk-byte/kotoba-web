@@ -134,6 +134,23 @@ test.describe('mergeProgress (pure merge in store.js)', () => {
     expect((await merge(page, phone, { v: 6, items: {} })).settings.pronCheck).toBe(false);
   });
 
+  test('the saved voice range stays per device; "ears first" words done on either device are kept', async ({ page }) => {
+    const phoneVoice = { mid: 210, lo: -3, hi: 4, n: 5 };
+    const pcVoice = { mid: 120, lo: -2.5, hi: 3, n: 2 };
+    const phone = { v: 8, items: { ohayou: item(T0) }, settings: { voice: phoneVoice }, coach: { ears: ['n5:猫', 'ohayou'] } };
+    const pc = { v: 8, items: { arigatou: item(T0 + H) }, settings: { voice: pcVoice }, coach: { ears: ['ohayou', 'n5:犬'] } };
+    const onPhone = await merge(page, phone, pc);
+    expect(onPhone.settings.voice).toEqual(phoneVoice);
+    expect(onPhone.coach.ears.slice().sort()).toEqual(['n5:犬', 'n5:猫', 'ohayou'].sort());
+    expect((await merge(page, pc, phone)).settings.voice).toEqual(pcVoice);
+    // A device that has never found its voice doesn't take another device's.
+    expect((await merge(page, { v: 8, items: {} }, phone)).settings.voice).toBe(null);
+    // An older copy (v7, before the coach) loses nothing either way.
+    const old = await merge(page, phone, { v: 7, items: { arigatou: item(T0 + H) } });
+    expect(old.coach.ears.slice().sort()).toEqual(['n5:猫', 'ohayou'].sort());
+    expect(old.items.arigatou).toBeTruthy();
+  });
+
   test('card directions, grammar cards and miss counts: each card keeps its own most recent review', async ({ page }) => {
     const card = (lr, extra = {}) => ({ due: lr + 2 * 24 * H, s: 2, d: 5, lr, r: 2, pl: T0 - 50 * H, ...extra });
     // The phone reviewed the Listen card last and missed 切る a 4th time (needs help); the PC reviewed the Say it

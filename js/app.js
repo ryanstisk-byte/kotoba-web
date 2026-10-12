@@ -30,6 +30,7 @@ import * as course from './course.js';
 import { UNIT_BY_ID } from './course-data.js';
 import * as sync from './sync.js';
 import { initPron, closePron } from './pron.js';
+import { closeCoach } from './pitch-coach.js';
 import { initIcons } from './icons.js';
 
 const MOUNTS = { dojo, garden, story, particle, forge, rhythm, duel, slice, shop, listen, conj, build, kata, numbers };
@@ -131,6 +132,7 @@ let inSession = false;   // on a screen outside the tabs (a mode, a lesson): lea
 
 function route() {
   closePron();   // a pronunciation check never outlives its screen
+  closeCoach();  // nor does the Pitch Coach
   if (cleanup) { try { cleanup(); } catch (e) { console.warn(e); } cleanup = null; }
   speaker.stop();
   banner.innerHTML = '';

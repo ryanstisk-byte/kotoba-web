@@ -10,6 +10,8 @@
 // Each finding is an issue id (see pron-tips.js for the words shown); verdict() turns everything into
 // Great / Close / Try again, generously.
 
+import { scorePitch, dropAt, MIN_STEP_ST } from './pitch-score.js';
+
 const kata2hira = (s) => String(s || '').replace(/[ァ-ヶ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60));
 const toMorae = (kana) => kana.match(/.[ゃゅょぁぃぅぇぉゎ]?/g) || [];
 
@@ -275,43 +277,46 @@ export function targetPitch(target, slots) {
   return mp.map((x) => (x == null ? last : (last = x >= mid)));
 }
 
-/** The pitch-accent check: does the learner's pitch rise and fall where the word's does? */
+/**
+ * The pitch-accent check, scored the way listeners hear it (pitch-score.js): the direction of each step from one beat
+ * to the next, and where the pitch drops. Whispered beats (the す in です) and the silent っ are left out.
+ * Each issue says which step it's about (at → to), so the Pitch Coach can practise just that step.
+ */
 export function pitchCheck(target, slots) {
   const highs = targetPitch(target, slots);
   if (!slots || !highs) return { available: false, issues: [], highs };
   const u = slots.map((s) => s.pitch);
-  const known = u.map((x, i) => [x, i]).filter(([x]) => x != null);
-  if (known.length < Math.max(2, Math.ceil(slots.length / 2))) return { available: false, issues: [], highs, user: u };
-  const lo = Math.min(...known.map(([x]) => x)), hi = Math.max(...known.map(([x]) => x));
-  const mid = (lo + hi) / 2;
-  const userHigh = u.map((x) => (x == null ? null : x >= mid));
-  const match = known.filter(([x, i]) => (x >= mid) === highs[i]).length / known.length;
+  const skip = slots.map((s) => s.devoice || s.type === 'sokuon');
+  const known = u.filter((x, i) => x != null && !skip[i]).length;
+  const scorable = highs.filter((_, i) => !skip[i]).length;
+  if (known < Math.max(2, Math.ceil(scorable / 2))) return { available: false, issues: [], highs, user: u, skip };
+  const sc = scorePitch(highs, u, { skip });
+  if (sc.verdict === 'none') return { available: false, issues: [], highs, user: u, skip };
   const issues = [];
-  const hasDrop = highs.some((h, i) => h && highs[i + 1] === false);
   const varies = highs.some(Boolean) && highs.some((h) => !h);
-  const at = (i) => u[i];
-  const n = slots.length;
-  if (varies && hi - lo < 1.2) issues.push({ id: 'pitch_flat' });
-  else {
-    if (highs[0] && highs[1] === false && at(0) != null && at(1) != null && at(0) < at(1) - 0.8) issues.push({ id: 'pitch_start_high' });
-    if (!highs[0] && highs[1] && at(0) != null && at(1) != null && at(0) > at(1) + 0.8) issues.push({ id: 'pitch_start_low' });
-    if (hasDrop) {
-      const k = highs.findIndex((h, i) => h && highs[i + 1] === false);
-      const before = Math.max(...u.slice(0, k + 1).filter((x) => x != null), -99);
-      const after = u.slice(k + 1).filter((x) => x != null);
-      if (after.length && Math.min(...after) > before - 1 && issues.length === 0) issues.push({ id: 'pitch_no_drop', at: k });
-    }
-    const lastK = known[known.length - 1];
-    if (highs[n - 1] && !hasDrop && lastK && lastK[0] < hi - 2) issues.push({ id: 'pitch_end_drop' });
-    const prevK = known[known.length - 2];
-    if (!highs[n - 1] && lastK && prevK && lastK[0] > prevK[0] + 1.2) issues.push({ id: 'pitch_rise_end' });
+  const last = sc.steps[sc.steps.length - 1];
+  if (varies && sc.steps.every((x) => x.got === 'level' && Math.abs(x.d) <= MIN_STEP_ST)) issues.push({ id: 'pitch_flat' });
+  else if (sc.firstMiss) {
+    const m = sc.firstMiss;
+    const k = dropAt(highs);
+    const at = { at: m.from, to: m.to };
+    if (m.want === 'down' && m.from === 0) issues.push({ id: 'pitch_start_high', ...at });
+    else if (m.want === 'up' && m.from === 0) issues.push({ id: 'pitch_start_low', ...at });
+    else if (m.want === 'down') issues.push({ id: 'pitch_no_drop', ...at });
+    else if (m.want === 'level' && m.got === 'down' && k >= 0 && m.from < k) issues.push({ id: 'pitch_early_drop', ...at, drop: k });
+    else if (m.want === 'level' && m.got === 'down') issues.push({ id: 'pitch_end_drop', ...at });
+    else if (m.got === 'up' && m === last) issues.push({ id: 'pitch_rise_end', ...at });
+    else issues.push({ id: m.want === 'up' ? 'pitch_start_low' : 'pitch_no_drop', ...at });
+    // A last step that rises where the word ends low is worth its own tip too.
+    if (last !== m && last.got === 'up' && last.want !== 'up' && !last.ok) issues.push({ id: 'pitch_rise_end', at: last.from, to: last.to });
+    else if (last === m && m.from === 0 && m.got === 'up' && m.want === 'down') issues.push({ id: 'pitch_rise_end', at: m.from, to: m.to });
   }
-  return { available: true, highs, user: u, userHigh, match, issues };
+  return { available: true, highs, user: u, skip, match: sc.match, score: sc, issues };
 }
 
 /** Which tips to show: the two most useful, in this order, one per kind. */
 const PRIORITY = ['silent', 'not_heard', 'sound_swap', 'long_short', 'long_added', 'sokuon_missing', 'n_short',
-  'pitch_start_high', 'pitch_start_low', 'pitch_no_drop', 'pitch_end_drop', 'pitch_rise_end', 'pitch_flat', 'devoice', 'rushed'];
+  'pitch_start_high', 'pitch_start_low', 'pitch_no_drop', 'pitch_early_drop', 'pitch_end_drop', 'pitch_rise_end', 'pitch_flat', 'devoice', 'rushed'];
 
 export function pickIssues(all, max = 2) {
   const seen = new Set();
@@ -328,7 +333,7 @@ export function pickIssues(all, max = 2) {
 export function verdict({ sounds, pitch, length }) {
   const parts = [];
   if (sounds && sounds.available) parts.push(sounds.score >= 0.8 ? 2 : sounds.score >= 0.45 ? 1 : 0);
-  if (pitch && pitch.available) parts.push(pitch.match >= 0.7 && !pitch.issues.length ? 2 : pitch.match >= 0.5 ? 1 : 0);
+  if (pitch && pitch.available) parts.push(pitch.score ? { great: 2, close: 1, try: 0 }[pitch.score.verdict] ?? 1 : pitch.match >= 0.7 && !pitch.issues.length ? 2 : pitch.match >= 0.5 ? 1 : 0);
   if (length && length.available) parts.push(length.issues.length === 0 ? 2 : length.issues.length === 1 ? 1 : 0);
   if (!parts.length) return 'none';
   const avg = parts.reduce((a, b) => a + b, 0) / parts.length;
