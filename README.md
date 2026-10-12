@@ -45,6 +45,16 @@ Two right answers in a row clear the mark. The Garden screen's "Needs help" butt
 
 The migration plants grammar cards for lessons already read and conjugation forms already practised. The sync merge keeps each card's own most recent review.
 
+## Icons
+
+The app draws its icons as small line drawings instead of emoji: original 24×24 art in `js/icon-art.js`, with round 2px strokes in the text colour, so they follow light and dark mode and the text size.
+
+Templates still write the emoji. `js/icons.js` swaps each one for its drawing as screens render, the same way reading help annotates text, so toasts, banners and every mode are covered. Emoji added later are caught too, once they're added to `EMOJI_ICONS` with a drawing.
+- An icon next to words is hidden from screen readers.
+- An icon that stands alone (a plant, a customer) is a named image.
+
+`tests/icons.spec.js` checks that no screen shows an emoji.
+
 ## Pronunciation check (optional)
 
 A 🎤 **Check my pronunciation** button sits next to the 🔊 wherever a new word or phrase is taught:

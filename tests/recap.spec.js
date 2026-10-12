@@ -57,7 +57,7 @@ test.describe('lesson recap', () => {
 
     for (let i = 1; i < n; i++) {
       await answer(page, true);
-      await expect(v.getByText('✓ Right!')).toBeVisible();
+      await expect(v.getByText('Right!', { exact: true })).toBeVisible();
       await v.locator('[data-act=rc-next]').click();
     }
     // The missed one again, once.
@@ -65,8 +65,8 @@ test.describe('lesson recap', () => {
     await answer(page, true);
     await v.locator('[data-act=rc-next]').click();
     await expect(v.getByText(`${n - 1} of ${n}`)).toBeVisible();
-    await v.getByRole('button', { name: 'On to practice ▶' }).click();
-    await expect(v.getByText('Lesson read ✓')).toBeVisible();
+    await v.getByRole('button', { name: 'On to practice', exact: true }).click();
+    await expect(v.getByText('Lesson read', { exact: true })).toBeVisible();
     await expect(v.getByText(`Recap: ${n - 1} of ${n} right on the first try.`)).toBeVisible();
     await expect(v.locator('.mode-card').first()).toBeVisible();
 
@@ -91,7 +91,7 @@ test.describe('lesson recap', () => {
     await readLesson(page, 'p0-1');
     expect((await saved(page)).course.read).toEqual(['p0-1']);
     await view(page).getByRole('button', { name: 'Skip recap' }).click();
-    await expect(view(page).getByText('Lesson read ✓')).toBeVisible();
+    await expect(view(page).getByText('Lesson read', { exact: true })).toBeVisible();
     await expect(view(page).getByText(/Recap:/)).toHaveCount(0);
   });
 

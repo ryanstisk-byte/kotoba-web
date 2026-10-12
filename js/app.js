@@ -30,6 +30,7 @@ import * as course from './course.js';
 import { UNIT_BY_ID } from './course-data.js';
 import * as sync from './sync.js';
 import { initPron, closePron } from './pron.js';
+import { initIcons } from './icons.js';
 
 const MOUNTS = { dojo, garden, story, particle, forge, rhythm, duel, slice, shop, listen, conj, build, kata, numbers };
 /** Screens the Today plan can open that aren't modes (the course lesson). */
@@ -497,6 +498,7 @@ applyTheme();
 store.markSession();
 refreshChrome();
 initReadingHelp([document.body]);
+initIcons([document.body]);   // every emoji the screens write is drawn as a line icon (js/icons.js)
 
 // A screen opened directly (bookmark, home-screen shortcut, reload) gets Today underneath it, so back stays in the app.
 if (history.state && typeof history.state.kbDepth === 'number') {

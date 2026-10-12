@@ -47,7 +47,7 @@ test.describe('course path and units', () => {
     const v = view(page);
     await expect(v.locator('.unit-row.cleared')).toHaveCount(4);
     await expect(v.locator('.unit-row[aria-current=step]')).toContainText('Order food');
-    await expect(v.locator('.unit-row.cleared', { hasText: 'Say hello' }).locator('.ch-num')).toHaveText('✓');
+    await expect(v.locator('.unit-row.cleared', { hasText: 'Say hello' }).locator('.ch-num .ico-check')).toHaveCount(1);
   });
 
   test('a unit shows its goal, grammar with examples, pitch melodies and tagged practice', async ({ page }) => {
@@ -133,7 +133,7 @@ test.describe('course path and units', () => {
     await expect(v.getByText('LESSON RECAP')).toBeVisible();
     expect((await saved(page)).course.read).toEqual(['p0-2']);
     await v.getByRole('button', { name: 'Skip recap' }).click();
-    await expect(v.getByText('Lesson read ✓')).toBeVisible();
+    await expect(v.getByText('Lesson read', { exact: true })).toBeVisible();
   });
 });
 
@@ -190,7 +190,7 @@ test.describe('Today follows the course', () => {
     for (let i = 0; i < 6 && !(await v.locator('.recap').isVisible()); i++) await v.getByRole('button', { name: /Next|Finish/ }).click();
     await expect(page.locator('#banner')).toContainText('Block 2 done');   // done as soon as it's read, before the recap
     await v.getByRole('button', { name: 'Skip recap' }).click();
-    await expect(v.getByText('Lesson read ✓')).toBeVisible();
+    await expect(v.getByText('Lesson read', { exact: true })).toBeVisible();
     expect((await saved(page)).course.read).toContain('p1-3');
 
     // Tomorrow's input is the unit's story scene.

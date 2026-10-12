@@ -35,7 +35,7 @@ async function answerCard(page, ok) {
     return label;
   }
   await v.getByRole('button', { name: /Check/ }).click();
-  if (await v.getByRole('button', { name: 'Next ▶' }).count()) await v.getByRole('button', { name: 'Next ▶' }).click();
+  if (await v.getByRole('button', { name: 'Next', exact: true }).count()) await v.getByRole('button', { name: 'Next', exact: true }).click();
   else await v.getByRole('button', { name: ok ? /Knew it/ : /Forgot/ }).click();
   return label;
 }
@@ -92,7 +92,7 @@ test.describe('Listen and Say it cards', () => {
     await open(page, { items: { 'n5:猫': later() }, days: { '2026-10-10': { ok: 0, tot: 0, rev: 0, newc: 5, studied: true, blocks: {} } } });
     const v = view(page);
     await v.getByRole('button', { name: /Water 1 plant/ }).click();
-    await expect(v.locator('.card-dir')).toHaveText('🎧 Listen');
+    await expect(v.locator('.card-dir')).toHaveText('Listen');
     await expect(v.locator('.review-jp')).toHaveCount(0);   // no text before checking
     expect(await page.evaluate(async () => (await import('./js/audio.js')).speaker.lastMethod)).toBe('clip');
     await expectNoHorizontalScroll(page);
@@ -113,7 +113,7 @@ test.describe('Listen and Say it cards', () => {
     await open(page, { items: { 'n5:猫': p }, days: { '2026-10-10': { ok: 0, tot: 0, rev: 0, newc: 5, studied: true, blocks: {} } } });
     const v = view(page);
     await v.getByRole('button', { name: /Water 1 plant/ }).click();
-    await expect(v.locator('.card-dir')).toHaveText('🗣 Say it');
+    await expect(v.locator('.card-dir')).toHaveText('Say it');
     await expect(v.locator('.say-en')).toHaveText('cat');
     await expect(v.getByText(/grade yourself/)).toBeVisible();
     await v.getByRole('button', { name: /Example hint/ }).click();
@@ -143,8 +143,8 @@ test.describe('Listen and Say it cards', () => {
     await open(page, { items: { 'n5:猫': p }, days: { '2026-10-10': { ok: 0, tot: 0, rev: 0, newc: 5, studied: true, blocks: {} } } });
     const v = view(page);
     await v.getByRole('button', { name: /Water 1 plant/ }).click();
-    await expect(v.getByText('✓ Heard it')).toBeVisible();
-    await v.getByRole('button', { name: 'Next ▶' }).click();
+    await expect(v.getByText(/Heard it/)).toBeVisible();
+    await v.getByRole('button', { name: 'Next', exact: true }).click();
     const say = (await saved(page)).items['n5:猫'].dirs.say;
     expect(say.r).toBe(1);
     expect(say.due).toBeGreaterThan(T);   // graded right
@@ -197,7 +197,7 @@ test.describe('grammar cards', () => {
       days: { '2026-10-10': { ok: 0, tot: 0, rev: 0, newc: 5, studied: true, blocks: {} } } });
     const v = view(page);
     await v.getByRole('button', { name: /Water 1 plant/ }).click();
-    await expect(v.locator('.card-dir')).toHaveText('📐 Grammar');
+    await expect(v.locator('.card-dir')).toHaveText('Grammar');
     await expect(v.locator('.gram-show')).toContainText('（　）');
     await expect(v.getByText('The Master is a teacher.')).toBeVisible();
     await expectNoHorizontalScroll(page);
@@ -209,7 +209,7 @@ test.describe('grammar cards', () => {
     expect(s.grammar['g:p0-1:wa']).toMatchObject({ r: 1, lapses: 1 });
     expect(s.days['2026-10-10'].newg).toBe(1);
     expect(Object.values(s.engine.tally)[0].grammar).toEqual([0, 1]);
-    await v.getByRole('button', { name: 'Next ▶' }).click();
+    await v.getByRole('button', { name: 'Next', exact: true }).click();
   });
 
   test('the keyboard picks an answer (1-4) and moves on (Enter)', async ({ page }) => {
@@ -282,7 +282,7 @@ test.describe('help for stuck words', () => {
     let p = (await saved(page)).items['n5:切る'];
     expect(p).toMatchObject({ lapses: 4, help: true, level: 4 });   // nothing is taken away
     await expect(v.locator('.plant.needs-help')).toHaveCount(1);
-    await expect(v.locator('.plant.needs-help .bandage')).toHaveText('🩹');
+    await expect(v.locator('.plant.needs-help .bandage .ico-bandage')).toHaveCount(1);   // drawn as a line icon
     await expect(v.locator('.plant')).toHaveCount(2);   // never hidden
 
     // Practise it on purpose: the help panel comes first.
