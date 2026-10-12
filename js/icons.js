@@ -61,6 +61,7 @@ export const EMOJI_ICONS = {
   "↻": "retry",
   "🔁": "repeat",
   "🎉": "party",
+  "🏆": "trophy",
   "✏": "pencil",
   "🩹": "bandage",
   "👁": "eye",
