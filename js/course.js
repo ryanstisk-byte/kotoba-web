@@ -11,6 +11,7 @@ import { romaji, toHiragana } from './romaji.js';
 import * as fx from './fx.js';
 import { mountRecap, particleQuestion, orderQuestion, listenQuestion, meaningQuestion } from './recap.js';
 import { POINT_PARTICLES } from './grammar-cards.js';
+import { pronButton, wordTarget } from './pron.js';
 
 /** N5 deck words by written form (the first entry wins for the rare shared spelling). */
 const N5_BY_JP = new Map();
@@ -318,10 +319,10 @@ export function renderUnit(view, id) {
       </section>
       ${words.length ? `<h2 class="section-label">WORDS</h2>
       <p class="small dim">Key words from the N5 deck, with their pitch (standard Tokyo accent, said on their own). They come up in the Garden too.</p>
-      <div class="word-melodies">${words.map((w) => `<button class="panel melody-item word-item" data-act="word" data-id="${esc(w.id)}" aria-label="Play ${esc(w.en)}">
+      <div class="word-melodies">${words.map((w) => `<div class="word-cell"><button class="panel melody-item word-item" data-act="word" data-id="${esc(w.id)}" aria-label="Play ${esc(w.en)}">
         ${melodySVG(accentMorae(w.reading, w.accent), { height: 56 })}
         <span class="strong" lang="ja">${esc(w.jp)}</span><span class="small">${esc(w.en)}</span>
-        <span class="tiny dim">${esc(accentName(w.accent, toMorae(w.reading).length))}</span></button>`).join('')}</div>` : ''}
+        <span class="tiny dim">${esc(accentName(w.accent, toMorae(w.reading).length))}</span></button>${pronButton(wordTarget(w), { compact: true })}</div>`).join('')}</div>` : ''}
       <h2 class="section-label">GRAMMAR</h2>
       ${u.points.map((p) => pointHTML(p, u)).join('')}
       <h2 class="section-label">PRACTICE</h2>
@@ -474,6 +475,7 @@ export function mountLesson(el, ctx) {
         <button class="btn" data-act="meaning">📖 Meaning</button>
         <button class="btn primary" data-act="next">${i + 1 < cards.length ? 'Next ▶' : 'Finish ✓'}</button>
       </div>
+      ${pronButton({ id: `ex:${u.id}:${p.id}:${p.examples.indexOf(ex)}`, jp: ex.jp, reading: ex.reading, say: ex.jp, voice: ex.voice, en: ex.en }, { cls: 'btn ghost small-btn wide' })}
     </div>`;
   }
 

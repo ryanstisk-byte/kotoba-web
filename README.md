@@ -45,6 +45,35 @@ Two right answers in a row clear the mark. The Garden screen's "Needs help" butt
 
 The migration plants grammar cards for lessons already read and conjugation forms already practised. The sync merge keeps each card's own most recent review.
 
+## Pronunciation check (optional)
+
+A 🎤 **Check my pronunciation** button sits next to the 🔊 wherever a new word or phrase is taught:
+- the story's "New words in this scene" screen
+- new Garden cards, including the N5 deck's new words, after the reveal
+- the stuck-word help panel
+- course lesson examples
+- a unit's key N5 words
+
+Kana and kanji letter lessons don't have it. Every button opens one shared panel (`js/pron.js`). It runs only on the device, with no paid services, and does three checks:
+
+- **Sounds.** Speech recognition (`Recognizer`) hears the attempt, which is compared with the target mora by mora after normalising kana (`pron-analysis.js`). Recognition is lenient and sometimes tidies up what it hears, so the panel says a match means "close enough".
+- **Pitch accent.** `PitchTracker` records the learner's pitch, and each mora's pitch is compared with the word's high/low pattern. The pattern comes from the N5 deck's accent or a phrase's melody when known, otherwise from the app's own clip. The panel draws the learner's line over the target melody.
+- **Length and rhythm.** The recording is lined up with the app's VOICEVOX clip of the word, using dynamic time warping on loudness, voicing and pitch. That gives how long each mora was held, which catches:
+  - long vowels (おばさん vs おばあさん)
+  - a missing small っ pause (きて vs きって)
+  - ん as its own beat
+  - い/う that should go quiet (です, ～ます)
+  - rushing
+
+**Feedback:**
+- A generous **Great / Close / Try again**, never a number.
+- At most two tips, from a fixed rule table (`js/pron-tips.js`: issue → tip + example).
+- Buttons to hear the model again (and slowly), try again, and play the model and then the learner's recording side by side.
+
+**Without speech recognition**, the sound check is off: Chrome and Edge need the internet for it, and iPhone needs Dictation. The panel says so in one line and still gives pitch and length feedback. Mic problems use `micHelp()` and point to `#/check`.
+
+Results feed `store.grade` with skill `'speaking'`; nothing is ever lost on a miss. Settings › Microphone › Pronunciation check hides the buttons (saved progress v7 adds `settings.pronCheck`). Quiet mode hides them too.
+
 ## Quick recap
 
 Anything that teaches something new ends with a short recap quiz (`js/recap.js`, one shared component). Each place builds its own questions:
@@ -121,6 +150,7 @@ Actions (`.github/workflows/tests.yml`).
 - `tests/today.spec.js`: the Today plan for each weekday, Short and Quiet sessions, beginners, and running every block.
 - `tests/course.spec.js`: the guided course (path, units, lesson, grammar search, Today drawing from the current unit, unit completion, the saved `course` field).
 - `tests/progress.spec.js`: saved progress loads with nothing lost (`tests/fixtures/progress-v1.json`), export/import, reload, reset.
+- `tests/pron.spec.js`: the pronunciation check. It covers mora, sound, length and pitch analysis on synthetic data, the tip table, where the 🎤 appears, and the flow with a fake mic and recognizer (no recognition, a blocked mic, skipping), plus the v6 → v7 migration (`tests/fixtures/progress-v6.json`).
 - `tests/garden-cards.spec.js`: Listen and Say it cards, grammar and conjugation cards, the needs-help mark and panel, the daily limits, and the v5 → v6 migration (`tests/fixtures/progress-v5.json`).
 - `tests/recap.spec.js`: the recap quiz in lessons, story scenes, the Garden and Kanji Forge (misses, retries, skipping, quiet mode, reading help, earlier Garden reviews, every spoken line having a clip).
 - `tests/sync.spec.js`: the sync merge (phone-vs-PC conflict, idempotence, mined-line clashes), and syncing against a mocked api.github.com (connect, find the gist, the automatic syncs, offline, bad token, Disconnect, the token never leaking).

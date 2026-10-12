@@ -944,6 +944,39 @@ p:has(> .jr), .small:has(> .jr), .lead:has(> .jr), .strong:has(> .jr), span:has(
 .alike-this { border-color: var(--accent); }
 .alike-jp { font-family: var(--font-jp); font-size: var(--fs-jp-md); font-weight: 900; line-height: var(--lh-ruby); word-break: break-word; }
 .plant .bandage { position: absolute; left: -4px; bottom: -2px; font-size: 0.9rem; }
+/* Pronunciation check (js/pron.js) */
+.pron-overlay { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, 0.45); background: color-mix(in srgb, var(--ink) 40%, transparent); display: flex; align-items: flex-end; justify-content: center; padding: var(--sp-3); overflow-y: auto; }
+@media (min-width: 700px) { .pron-overlay { align-items: center; } }
+.pron-sheet { width: 100%; max-width: 560px; max-height: calc(100dvh - 24px); overflow-y: auto; padding: var(--sp-4); }
+.pron-head { gap: var(--sp-2); }
+.pron-head .section-title { margin: 0; font-size: var(--fs-lg); }
+.pron-word { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
+.pron-jp { font-family: var(--font-jp); font-size: var(--fs-jp-lg); font-weight: 900; line-height: var(--lh-ruby); word-break: break-word; }
+.pron-melody { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.pron-melody svg { height: auto; max-height: 110px; }
+.pron-target { stroke: var(--accent); opacity: 0.55; }
+.pron-target-dot { fill: var(--accent); }
+.pron-user { stroke: var(--good); }
+.pron-user-dot { fill: var(--good); }
+.pron-key { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; margin: 0 2px 0 8px; }
+.pron-key-t { background: var(--accent); }
+.pron-key-u { background: var(--good); }
+.pron-verdict { text-align: center; }
+.pron-title { font-size: var(--fs-2xl); font-weight: 900; font-style: italic; margin: 0; }
+.pron-verdict p { margin: 0; }
+.pron-morae { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-1); }
+.pron-mora { display: inline-flex; flex-direction: column; align-items: center; min-width: 40px; padding: 4px 6px; border-radius: var(--r-sm); border: 2px solid var(--border); background: var(--surface); }
+.pron-mora.ok { border-color: var(--good); background: var(--good-soft); }
+.pron-mora.miss { border-color: var(--border-strong); border-style: dashed; }
+.pron-kana { font-family: var(--font-jp); font-size: var(--fs-jp-md); font-weight: 800; line-height: 1.3; }
+.pron-mark { font-size: var(--fs-sm); line-height: 1; }
+.pron-hold { display: block; height: 5px; border-radius: 3px; background: var(--accent); opacity: 0.7; margin-top: 3px; max-width: 46px; }
+.pron-tips { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--sp-2); }
+.pron-tips li { padding: var(--sp-2) var(--sp-3); border-left: 4px solid var(--accent); background: var(--surface-2); border-radius: var(--r-sm); }
+.pron-tips p { margin: 0; word-break: break-word; }
+.learn-item, .word-cell { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
+.learn-item .learn-card, .word-cell .melody-item { flex: 1; }
+.pron-btn { align-self: center; }
 /* Quick recap (js/recap.js) */
 .recap-head { gap: var(--sp-2); flex-wrap: wrap; }
 .recap-head .section-label { margin: 0; }

@@ -30,7 +30,7 @@ export const HELP_CLEAR = 2;
 export const SKILLS = ['kana', 'kanji', 'vocab', 'grammar', 'listening', 'pitch', 'speaking', 'counters'];
 
 /** Version of the saved progress shape. Bump it and add a step to MIGRATIONS whenever the shape changes. */
-export const STATE_VERSION = 6;
+export const STATE_VERSION = 7;
 
 function blank() {
   return {
@@ -46,6 +46,7 @@ function blank() {
       latencyMs: 0, quiet: false, length: 'standard', hideIosHint: false, theme: 'auto', readingHelp: 'auto', voiceSrc: 'auto', speed: 'normal',
       textSize: 'm', sfx: true, haptics: true,   // added in v2
       pace: 'normal',                             // added in v3: 'less' = at most 3 new words a day
+      pronCheck: true,                            // added in v7: show the 🎤 pronunciation check buttons
     },
     engine: blankEngine(),   // added in v3: the skill model, placement and weekly check-in (see skills.js)
     days: {},           // 'YYYY-MM-DD' -> { ok, tot, rev, newc, studied, blocks: { id: 'done'|'skipped' }, newd?, newg? (v6) }
@@ -139,6 +140,8 @@ const MIGRATIONS = {
   4: migrateCourse,
   // v5 -> v6: Listen and Say it cards for words, grammar review cards, and the needs-help mark.
   5: migrateCards,
+  // v6 -> v7: the pronunciation check setting (on). A per-device setting, so sync never changes it.
+  6: (raw) => ({ ...raw, settings: { pronCheck: true, ...(raw.settings || {}) } }),
 };
 
 /** Adds the guided-course field with defaults. Self-contained: it touches nothing else in the blob. */
@@ -203,6 +206,7 @@ function normalize(input) {
     s.settings.sfx = st.sfx !== false;
     s.settings.haptics = st.haptics !== false;
     s.settings.pace = st.pace === 'less' ? 'less' : 'normal';
+    s.settings.pronCheck = st.pronCheck !== false;
   }
   s.engine = normalizeEngine(raw.engine, SKILLS);
   if (raw.days && typeof raw.days === 'object') {
