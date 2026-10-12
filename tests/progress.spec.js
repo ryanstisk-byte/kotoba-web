@@ -54,9 +54,9 @@ test.describe('saved progress from the current version (v1)', () => {
     await page.goto('./');
     const out = await page.evaluate(async (blob) => (await import('./js/store.js')).store.parseImport(JSON.stringify(blob)), FIXTURE);
     expectNothingLost(FIXTURE, out);
-    expect(out.v).toBe(6);
+    expect(out.v).toBe(7);
     expect(out.saga).toEqual(EMPTY_SAGA);
-    expect(out.settings).toEqual({ ...FIXTURE.settings, textSize: 'm', sfx: true, haptics: true, pace: 'normal' });
+    expect(out.settings).toEqual({ ...FIXTURE.settings, textSize: 'm', sfx: true, haptics: true, pace: 'normal', pronCheck: true });
   });
 
   test('a v1 blob in storage is saved back as the current version with nothing lost', async ({ page }) => {
@@ -64,7 +64,7 @@ test.describe('saved progress from the current version (v1)', () => {
     await page.goto('./');
     await expect(page.locator('#view')).not.toBeEmpty();
     const s = await saved(page);
-    expect(s.v).toBe(6);
+    expect(s.v).toBe(7);
     expectNothingLost(FIXTURE, s);
     expect(s.settings).toEqual(expect.objectContaining({ textSize: 'm', sfx: true, haptics: true }));
   });
@@ -97,7 +97,7 @@ test.describe('saved progress from v2', () => {
     await expect(page.locator('#view')).not.toBeEmpty();
     const s = await saved(page);
     expectNothingLost(FIXTURE_V2, s);
-    expect(s.v).toBe(6);   // migrated to the current version (engine.spec.js covers v3, story-saga.spec.js v4, garden-cards.spec.js v6)
+    expect(s.v).toBe(7);   // migrated to the current version (engine.spec.js covers v3, story-saga.spec.js v4, garden-cards.spec.js v6, pron.spec.js v7)
     expectNothingLost(FIXTURE_V2, await page.evaluate(async (blob) => (await import('./js/store.js')).store.parseImport(JSON.stringify(blob)), FIXTURE_V2));
   });
 

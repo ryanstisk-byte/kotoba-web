@@ -10,6 +10,7 @@ import { esc, delegate, shuffle } from '../ui.js';
 import * as fx from '../fx.js';
 import { romaji } from '../romaji.js';
 import { mountMine } from './story-mine.js';
+import { pronButton, pronAvailable, wordTarget } from '../pron.js';
 
 const HAS_JP = /[ぁ-ゖァ-ヺ一-鿿]/;
 
@@ -132,12 +133,12 @@ export function mount(el, ctx) {
           <div class="row-between"><span class="small dim">${chapter.number}. ${esc(chapter.title)}</span>
             ${ctx.today ? '' : '<button class="btn ghost small-btn" data-act="list">Chapters</button>'}</div>
           <h2 class="section-title">New words in this scene</h2>
-          <p class="small dim">Learn these first, then the story uses them. Tap a word to hear it.</p>
+          <p class="small dim">Learn these first, then the story uses them. Tap a word to hear it${pronAvailable() ? ', or 🎤 to check how you say it' : ''}.</p>
           <div class="learn-grid" data-noruby>
-            ${pre.words.map((w, i) => `<button class="panel learn-card" data-act="preword" data-i="${i}" aria-label="Hear ${esc(w.reading)}">
+            ${pre.words.map((w, i) => `<div class="learn-item"><button class="panel learn-card" data-act="preword" data-i="${i}" aria-label="Hear ${esc(w.reading)}">
               <span class="learn-k pre-word" lang="ja">${esc(w.jp)}</span>
               <span class="small" lang="ja">${w.reading !== w.jp ? `${esc(w.reading)} · ` : ''}<span class="mono">${esc(romaji(w.reading))}</span></span>
-              <span class="small dim">${esc(w.en)}</span></button>`).join('')}
+              <span class="small dim">${esc(w.en)}</span></button>${pronButton(wordTarget({ id: w.gardenID, jp: w.jp, reading: w.reading, say: w.reading, en: w.en }), { compact: true })}</div>`).join('')}
           </div>
           <button class="btn primary wide" data-act="precheck">Quick check (${n} word${n === 1 ? '' : 's'}) ▶</button>
           <button class="btn ghost wide" data-act="prestart">Skip to the story</button>

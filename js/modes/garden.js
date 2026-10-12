@@ -14,6 +14,7 @@ import { mountRecap, listenQuestion, meaningQuestion, withReading, optionCount }
 import { cardQuestion, cardName } from '../grammar-cards.js';
 import { mnemonicFor, confusablesFor, exampleFor } from '../word-help.js';
 import { readingOf } from '../furigana.js';
+import { pronButton, wordTarget } from '../pron.js';
 import { esc, shuffle, delegate, melodySVG } from '../ui.js';
 import * as fx from '../fx.js';
 
@@ -185,8 +186,10 @@ export function mount(el, ctx) {
       <span class="small dim mono">${position + 1} / ${session.length}</span></div>`;
   }
 
-  const gradeButtons = () => `<div class="row2"><button class="btn" data-act="forgot">↩ Forgot</button><button class="btn primary" data-act="knew">✓ Knew it</button></div>
-    <div class="row2"><button class="btn ghost small-btn" data-act="hear">🔊 Hear it again</button><button class="btn ghost small-btn" data-act="slow">🐢 Slowly</button></div>`;
+  // A word met for the first time (a new Garden card, the N5 deck's new words) offers the 🎤 pronunciation check.
+  const pronRow = (card) => (card.isNew && card.dir === 'mean' && !card.item.mined ? pronButton(wordTarget(card.item), { cls: 'btn ghost small-btn wide' }) : '');
+  const gradeButtons = (card) => `<div class="row2"><button class="btn" data-act="forgot">↩ Forgot</button><button class="btn primary" data-act="knew">✓ Knew it</button></div>
+    <div class="row2"><button class="btn ghost small-btn" data-act="hear">🔊 Hear it again</button><button class="btn ghost small-btn" data-act="slow">🐢 Slowly</button></div>${pronRow(card)}`;
 
   function answerBlock(item) {
     return `<div class="review-jp"${item.id.includes('|') ? ' data-noruby' : ''}>${esc(item.jp)}</div>
@@ -217,7 +220,7 @@ export function mount(el, ctx) {
            <p class="dim">${ctx.quiet ? 'Say it in your head' : 'Say it out loud'} and recall the meaning, then check.</p>`;
     }
     const buttons = revealed
-      ? (card.dir === 'say' && heardOk ? '<button class="btn primary wide" data-act="knew">Next ▶</button>' : gradeButtons())
+      ? (card.dir === 'say' && heardOk ? '<button class="btn primary wide" data-act="knew">Next ▶</button>' : gradeButtons(card))
       : `<button class="btn primary wide" data-act="check">👁 Check</button>`;
     el.innerHTML = `<div class="card-review card-${card.dir}">${head(card)}${body}<div class="spacer"></div>${buttons}</div>`;
   }
@@ -276,6 +279,7 @@ export function mount(el, ctx) {
           <div class="review-jp help-jp"${item.id.includes('|') ? ' data-noruby' : ''}>${esc(item.jp)}</div>
           <p class="lead dim">${esc(item.reading)} · <span class="trace-c strong">${esc(item.en)}</span></p>
           <div class="row2"><button class="btn" data-act="slow">🐢 Hear it slowly</button><button class="btn" data-act="hear">🔊 Normal speed</button></div>
+          ${item.mined ? '' : pronButton(wordTarget(item), { cls: 'btn ghost small-btn wide' })}
         </div>
         ${mn ? `<div class="panel note"><p class="small dim">Picture it</p><p class="mnemonic">${esc(mn)}</p></div>` : ''}
         ${ex ? `<div class="panel help-ex"><p class="small dim">In a sentence</p><p class="lead" lang="ja">${esc(ex.jp)}</p><p class="small dim">${esc(ex.en)}</p>

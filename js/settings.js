@@ -102,6 +102,8 @@ export function mount(el, ctx) {
           <h2 class="section-title">Microphone</h2>
           <p class="small">Speech recognition: <span class="${recognitionSupported ? 'good-c' : 'miss-c'}">${recognitionSupported ? 'available (Japanese, needs internet in Chrome)' : 'not available here: speaking modes use self-grading'}</span></p>
           <p class="small">Pitch tracking (Rhythm): <span class="${micSupported ? 'good-c' : 'miss-c'}">${micSupported ? 'available' : 'not available'}</span></p>
+          <label class="switch-row"><span><span class="strong">Pronunciation check</span><br><span class="small dim">A 🎤 button next to new words and phrases. It compares how you say one with the model: its sounds, pitch and length, all on this device. Always optional${st.quiet ? '; hidden in Quiet mode' : ''}.</span></span>
+            <input type="checkbox" role="switch" data-act="pron" ${st.pronCheck !== false ? 'checked' : ''}></label>
           <button class="btn" data-act="mictest">${micTest ? '■ Stop mic test' : '🎤 Test mic + pitch'}</button>
           ${micTest ? `<p class="mono" id="mic-out">${esc(micTest.msg || 'Listening…')}</p>` : ''}
         </section>
@@ -368,6 +370,7 @@ export function mount(el, ctx) {
     const t = ev.target;
     if (t.matches('[data-act=quiet]')) { store.setSetting('quiet', t.checked); ctx.refreshChrome(); }
     if (t.matches('[data-act=sfx]')) { store.setSetting('sfx', t.checked); if (t.checked) fx.sound('hit'); }
+    if (t.matches('[data-act=pron]')) store.setSetting('pronCheck', t.checked);
     if (t.matches('[data-act=haptics]')) { store.setSetting('haptics', t.checked); if (t.checked) fx.buzz(20); }
     if (t.matches('[data-act=latrange]')) { setLatency(+t.value); }
     if (t.matches('[data-act-change=file]') && t.files && t.files[0]) {

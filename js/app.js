@@ -29,6 +29,7 @@ import { initReadingHelp, clearReadingHelp, readingConfig } from './furigana.js'
 import * as course from './course.js';
 import { UNIT_BY_ID } from './course-data.js';
 import * as sync from './sync.js';
+import { initPron, closePron } from './pron.js';
 
 const MOUNTS = { dojo, garden, story, particle, forge, rhythm, duel, slice, shop, listen, conj, build, kata, numbers };
 /** Screens the Today plan can open that aren't modes (the course lesson). */
@@ -128,6 +129,7 @@ let lastPath = null;
 let inSession = false;   // on a screen outside the tabs (a mode, a lesson): leaving it ends the session
 
 function route() {
+  closePron();   // a pronunciation check never outlives its screen
   if (cleanup) { try { cleanup(); } catch (e) { console.warn(e); } cleanup = null; }
   speaker.stop();
   banner.innerHTML = '';
@@ -518,6 +520,7 @@ sync.onChange(() => {
   if (!b && (a === undefined || a === 'modes' || a === 'progress') && !document.querySelector('.reward')) route();
 });
 sync.init();
+initPron();   // every 🎤 "Check my pronunciation" button opens the one shared check (js/pron.js)
 
 // Ask the browser not to evict our storage (helps on Chrome; Safari needs Add to Home Screen).
 try { navigator.storage?.persist?.().catch(() => {}); } catch (e) { /* ignore */ }

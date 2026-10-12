@@ -125,6 +125,15 @@ test.describe('mergeProgress (pure merge in store.js)', () => {
     expect(result.m.settings.theme).toBe('light');
   });
 
+  test('the pronunciation check setting stays per device', async ({ page }) => {
+    const phone = { v: 7, items: { ohayou: item(T0) }, settings: { pronCheck: false } };
+    const pc = { v: 7, items: { arigatou: item(T0 + H) }, settings: { pronCheck: true } };
+    expect((await merge(page, phone, pc)).settings.pronCheck).toBe(false);
+    expect((await merge(page, pc, phone)).settings.pronCheck).toBe(true);
+    // An older copy from another device (v6, before the setting) doesn't turn it back on here.
+    expect((await merge(page, phone, { v: 6, items: {} })).settings.pronCheck).toBe(false);
+  });
+
   test('card directions, grammar cards and miss counts: each card keeps its own most recent review', async ({ page }) => {
     const card = (lr, extra = {}) => ({ due: lr + 2 * 24 * H, s: 2, d: 5, lr, r: 2, pl: T0 - 50 * H, ...extra });
     // The phone reviewed the Listen card last and missed 切る a 4th time (needs help); the PC reviewed the Say it
