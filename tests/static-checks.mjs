@@ -2,7 +2,8 @@
 // - every file in sw.js's precache list exists (a missing one makes the whole offline install fail)
 // - every clip in js/clips.js exists in audio/
 // - every site file (js, css, icons, clips) is in the precache list, so the app is complete offline
-// - every Japanese line the app speaks has a clip at normal and slow speed (else tools/build_assets.py needs a run)
+// - every Japanese line the app speaks has a clip at normal and slow speed, or at the speeds its entry lists (else
+//   tools/build_assets.py needs a run)
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, relative } from 'node:path';
@@ -41,8 +42,8 @@ for (const f of new Set(clipFiles)) {
 const clipKeys = new Set([...clipsSrc.matchAll(/^"(.*)":\s*"[^"]+\.mp3"/gm)].map((m) => JSON.parse(`"${m[1]}"`)));
 const collected = JSON.parse(execFileSync(process.execPath, [join(ROOT, 'tools/collect.mjs')], { encoding: 'utf8' }));
 const noClip = [];
-for (const [text, voice] of collected.clips) {
-  for (const key of [`${text}#${voice}`, `${text}#${voice}#slow`]) if (!clipKeys.has(key)) noClip.push(key);
+for (const [text, voice, , speeds = ['', 'slow']] of collected.clips) {
+  for (const key of speeds.map((sp) => `${text}#${voice}` + (sp ? `#${sp}` : ''))) if (!clipKeys.has(key)) noClip.push(key);
 }
 // The Japanese voices can't read English, so no line without Japanese should be spoken.
 const english = collected.clips.filter(([text]) => !/[ぁ-ゖァ-ヺ一-鿿]/.test(text)).map(([text]) => text);

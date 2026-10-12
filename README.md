@@ -92,7 +92,7 @@ A way to learn to steer pitch beat by beat (`js/pitch-coach.js`, maths in `js/pi
 - **Target.** High and low steps timed to the app's own clip, with the drop marked. **Bigger** exaggerates the steps for practice. Whispered beats are drawn dotted and not scored, with a note saying why.
 - **Ladder.** Hum it → Ma-ma-ma → the word → the word + が. The model plays first: a soft tone in the learner's own range for the hum and ma steps (and + が), the real clip for the word. Any step can be chosen; the next one is suggested after a Great or two Closes. Only the + が step tells flat words from words that drop after their last beat (はなが nose vs flower).
 - **Just this step.** Loops two beats cut from the real clip (for example ば → あ in おばあさん) until right twice, then goes back to the whole word.
-- **Ears first.** Before the first session on a word (and any time after), the word plays two or three ways and the learner taps the beat where the pitch drops, or "No drop". The ways are the app's other VOICEVOX voices when the word has clips in them, otherwise the same clip played a little lower and higher. A miss shows the answer and plays it again. Words done are kept in `coach.ears`, which is synced.
+- **Ears first.** Before the first session on a word (and any time after), the word plays two or three ways and the learner taps the beat where the pitch drops, or "No drop". The ways are the word in voice 0 and two of the app's other VOICEVOX voices, always at normal speed. Every N5 word has clips in voices 1 and 3 for this (normal speed only), with each beat's pitch set from the word's accent so the drop is always where the quiz says; voice 2 is left out because it barely follows a set pitch. Starter phrases use their Pitch Duel clips in voices 1-3. Anything without them falls back to the same clip played a little lower and higher. A miss shows the answer and plays it again. Words done are kept in `coach.ears`, which is synced.
 
 Everything feeds `store.grade` with skill `'pitch'`. Saved progress v8 adds `settings.voice` and `coach`.
 
@@ -153,7 +153,7 @@ come from `js/readings.js`. Both are generated. After changing any Japanese text
 dictionary and the .vvm voice models) and which voices are used. Voices used: VOICEVOX:四国めたん, VOICEVOX:白上虎太郎,
 VOICEVOX:青山龍星, VOICEVOX:玄野武宏, VOICEVOX:東北イタコ, VOICEVOX:ずんだもん (credited in Settings, as their terms require).
 
-It synthesizes only new lines, rewrites `js/clips.js`, `js/readings.js` and the precache list in `sw.js`. Then bump `CACHE_VERSION`.
+Most lines get a normal and a slow clip; the N5 words' extra voices 1 and 3 (for Pitch Coach's Ears first) are normal speed only, with pitch shaped from the accent. It synthesizes only new lines, rewrites `js/clips.js`, `js/readings.js` and the precache list in `sw.js`. Then bump `CACHE_VERSION`.
 
 ## Tests
 

@@ -93,9 +93,24 @@ def mora_count(kana):
     return len(re.sub(r'[ゃゅょぁぃぅぇぉゎャュョァィゥェォヮ]', '', kana))
 
 
+def shape_pitch(moras, accent):
+    """Set each mora's pitch from the accent (high/low as js/pron-analysis.js targetPitch draws it), so the drop is
+    always where the app says. VOICEVOX's own prediction is often flat or drops elsewhere on a word said alone."""
+    voiced = [m.pitch for m in moras if m.pitch > 0]
+    if not voiced:
+        return
+    base = sum(voiced) / len(voiced)
+    for i, m in enumerate(moras):
+        if m.pitch <= 0:
+            continue   # whispered: stays unvoiced
+        high = i == 0 if accent == 1 else (i > 0 and (accent == 0 or i < accent))
+        m.pitch = base + (0.09 if high else -0.09) - 0.012 * i   # ~3 semitones apart, with a gentle fall
+
+
 def synth(text, voice, speed, out, opts=None):
     """opts: 'say' = text to read instead (when Open JTalk misreads the written form), 'accent' = downstep
-    (0 = flat) to force on a single word, so the clip matches the pitch the app shows."""
+    (0 = flat) to force on a single word, so the clip matches the pitch the app shows, 'shape' = also set every
+    mora's pitch from that accent (shape_pitch) so the drop is clear."""
     from voicevox_core import AudioQuery
     s = synthesizer()
     style = VOICES[voice][1]
@@ -110,6 +125,8 @@ def synth(text, voice, speed, out, opts=None):
             if 1 <= want <= n and want != ph.accent:
                 ph.accent = want
                 phrases = s.replace_mora_pitch(phrases, style)
+            if opts.get('shape') and n >= 2:
+                shape_pitch(phrases[0].moras, opts['accent'])
         q = AudioQuery.from_accent_phrases(phrases)
     else:
         q = s.create_audio_query(say, style)
@@ -144,8 +161,8 @@ def build_clips(clips):
     table = {}
     keep = {'silence.mp3'}
     made = 0
-    for text, voice, opts in clips:
-        for speed in SPEEDS:
+    for text, voice, opts, speeds in clips:
+        for speed in speeds or SPEEDS:
             name = clip_name(text, voice, speed, opts)
             keep.add(name)
             path = os.path.join(AUDIO, name)
@@ -383,7 +400,7 @@ def build_n5():
 def main():
     build_n5()
     data = json.loads(subprocess.run(['node', os.path.join(ROOT, 'tools', 'collect.mjs')], capture_output=True, check=True, text=True).stdout)
-    build_clips([(c[0], c[1], c[2] if len(c) > 2 else None) for c in data['clips']])
+    build_clips([(c[0], c[1], c[2] if len(c) > 2 else None, c[3] if len(c) > 3 else None) for c in data['clips']])
     if pyopenjtalk:
         build_readings(data['pairs'])
     else:
