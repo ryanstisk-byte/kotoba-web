@@ -326,6 +326,38 @@ test.describe('the Pitch Coach (fake mic singing known curves)', () => {
     await expect(sheet.getByRole('status')).toContainText('Yes!');
   });
 
+  test('ears first plays real voices 1-3 when the word has clips in them, otherwise the clip lower and higher', async ({ page }) => {
+    await seed(page, ready({ coach: { ears: [] }, settings: { voice: VOICE, speed: 'slow' } }));
+    await page.goto('./');
+    const watch = () => page.evaluate(async () => {
+      const { speaker } = await import('./js/audio.js');
+      window.__spoken = [];
+      const speak = speaker.speak.bind(speaker);
+      speaker.speak = (text, o = {}) => { window.__spoken.push({ text, voice: o.voice, file: speaker.clipFor(text, o.voice, o.speed || speaker.speed) }); speak(text, o); };
+    });
+    const sheet = page.locator('.coach-sheet');
+    // An N5 word: voice 0, then two other VOICEVOX voices, each its own normal-speed clip even with 🐢 on.
+    await watch();
+    const RAIN = { ...AME, say: '雨' };
+    const clips = await page.evaluate(async () => { const { CLIPS } = await import('./js/clips.js'); return [0, 1, 2, 3].map((v) => CLIPS[`雨#${v}`]); });
+    expect(clips.every(Boolean)).toBe(true);
+    await open(page, RAIN);
+    await expect(sheet.getByText('Listen to it 3 ways')).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.__spoken.length), { timeout: 15000 }).toBe(3);
+    const spoken = await page.evaluate(() => window.__spoken);
+    expect(spoken.map((s) => s.voice)).toEqual([0, 1, 2]);
+    expect(spoken.map((s) => s.file)).toEqual(clips.slice(0, 3));
+    // A text with no clips in the other voices keeps the playbackRate fallback (no extra voices spoken).
+    await page.evaluate(async () => (await import('./js/pitch-coach.js')).closeCoach());
+    await watch();
+    const odd = await page.evaluate(async () => { const { CLIPS } = await import('./js/clips.js'); return !CLIPS['あめ#1'] && !CLIPS['あめ#2'] && !CLIPS['あめ#3']; });
+    expect(odd).toBe(true);
+    await open(page, AME);
+    await expect(sheet.getByText('Listen to it 3 ways')).toBeVisible();
+    await page.waitForTimeout(1500);
+    expect((await page.evaluate(() => window.__spoken)).filter((s) => s.voice > 0)).toEqual([]);
+  });
+
   test('the first time ever: a 2-second あ finds your middle pitch, saved on this device', async ({ page }) => {
     await seed(page, ready({ settings: {} }));
     await page.goto('./');

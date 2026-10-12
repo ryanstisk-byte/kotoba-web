@@ -144,8 +144,8 @@ def build_clips(clips):
     table = {}
     keep = {'silence.mp3'}
     made = 0
-    for text, voice, opts in clips:
-        for speed in SPEEDS:
+    for text, voice, opts, speeds in clips:
+        for speed in speeds or SPEEDS:
             name = clip_name(text, voice, speed, opts)
             keep.add(name)
             path = os.path.join(AUDIO, name)
@@ -383,7 +383,7 @@ def build_n5():
 def main():
     build_n5()
     data = json.loads(subprocess.run(['node', os.path.join(ROOT, 'tools', 'collect.mjs')], capture_output=True, check=True, text=True).stdout)
-    build_clips([(c[0], c[1], c[2] if len(c) > 2 else None) for c in data['clips']])
+    build_clips([(c[0], c[1], c[2] if len(c) > 2 else None, c[3] if len(c) > 3 else None) for c in data['clips']])
     if pyopenjtalk:
         build_readings(data['pairs'])
     else:

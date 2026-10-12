@@ -9,6 +9,7 @@ import { DIALOGUES, NUMBER_SCENES, KATA_WORDS, CONJ_WORDS, VERB_FORMS, ADJ_FORMS
 
 const clips = new Map();
 // opts (optional): { accent } to set a word's pitch, { say } for text the voice should read instead.
+// An entry may end with a list of speeds ('' normal, 'slow') when it doesn't need both.
 const add = (text, voice = 0, opts = null) => { if (text) clips.set(text + '#' + voice, opts ? [text, voice, opts] : [text, voice]); };
 const pairs = [];
 
@@ -73,5 +74,15 @@ for (const w of CONJ_WORDS) {
   }
 }
 for (const s of BUILD_SENTENCES) if (!clips.has(s.say + '#' + s.voice)) add(s.say, s.voice);
+
+// Pitch Coach "Ears first" plays a word in voices 1-3 too: every N5 word gets those at normal speed only (no 🐢 copy),
+// with the same pitch accent as its voice 0 clip. Starter phrases already have voices 0-3 above (Pitch Duel), and a
+// text that already has a clip in a voice keeps it.
+N5_WORDS.forEach((w, i) => {
+  const say = N5[i][7];
+  for (let v = 1; v < 4; v++) {
+    if (!clips.has(w.say + '#' + v)) clips.set(w.say + '#' + v, [w.say, v, { accent: w.accent, ...(say ? { say } : {}) }, ['']]);
+  }
+});
 
 process.stdout.write(JSON.stringify({ clips: [...clips.values()], pairs }));

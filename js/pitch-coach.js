@@ -545,7 +545,8 @@ function playEars() {
     if (coach !== c || i >= voices.length) return;
     const v = voices[i++];
     const after = () => c.timers.push(setTimeout(next, 450));
-    if (v.voice != null) speaker.speak(c.target.say || c.target.jp, { mps: 3.5, voice: v.voice, onend: after });
+    // Normal speed: voices 1-3 only have normal-speed clips, and the 🐢 setting would swap in voice 0's slow one.
+    if (v.voice != null) speaker.speak(c.target.say || c.target.jp, { mps: 3.5, voice: v.voice, speed: 'normal', onend: after });
     else if (c.clip) c.stopModel = playClipPart(c.clip, c.morae.length, 0, c.morae.length - 1, { rate: v.rate, onend: after });
     else speaker.speak(c.target.say || c.target.jp, { mps: 3.5, voice: 0, onend: after });
   };
