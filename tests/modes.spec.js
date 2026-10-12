@@ -14,10 +14,10 @@ test.describe('modes', () => {
     for (let i = 0; i < 80; i++) {
       if (await v.getByText(/cleared!/).isVisible()) break;
       await v.locator('[data-act=pick]:enabled').first().click();
-      await expect(v.getByText(/✓ Right!|Not quite/)).toBeVisible();
+      await expect(v.getByText(/Right!|Not quite/)).toBeVisible();
       // Next moves on (a right answer also moves on by itself after a moment).
       await v.locator('[data-act=next]').click().catch(() => {});
-      await expect(v.getByText(/✓ Right!|Not quite/)).toHaveCount(0);
+      await expect(v.getByText(/Right!|Not quite/)).toHaveCount(0);
     }
     await expect(v.getByText(/cleared!/)).toBeVisible();
     const s = await saved(page);
@@ -144,7 +144,7 @@ test.describe('modes', () => {
     await v.getByRole('button', { name: /Sing it/ }).click();
     await v.getByRole('button', { name: /I said it/ }).click({ timeout: 15_000 });
     await expect(v.locator('.score-big')).toHaveText('85%');
-    await v.getByRole('button', { name: 'Next ▶' }).click();
+    await v.getByRole('button', { name: 'Next', exact: true }).click();
     await expect(v.getByRole('button', { name: /Sing it/ })).toBeEnabled();
   });
 
@@ -154,7 +154,7 @@ test.describe('modes', () => {
     await v.locator('[data-act=choose]').first().click();
     await expect(v.getByText(/Yes! Listen once more|Not quite. The green one/)).toBeVisible();
     await expect(v.getByText(/^[01]\/1 correct$/)).toBeVisible();
-    await v.getByRole('button', { name: 'Next ▶' }).click();
+    await v.getByRole('button', { name: 'Next', exact: true }).click();
     await expect(v.getByText(/\/1 correct/)).toBeVisible();
     await expect(v.locator('[data-act=choose]').first()).toBeEnabled();
   });
@@ -211,7 +211,7 @@ test.describe('modes', () => {
     }, order);
     for (let i = 0; i < count; i++) await v.locator('[data-act=add]').nth(index).click();
     await v.getByRole('button', { name: /Hand it over/ }).click();
-    await expect(v.getByText(/✓ Right:/)).toBeVisible();
+    await expect(v.getByText(/Right:/)).toBeVisible();
     await v.locator('[data-act=reply][data-i="0"]').click();   // ありがとうございました (its romaji is chunked into the name)
     await expect(v.getByText(/1 served · 1 perfect/)).toBeVisible();
     await v.getByRole('button', { name: /Next customer/ }).click();

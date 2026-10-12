@@ -145,7 +145,7 @@ test.describe('reading a new chapter', () => {
     // Q1 right, Q2 wrong (the answer is revealed, no penalty), Q3 right.
     await expect(v.getByText('QUESTION 1 OF 3')).toBeVisible();
     await v.locator('[data-act=choice][data-i="0"]').click();
-    await expect(v.getByText('✓ Right!')).toBeVisible();
+    await expect(v.getByText('Right!', { exact: true })).toBeVisible();
     await v.getByRole('button', { name: 'Next', exact: true }).click();
     await v.locator('[data-act=choice][data-i="1"]').click();
     await expect(v.getByText("Here's the answer:")).toBeVisible();

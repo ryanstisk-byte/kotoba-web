@@ -171,7 +171,7 @@ test('Katakana Rush: running out of time shows the answer and the round goes on'
   await page.clock.runFor(16_000);
   await expect(view(page).getByText("Time's up, no harm done:")).toBeVisible();
   await expect(view(page).locator('.practice-opts .btn.good')).toHaveCount(1);
-  await view(page).getByRole('button', { name: 'Next ▶' }).click();
+  await view(page).getByRole('button', { name: 'Next', exact: true }).click();
   await expect(view(page).locator('[data-act=pick]:enabled')).not.toHaveCount(0);
 });
 

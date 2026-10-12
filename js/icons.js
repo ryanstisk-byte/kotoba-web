@@ -142,9 +142,11 @@ function swapText(node) {
   const parent = node.parentElement;
   if (!parent || parent.closest(SKIP)) return;
   EMOJI_RE.lastIndex = 0;
-  // Alone in its element (an icon tile, a plant): give it a name. Next to words: decoration.
-  const alone = text.replace(EMOJI_RE, '').trim() === '' && parent.textContent.trim() === text.trim()
-    && parent.childElementCount === 0 && !parent.getAttribute('aria-label');
+  // No words beside it in its element (an icon tile, a plant, even with a drop icon next to it): give it a name.
+  // Next to words: decoration, since the words already say it.
+  const wordsBeside = [...parent.childNodes].some((c) => c !== node && c.nodeType === Node.TEXT_NODE && c.nodeValue.replace(EMOJI_RE, '').trim());
+  EMOJI_RE.lastIndex = 0;
+  const alone = text.replace(EMOJI_RE, '').trim() === '' && !wordsBeside && !parent.getAttribute('aria-label') && !parent.closest('[aria-hidden="true"]');
   EMOJI_RE.lastIndex = 0;
   const frag = document.createDocumentFragment();
   let last = 0;

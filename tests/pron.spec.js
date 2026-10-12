@@ -146,7 +146,7 @@ test.describe('where the 🎤 button appears', () => {
 
   test('on course lesson examples and a unit\'s N5 words', async ({ page }) => {
     await page.goto('./#/course/p0-1/lesson');
-    await expect(view(page).locator('.pron-btn')).toHaveText('🎤 Check my pronunciation');
+    await expect(view(page).locator('.pron-btn')).toHaveText('Check my pronunciation');
     await page.goto('./#/course/p0-1');
     await expect(view(page).locator('.word-cell .pron-btn')).not.toHaveCount(0);
     await expectNoHorizontalScroll(page);
@@ -200,7 +200,7 @@ test.describe('the check itself (fake mic and recognizer)', () => {
     await expect(p.getByRole('dialog').or(page.getByRole('dialog'))).toBeVisible();
     await expect(p.locator('.pron-melody')).toBeVisible();   // the target melody, before trying
     await expectNoHorizontalScroll(page);
-    await p.getByRole('button', { name: '🎤 Start' }).click();
+    await p.getByRole('button', { name: 'Start', exact: true }).click();
     await expect(p.getByText(/Listening/)).toBeVisible();
     await expect(p.locator('.pron-title')).toHaveText(/Great!|Close!|Try again/, { timeout: 20_000 });
     // The missing あ was heard as missing, and said kindly.
@@ -224,7 +224,7 @@ test.describe('the check itself (fake mic and recognizer)', () => {
     await page.goto('./#/course/p0-1/lesson');
     await view(page).locator('.pron-btn').click();
     const p = page.locator('.pron-sheet');
-    await p.getByRole('button', { name: '🎤 Start' }).click();
+    await p.getByRole('button', { name: 'Start', exact: true }).click();
     await expect(p.locator('.pron-title')).toBeVisible({ timeout: 20_000 });
     await expect(p.getByText(/^Sound check off:/)).toHaveCount(1);
     await expect(p.getByText(/Pitch and rhythm are still checked/)).toBeVisible();
@@ -238,7 +238,7 @@ test.describe('the check itself (fake mic and recognizer)', () => {
     await page.goto('./#/course/p0-1/lesson');
     await view(page).locator('.pron-btn').click();
     const p = page.locator('.pron-sheet');
-    await p.getByRole('button', { name: '🎤 Start' }).click();
+    await p.getByRole('button', { name: 'Start', exact: true }).click();
     await expect(p.locator('.miss-c')).toContainText(/microphone|mic/i);
     await expect(p.getByRole('link', { name: /sound & mic check/ })).toHaveAttribute('href', '#/check');
   });
