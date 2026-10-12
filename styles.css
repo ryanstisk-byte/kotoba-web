@@ -944,6 +944,14 @@ p:has(> .jr), .small:has(> .jr), .lead:has(> .jr), .strong:has(> .jr), span:has(
 .alike-this { border-color: var(--accent); }
 .alike-jp { font-family: var(--font-jp); font-size: var(--fs-jp-md); font-weight: 900; line-height: var(--lh-ruby); word-break: break-word; }
 .plant .bandage { position: absolute; left: -4px; bottom: -2px; font-size: 0.9rem; }
+/* Line icons in place of emoji (js/icons.js): sized and coloured like the text around them */
+.ico { display: inline-block; width: 1.15em; height: 1.15em; vertical-align: -0.2em; flex: none; overflow: visible; }
+.btn .ico, .tab .ico, .tag .ico { margin-right: 0.15em; }
+.btn .ico:last-child:not(:first-child) { margin: 0 0 0 0.15em; }
+.plant-emoji .ico, .mode-icon .ico { width: 1em; height: 1em; vertical-align: -0.1em; }
+.plant-emoji .ico { color: var(--good); }
+.plant-emoji .ico-blossom { color: var(--accent); }
+.drop .ico { color: var(--accent); }
 /* Pronunciation check (js/pron.js) */
 .pron-overlay { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, 0.45); background: color-mix(in srgb, var(--ink) 40%, transparent); display: flex; align-items: flex-end; justify-content: center; padding: var(--sp-3); overflow-y: auto; }
 @media (min-width: 700px) { .pron-overlay { align-items: center; } }
