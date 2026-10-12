@@ -326,7 +326,7 @@ test.describe('the Pitch Coach (fake mic singing known curves)', () => {
     await expect(sheet.getByRole('status')).toContainText('Yes!');
   });
 
-  test('ears first plays real voices 1-3 when the word has clips in them, otherwise the clip lower and higher', async ({ page }) => {
+  test('ears first plays real voices 1 and 3 when the word has clips in them, otherwise the clip lower and higher', async ({ page }) => {
     await seed(page, ready({ coach: { ears: [] }, settings: { voice: VOICE, speed: 'slow' } }));
     await page.goto('./');
     const watch = () => page.evaluate(async () => {
@@ -336,17 +336,17 @@ test.describe('the Pitch Coach (fake mic singing known curves)', () => {
       speaker.speak = (text, o = {}) => { window.__spoken.push({ text, voice: o.voice, file: speaker.clipFor(text, o.voice, o.speed || speaker.speed) }); speak(text, o); };
     });
     const sheet = page.locator('.coach-sheet');
-    // An N5 word: voice 0, then two other VOICEVOX voices, each its own normal-speed clip even with 🐢 on.
+    // An N5 word: voice 0, then voices 1 and 3, each its own normal-speed clip even with 🐢 on.
     await watch();
     const RAIN = { ...AME, say: '雨' };
-    const clips = await page.evaluate(async () => { const { CLIPS } = await import('./js/clips.js'); return [0, 1, 2, 3].map((v) => CLIPS[`雨#${v}`]); });
+    const clips = await page.evaluate(async () => { const { CLIPS } = await import('./js/clips.js'); return [0, 1, 3].map((v) => CLIPS[`雨#${v}`]); });
     expect(clips.every(Boolean)).toBe(true);
     await open(page, RAIN);
     await expect(sheet.getByText('Listen to it 3 ways')).toBeVisible();
     await expect.poll(() => page.evaluate(() => window.__spoken.length), { timeout: 15000 }).toBe(3);
     const spoken = await page.evaluate(() => window.__spoken);
-    expect(spoken.map((s) => s.voice)).toEqual([0, 1, 2]);
-    expect(spoken.map((s) => s.file)).toEqual(clips.slice(0, 3));
+    expect(spoken.map((s) => s.voice)).toEqual([0, 1, 3]);
+    expect(spoken.map((s) => s.file)).toEqual(clips);
     // A text with no clips in the other voices keeps the playbackRate fallback (no extra voices spoken).
     await page.evaluate(async () => (await import('./js/pitch-coach.js')).closeCoach());
     await watch();

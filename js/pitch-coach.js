@@ -510,7 +510,8 @@ function startDrill() {
 function earVoices() {
   const c = coach;
   const text = c.target.say || c.target.jp;
-  const real = [1, 2, 3].filter((v) => CLIPS[`${text}#${v}`]).slice(0, 2);
+  // Voices 1 and 3 first: they follow a set pitch accent closely; voice 2 (deep) much less.
+  const real = [1, 3, 2].filter((v) => CLIPS[`${text}#${v}`]).slice(0, 2);
   if (real.length) return [{ voice: c.target.voice || 0, label: 'voice 1' }, ...real.map((v, i) => ({ voice: v, label: `voice ${i + 2}` }))];
   return [{ rate: 1, label: 'the voice' }, { rate: 0.86, label: 'lower' }, { rate: 1.16, label: 'higher' }];
 }
