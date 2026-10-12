@@ -49,6 +49,10 @@ export const TIPS = {
     tip: 'Let your pitch fall after the {mora}: {shape}.',
     example: 'たまご (egg): ta-MA-go, it drops after ま.',
   },
+  pitch_early_drop: {
+    tip: 'Keep your pitch up through the {next}: {word} {shape}.',
+    example: 'たまご (egg): ta-MA-go, it stays up on ま and only drops for ご.',
+  },
   pitch_end_drop: {
     tip: 'Keep your pitch up to the end of {word}: {shape}.',
     example: 'さかな (fish): sa-KA-NA, it stays up, no drop.',

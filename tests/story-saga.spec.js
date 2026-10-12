@@ -333,9 +333,9 @@ test.describe('saved progress with the story saga (v4)', () => {
     await page.goto('./#/play/story');
     const out = await parse(page, FIXTURE_STORY);
     // Later versions only add blocks (and v7 one setting).
-    expect(out).toEqual(expect.objectContaining({ ...FIXTURE_STORY, v: out.v, settings: { ...FIXTURE_STORY.settings, pronCheck: true } }));
+    expect(out).toEqual(expect.objectContaining({ ...FIXTURE_STORY, v: out.v, settings: { ...FIXTURE_STORY.settings, pronCheck: true, voice: null } }));
     const s = await saved(page);
-    expect(s).toEqual(expect.objectContaining({ ...FIXTURE_STORY, v: s.v, lastSession: s.lastSession, settings: { ...FIXTURE_STORY.settings, pronCheck: true } }));
+    expect(s).toEqual(expect.objectContaining({ ...FIXTURE_STORY, v: s.v, lastSession: s.lastSession, settings: { ...FIXTURE_STORY.settings, pronCheck: true, voice: null } }));
     await expect(view(page).locator('.saga-results').first()).toContainText('Questions 3/3 · Challenge best 2/3');
     const planted = await page.evaluate(async () => (await import('./js/store.js')).store.planted().map((p) => p.item.id));
     expect(planted).toEqual(expect.arrayContaining(['mine:2', 'mine:5', 'arigatou', 'w:大会']));

@@ -3,9 +3,12 @@
 // the browser has it, and the app's own clip of the word as the model. pron-analysis.js does the comparing,
 // pron-tips.js says what to work on. Optional and skippable every time; Settings can hide the buttons.
 import { store } from './store.js';
-import { speaker, PitchTracker, Recognizer, recognitionSupported, noRecognitionReason, micSupported, micHelp, audioContext, detectPitch, normalizeJa } from './audio.js';
+import { speaker, PitchTracker, Recognizer, recognitionSupported, noRecognitionReason, micSupported, micHelp, normalizeJa } from './audio.js';
 import { analyze, moraInfo, targetPitch } from './pron-analysis.js';
+import { modelFrames } from './model-clip.js';
 import { tipFor } from './pron-tips.js';
+import { yFor } from './pitch-score.js';
+import { openCoach, coachAvailable } from './pitch-coach.js';
 import { readingOf } from './furigana.js';
 import { esc } from './ui.js';
 import { PHRASE_BY_ID, GARDEN_CATALOG } from './data.js';
@@ -40,36 +43,6 @@ export function pronButton(target, { compact = false, cls = 'btn ghost small-btn
   return `<button type="button" class="${cls} pron-btn" data-pron="${esc(JSON.stringify(target))}" aria-label="${esc(label)}" title="${esc(label)}">🎤 ${compact ? 'Check' : 'Check my pronunciation'}</button>`;
 }
 
-// ---------- the model clip, analysed once per clip ----------
-const modelCache = new Map();
-/** Loudness and pitch frames (every 30 ms) of the app's clip of this target, or null without one. */
-async function modelFrames(target) {
-  const file = speaker.clipFor(target.say || target.jp, target.voice || 0, 'normal');
-  if (!file) return null;
-  if (modelCache.has(file)) return modelCache.get(file);
-  const job = (async () => {
-    const ctx = audioContext();
-    if (!ctx) return null;
-    const res = await fetch('audio/' + file);
-    const buf = await ctx.decodeAudioData(await res.arrayBuffer());
-    const data = buf.getChannelData(0);
-    const sr = buf.sampleRate;
-    const hop = Math.round(sr * 0.03);
-    const win = 2048;
-    const frames = [];
-    for (let i = 0; i + win <= data.length; i += hop) {
-      const w = data.subarray(i, i + win);
-      let sum = 0;
-      for (let k = 0; k < w.length; k++) sum += w[k] * w[k];
-      const level = Math.sqrt(sum / w.length);
-      frames.push({ time: i / sr, level, hz: level > 0.01 ? detectPitch(w, sr) : null });
-    }
-    return { frames };
-  })().catch(() => null);
-  modelCache.set(file, job);
-  return job;
-}
-
 // ---------- the panel ----------
 let panel = null;     // { el, target, state, ... } while open
 
@@ -92,13 +65,13 @@ function melodyHTML(target, res) {
   const tLine = dots.filter((_, i) => !silent[i]).map((p) => p.join(',')).join(' ');
   let user = '';
   const u = res && res.pitch && res.pitch.user;
+  const skip = (res && res.pitch && res.pitch.skip) || morae.map((m) => m.devoice || m.type === 'sokuon');
   if (u && u.some((x) => x != null)) {
-    const known = u.filter((x) => x != null);
-    const lo = Math.min(...known), hi = Math.max(...known);
-    const y = (x) => (hi - lo < 1 ? (hiY + loY) / 2 : loY - ((x - lo) / (hi - lo)) * (loY - hiY));
-    const pts = u.map((x, i) => (x == null ? null : `${(i + 0.5) * slot},${y(x).toFixed(1)}`)).filter(Boolean).join(' ');
+    // A fixed scale in semitones around your own middle (the attempt's median), so a small wobble stays small.
+    const y = (x) => 4 + yFor(x, 66, 8);
+    const pts = u.map((x, i) => (x == null || skip[i] ? null : `${(i + 0.5) * slot},${y(x).toFixed(1)}`)).filter(Boolean).join(' ');
     user = `<polyline class="pron-user" points="${pts}" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="1 7"/>
-      ${u.map((x, i) => (x == null ? '' : `<circle class="pron-user-dot" cx="${(i + 0.5) * slot}" cy="${y(x).toFixed(1)}" r="4.5"/>`)).join('')}`;
+      ${u.map((x, i) => (x == null || skip[i] ? '' : `<circle class="pron-user-dot" cx="${(i + 0.5) * slot}" cy="${y(x).toFixed(1)}" r="4.5"/>`)).join('')}`;
   }
   return `<figure class="pron-melody" aria-label="Pitch: the model's in dots, yours as a line">
     <svg viewBox="0 0 ${w} ${h}" style="width:min(100%, ${Math.max(160, w * 1.4)}px)" aria-hidden="true">
@@ -125,6 +98,24 @@ function moraeHTML(target, res) {
   }).join('')}</div>`;
 }
 
+/** The way into the Pitch Coach from the panel. */
+function coachButton() {
+  return coachAvailable() ? '<button class="btn ghost wide" data-pact="coach">Pitch Coach: practise the melody step by step</button>' : '';
+}
+
+/** When the check found a pitch problem between two beats: practise just that step. */
+function pitchFocus(res) {
+  const x = res && res.issues.find((i) => /^pitch_/.test(i.id) && Number.isInteger(i.at) && Number.isInteger(i.to));
+  return x ? { a: x.at, b: x.to } : null;
+}
+
+function focusButton(res) {
+  const f = pitchFocus(res);
+  if (!f || !coachAvailable()) return '';
+  const m = moraInfo(panel.target.reading);
+  return `<button class="btn good wide" data-pact="focus">Practise just this step: <span lang="ja">${esc(m[f.a].kana)} → ${esc(m[f.b].kana)}</span></button>`;
+}
+
 function render() {
   if (!panel) return;
   const { el, target, state, res, notes } = panel;
@@ -139,7 +130,8 @@ function render() {
     body = `${melodyHTML(target, null)}
       <p class="small">Listen first, then tap <span class="strong">Start</span>, say it once, and pause: it stops by itself. This is optional; close it any time.</p>
       <div class="row2">${listen}</div>
-      <button class="btn primary wide" data-pact="start">🎤 Start</button>`;
+      <button class="btn primary wide" data-pact="start">🎤 Start</button>
+      ${coachButton()}`;
   } else if (state === 'recording') {
     body = `<p class="lead strong" role="status">🎤 Listening… say <span lang="ja">${esc(target.jp || target.reading)}</span></p>
       <div class="meter" aria-hidden="true"><span id="pron-level" style="width:0%"></span></div>
@@ -161,7 +153,8 @@ function render() {
       ${notes.length ? `<p class="small dim">${notes.map(esc).join(' ')}</p>` : ''}
       <div class="row2">${listen}</div>
       <div class="row2"><button class="btn primary" data-pact="start">↻ Try again</button>
-        <button class="btn" data-pact="side" ${panel.recording ? '' : 'disabled'}>⇄ Side by side</button></div>`;
+        <button class="btn" data-pact="side" ${panel.recording ? '' : 'disabled'}>⇄ Side by side</button></div>
+      ${focusButton(res)}${coachButton()}`;
   }
   el.querySelector('.pron-body').innerHTML = head + body;
 }
@@ -320,6 +313,11 @@ export function openPron(target, from = null) {
     else if (act === 'start') startAttempt();
     else if (act === 'stop') finishAttempt();
     else if (act === 'side') sideBySide();
+    else if (act === 'coach' || act === 'focus') {
+      const t = panel.target, back = panel.returnFocus, focus = act === 'focus' ? pitchFocus(panel.res) : null;
+      closePron();
+      openCoach(t, { focus, from: back });
+    }
   });
   render();
   el.querySelector('[data-pact=start]')?.focus({ preventScroll: true });

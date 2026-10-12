@@ -7,6 +7,7 @@ import { esc, delegate } from '../ui.js';
 import { PHRASE_BY_ID } from '../data.js';
 import * as fx from '../fx.js';
 import { romajiIfWanted } from '../furigana.js';
+import { openCoach, phraseTarget, coachAvailable } from '../pitch-coach.js';
 
 // ---------- Scorer (generous) ----------
 
@@ -120,6 +121,7 @@ export function mount(el, ctx) {
           <button class="btn primary" data-act="play" ${busy ? 'disabled' : ''}>${phase === 'result' ? '🎤 Again' : '🎤 Sing it'}</button>
           <button class="btn" data-act="next" ${busy ? 'disabled' : ''}>Next ▶</button>
         </div>
+        ${coachAvailable() && !busy ? '<button class="btn ghost small-btn" data-act="coach">Pitch Coach warm-up</button>' : ''}
         ${phase === 'result' && result ? resultCard(p) : ''}
         ${phase === 'result' && !result ? `<div class="panel stack-sm">
             <p>How did it go? Compare with the melody, then grade yourself.</p>
@@ -324,6 +326,7 @@ export function mount(el, ctx) {
     next,
     'sg-ok': () => selfGraded(true),
     'sg-miss': () => selfGraded(false),
+    coach: (b) => openCoach(phraseTarget(phrase()), { from: b }),
   });
   const onResize = () => draw();
   window.addEventListener('resize', onResize);

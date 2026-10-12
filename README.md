@@ -67,7 +67,7 @@ A 🎤 **Check my pronunciation** button sits next to the 🔊 wherever a new wo
 Kana and kanji letter lessons don't have it. Every button opens one shared panel (`js/pron.js`). It runs only on the device, with no paid services, and does three checks:
 
 - **Sounds.** Speech recognition (`Recognizer`) hears the attempt, which is compared with the target mora by mora after normalising kana (`pron-analysis.js`). Recognition is lenient and sometimes tidies up what it hears, so the panel says a match means "close enough".
-- **Pitch accent.** `PitchTracker` records the learner's pitch, and each mora's pitch is compared with the word's high/low pattern. The pattern comes from the N5 deck's accent or a phrase's melody when known, otherwise from the app's own clip. The panel draws the learner's line over the target melody.
+- **Pitch accent.** `PitchTracker` records the learner's pitch, and each mora's pitch is compared with the word's high/low pattern. The pattern comes from the N5 deck's accent or a phrase's melody when known, otherwise from the app's own clip. Scoring follows what listeners hear: where the pitch drops and the direction of each step (`js/pitch-score.js`), not height or step size. Whispered beats (the す in です) and っ are left out. The panel draws the learner's line over the target melody on a fixed semitone scale, so a small wobble stays small.
 - **Length and rhythm.** The recording is lined up with the app's VOICEVOX clip of the word, using dynamic time warping on loudness, voicing and pitch. That gives how long each mora was held, which catches:
   - long vowels (おばさん vs おばあさん)
   - a missing small っ pause (きて vs きって)
@@ -83,6 +83,18 @@ Kana and kanji letter lessons don't have it. Every button opens one shared panel
 **Without speech recognition**, the sound check is off: Chrome and Edge need the internet for it, and iPhone needs Dictation. The panel says so in one line and still gives pitch and length feedback. Mic problems use `micHelp()` and point to `#/check`.
 
 Results feed `store.grade` with skill `'speaking'`; nothing is ever lost on a miss. Settings › Microphone › Pronunciation check hides the buttons (saved progress v7 adds `settings.pronCheck`). Quiet mode hides them too.
+
+## Pitch Coach
+
+A way to learn to steer pitch beat by beat (`js/pitch-coach.js`, maths in `js/pitch-score.js`, clip handling in `js/model-clip.js`). It opens from the pronunciation panel (**Pitch Coach**), as a warm-up from Rhythm and Pitch Duel, and as **Practise just this step** when the check finds a pitch problem.
+
+- **Live line.** While the learner hums or speaks, their pitch is drawn as it comes over the target, median-filtered so single bad readings don't jump. The scale is fixed: ±8 semitones around their comfortable middle pitch. That middle is learned from a 2-second "say あ" the first time, then drifts slowly with each attempt. It's saved per device in `settings.voice` (`{ mid, lo, hi, n }`) and never synced. The comfortable band is shaded behind.
+- **Target.** High and low steps timed to the app's own clip, with the drop marked. **Bigger** exaggerates the steps for practice. Whispered beats are drawn dotted and not scored, with a note saying why.
+- **Ladder.** Hum it → Ma-ma-ma → the word → the word + が. The model plays first: a soft tone in the learner's own range for the hum and ma steps (and + が), the real clip for the word. Any step can be chosen; the next one is suggested after a Great or two Closes. Only the + が step tells flat words from words that drop after their last beat (はなが nose vs flower).
+- **Just this step.** Loops two beats cut from the real clip (for example ば → あ in おばあさん) until right twice, then goes back to the whole word.
+- **Ears first.** Before the first session on a word (and any time after), the word plays two or three ways and the learner taps the beat where the pitch drops, or "No drop". The ways are the app's other VOICEVOX voices when the word has clips in them, otherwise the same clip played a little lower and higher. A miss shows the answer and plays it again. Words done are kept in `coach.ears`, which is synced.
+
+Everything feeds `store.grade` with skill `'pitch'`. Saved progress v8 adds `settings.voice` and `coach`.
 
 ## Quick recap
 
@@ -161,6 +173,7 @@ Actions (`.github/workflows/tests.yml`).
 - `tests/course.spec.js`: the guided course (path, units, lesson, grammar search, Today drawing from the current unit, unit completion, the saved `course` field).
 - `tests/progress.spec.js`: saved progress loads with nothing lost (`tests/fixtures/progress-v1.json`), export/import, reload, reset.
 - `tests/pron.spec.js`: the pronunciation check. It covers mora, sound, length and pitch analysis on synthetic data, the tip table, where the 🎤 appears, and the flow with a fake mic and recognizer (no recognition, a blocked mic, skipping), plus the v6 → v7 migration (`tests/fixtures/progress-v6.json`).
+- `tests/pitch-coach.spec.js`: the Pitch Coach. Unit tests for the semitone scale, median filter, voice learning, scoring and が, then a fake mic (an oscillator in place of `getUserMedia`) sings known pitch curves to drive the live line, the ladder, Bigger, just this step, ears first, the first-time voice step and the warm-up buttons, plus the v7 → v8 migration (`tests/fixtures/progress-v7.json`).
 - `tests/garden-cards.spec.js`: Listen and Say it cards, grammar and conjugation cards, the needs-help mark and panel, the daily limits, and the v5 → v6 migration (`tests/fixtures/progress-v5.json`).
 - `tests/recap.spec.js`: the recap quiz in lessons, story scenes, the Garden and Kanji Forge (misses, retries, skipping, quiet mode, reading help, earlier Garden reviews, every spoken line having a clip).
 - `tests/sync.spec.js`: the sync merge (phone-vs-PC conflict, idempotence, mined-line clashes), and syncing against a mocked api.github.com (connect, find the gist, the automatic syncs, offline, bad token, Disconnect, the token never leaking).
