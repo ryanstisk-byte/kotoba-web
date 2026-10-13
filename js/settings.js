@@ -1,6 +1,6 @@
 // Settings: quiet mode, session length, theme, voices, mic test, latency calibration, export/import.
 import { store } from './store.js';
-import { speaker, recognitionSupported, micSupported, PitchTracker, audioContext, click, micHelp } from './audio.js';
+import { speaker, recognitionSupported, micSupported, PitchTracker, audioContext, click, micHelp, isIOS } from './audio.js';
 import { esc, delegate, toast } from './ui.js';
 import { CLIPS } from './clips.js';
 import { median } from './modes/rhythm.js';
@@ -104,6 +104,8 @@ export function mount(el, ctx) {
           <p class="small">Pitch tracking (Rhythm): <span class="${micSupported ? 'good-c' : 'miss-c'}">${micSupported ? 'available' : 'not available'}</span></p>
           <label class="switch-row"><span><span class="strong">Pronunciation check</span><br><span class="small dim">A 🎤 button next to new words and phrases. It compares how you say one with the model: its sounds, pitch and length, all on this device. Always optional${st.quiet ? '; hidden in Quiet mode' : ''}.</span></span>
             <input type="checkbox" role="switch" data-act="pron" ${st.pronCheck !== false ? 'checked' : ''}></label>
+          <label class="switch-row"><span><span class="strong">Start the mic on its own</span><br><span class="small dim">Say it cards and Sentence Builder listen as soon as it's your turn, so you don't tap 🎤 first. The mic turns off again after each answer.${isIOS ? ' Safari may still ask for permission once per visit.' : ''}</span></span>
+            <input type="checkbox" role="switch" data-act="automic" ${st.autoMic ? 'checked' : ''}></label>
           <button class="btn" data-act="mictest">${micTest ? '■ Stop mic test' : '🎤 Test mic + pitch'}</button>
           ${micTest ? `<p class="mono" id="mic-out">${esc(micTest.msg || 'Listening…')}</p>` : ''}
         </section>
@@ -371,6 +373,7 @@ export function mount(el, ctx) {
     if (t.matches('[data-act=quiet]')) { store.setSetting('quiet', t.checked); ctx.refreshChrome(); }
     if (t.matches('[data-act=sfx]')) { store.setSetting('sfx', t.checked); if (t.checked) fx.sound('hit'); }
     if (t.matches('[data-act=pron]')) store.setSetting('pronCheck', t.checked);
+    if (t.matches('[data-act=automic]')) store.setSetting('autoMic', t.checked);
     if (t.matches('[data-act=haptics]')) { store.setSetting('haptics', t.checked); if (t.checked) fx.buzz(20); }
     if (t.matches('[data-act=latrange]')) { setLatency(+t.value); }
     if (t.matches('[data-act-change=file]') && t.files && t.files[0]) {

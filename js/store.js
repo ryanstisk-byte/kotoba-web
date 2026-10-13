@@ -47,6 +47,7 @@ function blank() {
       textSize: 'm', sfx: true, haptics: true,   // added in v2
       pace: 'normal',                             // added in v3: 'less' = at most 3 new words a day
       pronCheck: true,                            // added in v7: show the 🎤 pronunciation check buttons
+      autoMic: false,                             // the mic starts on its own in Say it cards and Sentence Builder
       voice: null,                                // added in v8: { mid (Hz), lo, hi (semitones), n } learned by the Pitch Coach
     },
     engine: blankEngine(),   // added in v3: the skill model, placement and weekly check-in (see skills.js)
@@ -212,6 +213,7 @@ function normalize(input) {
     s.settings.haptics = st.haptics !== false;
     s.settings.pace = st.pace === 'less' ? 'less' : 'normal';
     s.settings.pronCheck = st.pronCheck !== false;
+    s.settings.autoMic = st.autoMic === true;
     s.settings.voice = normalizeVoice(st.voice);
   }
   s.engine = normalizeEngine(raw.engine, SKILLS);

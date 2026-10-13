@@ -42,7 +42,7 @@ export function mount(el, ctx) {
   let gram = null;         // the current grammar card's question: { q, picked }
   let heard = '';
   let heardOk = false;
-  let micOn = false;       // the mic only starts when the learner taps 🎤 (never on its own)
+  let micOn = false;       // the mic starts when the learner taps 🎤, or on its own if Settings says so
   let hint = false;        // Say it: the example's English is showing
   let fresh = [];          // words seen for the first time this session (recapped at the end)
   let recapOff = null;
@@ -93,6 +93,8 @@ export function mount(el, ctx) {
       return;
     }
     if (card.dir === 'listen') speaker.speak(sayOf(card.item), { mps: 3.5 });
+    // "Start the mic on its own" (Settings): Say it cards listen as soon as they open.
+    if (card.dir === 'say' && speech && store.settings.autoMic && !revealed) { micOn = true; render(); listen(card); }
   }
 
   // ---------- Say it: speech recognition ----------
