@@ -1040,3 +1040,38 @@ body.has-tabs #update-ready { bottom: calc(var(--tabbar-h) + var(--sp-3) + env(s
 .mic-meter { display: flex; align-items: center; gap: var(--sp-2); }
 .mic-meter-bar { flex: 1; height: 8px; border-radius: var(--r-pill); background: var(--line); overflow: hidden; }
 .mic-meter-bar > span { display: block; height: 100%; width: 0; background: var(--trace); transition: width 80ms linear; }
+
+/* ---------- Kana Brush ---------- */
+.brush-ask { display: grid; gap: var(--sp-1); justify-items: center; }
+.brush-listen { font-size: var(--fs-xl); min-height: 72px; width: 100%; }
+.brush-romaji { min-height: 1.5em; text-align: center; }
+.brush-pad {
+  --brush-ink: var(--ink);
+  position: relative; width: min(100%, 340px); aspect-ratio: 1; margin-inline: auto;
+  border: 2px solid var(--border-strong); border-radius: var(--r-sm); background: var(--surface);
+  touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; overscroll-behavior: contain;
+}
+.brush-pad > svg, .brush-pad > canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.brush-canvas { cursor: crosshair; touch-action: none; transition: opacity .3s; }
+.brush-pad.locked .brush-canvas { cursor: default; }
+.brush-pad.faded .brush-canvas { opacity: .3; }
+.brush-over { pointer-events: none; }
+.brush-under { pointer-events: none; }
+.brush-grid { stroke: var(--border); stroke-width: .6; stroke-dasharray: 2 2; fill: none; }
+.brush-guide path { fill: none; stroke: var(--ink); stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
+.brush-model { fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 0; }
+.brush-model.anim { stroke-dashoffset: 1; animation: brush-stroke .6s ease-out forwards; }
+.brush-num { font-family: var(--font-mono); font-size: 7px; font-weight: 800; fill: var(--electric); }
+.brush-num.anim { opacity: 0; animation: brush-num .2s ease-out forwards; }
+@keyframes brush-stroke { to { stroke-dashoffset: 0; } }
+@keyframes brush-num { to { opacity: 1; } }
+.brush-answer { display: flex; align-items: baseline; gap: var(--sp-2); flex-wrap: wrap; }
+.brush-answer-k { font-family: var(--font-jp); font-size: var(--fs-3xl); font-weight: 800; line-height: 1; }
+.brush-tools.row2, .brush-tools.row3 { width: min(100%, 340px); margin-inline: auto; }
+.brush-giveup { justify-self: center; }
+.brush-chart { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: var(--sp-1); }
+.brush-cell { min-height: 44px; border-radius: var(--r-sm); border: 1.5px solid var(--border); background: var(--surface); cursor: pointer;
+  font-family: var(--font-jp); font-size: 1.35rem; font-weight: 700; color: var(--dim); }
+.brush-cell.g1 { border-color: var(--good); }
+.brush-cell.g2 { border-color: var(--good); background: var(--good-soft); color: var(--ink); }
+.brush-cell.g3 { border: 2px solid var(--good); background: color-mix(in srgb, var(--good) 28%, var(--surface)); color: var(--ink); }
