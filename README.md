@@ -1,6 +1,6 @@
 # Kotoba Beat (web)
 
-A personal Japanese study game for PC and phone. It has a Reading Dojo (hiragana, katakana, starter kanji) and fourteen game modes (Kana Brush, Garden, Story, Particle Train, Kanji Forge, Conjugation Dojo, Sentence Builder, Katakana Rush, Rhythm, Pitch Duel, Speak Slice, Shopkeeper, Listening Lab and Numbers & Time) and a guided **Today** session.
+A personal Japanese study game for PC and phone. It has a Reading Dojo (hiragana, katakana, starter kanji) and fifteen game modes (Kana Brush, Rival Battle, Garden, Story, Particle Train, Kanji Forge, Conjugation Dojo, Sentence Builder, Katakana Rush, Rhythm, Pitch Duel, Speak Slice, Shopkeeper, Listening Lab and Numbers & Time) and a guided **Today** session.
 
 Live site: https://rykoha.github.io/kotoba-web/
 
@@ -61,6 +61,23 @@ A phone-style thread from Ren, with Kaito (after story chapter 2) and the Master
 - **Replies.** 2-3 Japanese replies with English under each. The reply picks the next message (short conversations over days). Otherwise the next one is a fresh conversation: story moments first (the latest chapter reached), then the learner's tier.
 - **Pool.** 45 messages plus 3 welcome-back notes, original writing. 14 are tied to story chapters.
 - **Saved progress v11** adds `messages.thread` (`{ id, day, at, reply, ok }`, oldest first). The sync merge keeps every message from both devices once, and a copy with a reply or answer wins.
+## Rival Battle
+
+A boss fight built entirely from review (`js/modes/rival.js`, attacks in `js/rival-items.js`, lines in `js/rival-data.js`).
+
+- **Rivals.** Kaito challenges you from the start. Master joins after story chapter 4, Sora after chapter 6 and Granny Kiku after chapter 8. Each speaks in their story voice. Later rivals have a little more stamina.
+- **Attacks** come only from what you've already met, mixed together in one fight:
+  - Garden words you've reviewed: meaning from the Japanese, or the Japanese from the meaning. Each word always asks the same way round. Due words come first.
+  - Reading Dojo kana you've reviewed.
+  - Conjugation Dojo forms, Particle Train trains and Numbers & Time scenes you've already practised, from the skill model's per-item records.
+  - With fewer than 6 attacks available, the rivals wait.
+- **Answers.** Tap, or press Say it and answer out loud (speech recognition, same lenient matching as the Garden). Quiet mode is tap only.
+- **Combo.** 4 right in a row is a finisher: a short slash animation and a voiced shout from Ren. It hits 3 times. Reduced motion skips the animation.
+- **Misses cost nothing.** The rival says a counter line in their voice, then the answer is played, and the attack comes back 3 turns later.
+- **No losing.** 3 misses in a row, or under 60% after 6 attacks, turns the fight into a training montage. Each missed item is shown and heard, then drilled once. Then the rival bows with a line of respect. A fight ends when the rival is down, or after 16 attacks with a respect ending.
+- **About 85%.** Options drop from 4 to 3 while a skill's recent accuracy is under ~80%. While the fight's own accuracy is under 80% the next attack is a well-known one; over 90%, a due or less-known one.
+- **Grading.** Everything goes through the store: due Garden words with `store.reviewCard`, due kana with `recordDojo`, due conjugation cards with `reviewGrammar`, and every first try with `store.grade`. Reviews, accuracy and Progress update as in the other modes. Nothing new is saved: no wins, no counters.
+- **Today.** On Saturdays and Sundays an **optional** Rival Battle block appears, once there's enough to fight with. Optional blocks never count toward finishing the day or the day's minutes.
 ## Kana Brush
 
 A handwriting mode for hiragana and katakana (`js/modes/brush.js`). The learner hears a kana's clip (the sound, never the printed kana, so it's recall) and draws it from memory on a square pad with a finger or the mouse.
@@ -238,6 +255,7 @@ Actions (`.github/workflows/tests.yml`).
 - `tests/garden-cards.spec.js`: Listen and Say it cards, grammar and conjugation cards, the needs-help mark and panel, the daily limits, and the v5 → v6 migration (`tests/fixtures/progress-v5.json`).
 - `tests/recap.spec.js`: the recap quiz in lessons, story scenes, the Garden and Kanji Forge (misses, retries, skipping, quiet mode, reading help, earlier Garden reviews, every spoken line having a clip).
 - `tests/messages.spec.js`: Ren's Messages. One a day, the inbox check and replies, replies picking the next message, welcome back, levels and kanji display, story-tied messages, the pool, every message voiced and playable with matching furigana, and the v10 → v11 migration (`tests/fixtures/progress-v10.json`).
+- `tests/rival.spec.js`: Rival Battle. Rivals unlocking, attacks only from what was learned, combos and the finisher, counters and comebacks, the training montage, Quiet mode, a spoken answer (fake recognizer), every line voiced and playable, and the optional weekend block.
 - `tests/brush.spec.js`: Kana Brush. The checker on every kana (sloppy redraws pass, other kana don't), joins, splits, order and look-alikes, drawing with the mouse and with touch (no page scroll), misses and retries, the guide fading, only Dojo kana, the Today block, and the v9 → v10 migration (`tests/fixtures/progress-v9.json`) with the sync merge.
 - `tests/sync.spec.js`: the sync merge (phone-vs-PC conflict, idempotence, mined-line clashes), and syncing against a mocked api.github.com (connect, find the gist, the automatic syncs, offline, bad token, Disconnect, the token never leaking).
 - `tests/offline.spec.js`: the service worker precaches everything and the app works with no network.

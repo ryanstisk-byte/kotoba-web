@@ -6,6 +6,7 @@ import { N5_WORDS } from '../js/data.js';
 import { N5 } from '../js/n5.js';
 import { COURSE_EXAMPLES } from '../js/course-data.js';
 import { ALL_MESSAGES, SENDERS } from '../js/messages-data.js';
+import { rivalLines } from '../js/rival-data.js';
 import { DIALOGUES, NUMBER_SCENES, KATA_WORDS, CONJ_WORDS, VERB_FORMS, ADJ_FORMS, conjugate, conjPrompt, BUILD_SENTENCES } from '../js/practice-data.js';
 
 const clips = new Map();
@@ -50,6 +51,8 @@ for (const ex of COURSE_EXAMPLES) { add(ex.jp, ex.voice); pairs.push([ex.jp, ex.
 
 // Ren's Messages: each message in its sender's voice.
 for (const m of ALL_MESSAGES) { add(m.jp, SENDERS[m.from].voice); pairs.push([m.jp, m.kana]); }
+// Rival Battle: each rival's taunts, counters and endings in their own voice, and Ren's finisher shouts.
+for (const [l, voice] of rivalLines()) { add(l.jp, voice); pairs.push([l.jp, l.reading]); }
 
 // N5 deck: each word with its pitch accent set, and its example sentence. Added last so these win over
 // an older clip of the same text.

@@ -381,6 +381,8 @@ export const MODES = [
     body: 'Rapid-fire verb and adjective forms: ます, ない, た, て and plain. A miss shows the answer and why.' },
   { id: 'build', title: 'Sentence Builder', jp: '文づくり', group: 'Understand', icon: '🧩', mic: false,
     body: 'See the English, build the Japanese from shuffled tiles, then say it out loud (skipped in Quiet mode).' },
+  { id: 'rival', title: 'Rival Battle', jp: 'ライバル対決', group: 'Review', icon: '⚔', mic: false,
+    body: "A rival from the story attacks with things you've already learned. Combos end in a finisher; a miss costs nothing, and you can't lose." },
   { id: 'rhythm', title: 'Rhythm', jp: 'リズム', group: 'Speak & listen', icon: '〰️', mic: true,
     body: 'Say each mora as the line sweeps by. Follow the pink pitch melody. It speeds up and hides the lyrics as you improve.' },
   { id: 'duel', title: 'Pitch Duel', jp: 'ピッチ対決', group: 'Speak & listen', icon: '👂', mic: false,
