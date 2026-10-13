@@ -76,6 +76,7 @@ export const EMOJI_ICONS = {
   "✋": "hand",
   "🧑": "person",
   "✍": "writing",
+  "⚑": "flag",
   "🔍": "search",
   "🔒": "lock",
   "✔": "check-bold",

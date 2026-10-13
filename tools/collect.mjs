@@ -5,6 +5,9 @@ import { LESSONS, KANJI_LESSONS, READ_WORDS } from '../js/dojo-data.js';
 import { N5_WORDS } from '../js/data.js';
 import { N5 } from '../js/n5.js';
 import { COURSE_EXAMPLES } from '../js/course-data.js';
+import { POINT, QUICK } from '../js/exam-bank-listen1.js';
+import { TASK, UTTER } from '../js/exam-bank-listen2.js';
+import { PARAPHRASE, TEXT_GRAMMAR, SHORT, MID, INFO } from '../js/exam-bank-reading.js';
 import { ALL_MESSAGES, SENDERS } from '../js/messages-data.js';
 import { rivalLines } from '../js/rival-data.js';
 import { DIALOGUES, NUMBER_SCENES, KATA_WORDS, CONJ_WORDS, VERB_FORMS, ADJ_FORMS, conjugate, conjPrompt, BUILD_SENTENCES } from '../js/practice-data.js';
@@ -49,6 +52,14 @@ for (const v of READ_WORDS) add(v.w);
 // Course example sentences, each in its speaker's voice (0 narrator, 1 Ren, 2 Master, 3 Kaito).
 for (const ex of COURSE_EXAMPLES) { add(ex.jp, ex.voice); pairs.push([ex.jp, ex.reading]); }
 
+// Mock JLPT listening (js/exam-bank-listen*.js): every question, conversation line and reply in its voice. Each item
+// plays once in the full mock, so only normal speed is needed; the mini mock's replay uses the same clip.
+for (const it of [...TASK, ...POINT, ...UTTER, ...QUICK]) {
+  for (const l of [it.question, it.line, ...(it.lines || []), ...(it.replies || [])].filter(Boolean)) {
+    clips.set(l.jp + '#' + l.voice, [l.jp, l.voice, null, ['']]);
+    pairs.push([l.jp, l.reading]);
+  }
+}
 // Ren's Messages: each message in its sender's voice.
 for (const m of ALL_MESSAGES) { add(m.jp, SENDERS[m.from].voice); pairs.push([m.jp, m.kana]); }
 // Rival Battle: each rival's taunts, counters and endings in their own voice, and Ren's finisher shouts.

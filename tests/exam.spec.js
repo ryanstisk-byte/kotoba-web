@@ -3,7 +3,11 @@
 // and a timed full mock, misses going into the Garden, and the v8 → v9 migration and sync merge.
 import { readFileSync } from 'node:fs';
 import { test, expect, seed, saved, view, expectNoHorizontalScroll } from './helpers.js';
-import { buildMock, scoreMock, mockIds, nearMisses, BANK, FORMATS } from '../js/exam-data.js';
+import { buildMock, scoreMock, mockIds, nearMisses, BANK, FORMATS, TYPES, N5_KANJI } from '../js/exam-data.js';
+import { PICTURES } from '../js/exam-art.js';
+import * as READING from '../js/exam-bank-reading.js';
+import * as LISTEN1 from '../js/exam-bank-listen1.js';
+import * as LISTEN2 from '../js/exam-bank-listen2.js';
 import { CLIPS } from '../js/clips.js';
 
 const FIXTURE_V8 = JSON.parse(readFileSync(new URL('./fixtures/progress-v8.json', import.meta.url), 'utf8'));
@@ -14,35 +18,80 @@ function seeded(n = 1) {
 }
 
 test.describe('question bank and scoring (js/exam-data.js, run in Node)', () => {
-  test('a mock has every part, right answers among distinct options, and a clip for every spoken line', () => {
+  test('the full mock follows the real N5: parts, question types, order, counts and minutes', () => {
+    const order = { vocab: ['read', 'spell', 'context', 'para'], grammar: ['grammar', 'star', 'textgram', 'short', 'mid', 'info'], listening: ['task', 'point', 'utter', 'quick'] };
+    const counts = { read: 7, spell: 5, context: 6, para: 3, grammar: 9, star: 4, textgram: 4, short: 2, mid: 2, info: 1, task: 7, point: 6, utter: 5, quick: 6 };
+    for (let k = 1; k <= 4; k++) {
+      const m = buildMock({ format: 'full', rand: seeded(k) });
+      expect(m.sections.map((s) => [s.id, s.minutes])).toEqual([['vocab', 20], ['grammar', 40], ['listening', 30]]);
+      for (const sec of m.sections) {
+        const types = sec.questions.map((q) => q.type);
+        expect([...new Set(types)], sec.id).toEqual(order[sec.id]);
+        // Types come in blocks, in order (all 漢字読み, then all 表記, ...).
+        expect(types, sec.id).toEqual([...types].sort((a, b) => order[sec.id].indexOf(a) - order[sec.id].indexOf(b)));
+        for (const t of order[sec.id]) expect(types.filter((x) => x === t).length, t).toBe(counts[t]);
+      }
+      for (const t of Object.keys(TYPES)) {
+        expect(TYPES[t].ja, t).toMatch(/[ぁ-ん]/);
+        expect(TYPES[t].en, t).toMatch(/[a-z]/);
+      }
+    }
+  });
+
+  test('every question: distinct options with the answer among them; reading and listening options in Japanese (or pictures)', () => {
     for (const format of ['mini', 'full']) {
-      for (let k = 1; k <= 5; k++) {
+      for (let k = 1; k <= 4; k++) {
         const m = buildMock({ format, rand: seeded(k) });
-        expect(m.sections.map((s) => s.id)).toEqual(['vocab', 'grammar', 'listening']);
-        expect(m.timed).toBe(format === 'full');
         const qs = m.sections.flatMap((s) => s.questions);
         expect(new Set(qs.map((q) => q.part))).toEqual(new Set(['vocab', 'grammar', 'reading', 'listening']));
         for (const q of qs) {
-          expect(q.options.length, q.id).toBeGreaterThanOrEqual(2);
-          expect(q.options.length, q.id).toBeLessThanOrEqual(4);
+          expect(q.options.length, q.id).toBe(q.heard ? 3 : 4);
           expect(new Set(q.options).size, q.id).toBe(q.options.length);
           expect(q.options, q.id).toContain(q.answer);
-          for (const line of q.say || []) expect(CLIPS[`${line.text}#${line.voice}`] || CLIPS[`${line.text}#0`], `${q.id}: ${line.text}`).toBeTruthy();
+          for (const o of q.options) {
+            if (q.pictures) expect(PICTURES[o], `${q.id}: ${o}`).toBeTruthy();
+            else expect(o, q.id).not.toMatch(/[A-Za-z]{2,}/);   // no English (a class letter like B is fine)
+          }
         }
       }
     }
-    const full = buildMock({ format: 'full', rand: seeded(3) });
-    expect(full.sections.map((s) => s.minutes)).toEqual([20, 40, 30]);
-    expect(full.sections.flatMap((s) => s.questions).length).toBeGreaterThan(55);
   });
 
-  test('the next mock picks questions not seen in the last one', () => {
-    const a = buildMock({ format: 'full', rand: seeded(7) });
-    const b = buildMock({ format: 'full', rand: seeded(8), seen: mockIds(a) });
-    const ia = new Set(mockIds(a));
-    const shared = mockIds(b).filter((id) => ia.has(id));
-    expect(shared.length / mockIds(b).length).toBeLessThan(0.25);
-    expect(BANK.read + BANK.spell + BANK.context).toBeGreaterThan(600);
+  test('every spoken line of the bank has its clip', () => {
+    const missing = [];
+    for (const it of [...LISTEN1.POINT, ...LISTEN1.QUICK, ...LISTEN2.TASK, ...LISTEN2.UTTER]) {
+      for (const l of [it.question, it.line, ...(it.lines || []), ...(it.replies || [])].filter(Boolean)) if (!CLIPS[`${l.jp}#${l.voice}`]) missing.push(`${it.id}: ${l.jp}`);
+    }
+    expect(missing).toEqual([]);
+  });
+
+  test('the hand-written bank uses only N5 kanji (anything else is in kana), and a big enough bank', () => {
+    const bad = [];
+    const walk = (v, id) => {
+      if (typeof v === 'string') { for (const c of v.match(/[一-鿿々]/g) || []) if (!N5_KANJI.has(c)) bad.push(`${id}: ${c}`); }
+      else if (Array.isArray(v)) v.forEach((x) => walk(x, id));
+      else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) if (!['why', 'reading'].includes(k)) walk(x, id);
+    };
+    for (const mod of [READING, LISTEN1, LISTEN2]) for (const list of Object.values(mod)) for (const it of list) walk(it, it.id);
+    expect(bad).toEqual([]);
+    // Enough of each hand-written type for three full mocks without repeats.
+    for (const [t, n] of Object.entries({ para: 9, textgram: 3, short: 6, mid: 3, info: 3, task: 21, point: 18, utter: 15, quick: 18 })) expect(BANK[t], t).toBeGreaterThanOrEqual(n);
+  });
+
+  test('three full mocks in a row share less than 20% of their questions', () => {
+    let seen = [];
+    const mocks = [];
+    for (let k = 0; k < 3; k++) {
+      const m = buildMock({ format: 'full', rand: seeded(11 + k), seen });
+      mocks.push(m);
+      seen = [...seen, ...mockIds(m)];
+    }
+    const qids = (m) => m.sections.flatMap((s) => s.questions.map((q) => q.qid || q.id));
+    const [a, b, c] = mocks.map(qids);
+    const share = (x, y) => x.filter((q) => y.includes(q)).length / x.length;
+    expect(share(b, a)).toBeLessThan(0.2);
+    expect(share(c, [...a, ...b])).toBeLessThan(0.2);
+    expect(share(c, a)).toBeLessThan(0.2);
   });
 
   test('wrong readings are one slip away: long vowels, voicing, small っ and ゃゅょ', () => {
@@ -53,8 +102,8 @@ test.describe('question bank and scoring (js/exam-data.js, run in Node)', () => 
     expect(nearMisses('きょう').get('きょ')).toBe('long');
   });
 
-  test('scored like the real N5: 120 + 60, pass at 80 with section minimums', () => {
-    const m = buildMock({ format: 'mini', rand: seeded(2) });
+  test('scored like the real N5 (120 + 60, pass at 80 with minimums), weighted by part', () => {
+    const m = buildMock({ format: 'full', rand: seeded(2) });
     const qs = m.sections.flatMap((s) => s.questions);
     const all = Object.fromEntries(qs.map((q, i) => [i, q.answer]));
     expect(scoreMock(m, all)).toMatchObject({ lk: 120, li: 60, total: 180, pass: true });
@@ -65,6 +114,13 @@ test.describe('question bank and scoring (js/exam-data.js, run in Node)', () => 
     expect(r.total).toBeGreaterThanOrEqual(80);
     expect(r.li).toBe(0);
     expect(r.pass).toBe(false);
+    // A reading question weighs more than a vocabulary one: missing the 5 reading questions costs more than missing 5
+    // vocabulary questions.
+    const miss = (pred) => Object.fromEntries(qs.map((q, i) => [i, pred(q) ? null : q.answer]));
+    let n = 0;
+    const fiveVocab = scoreMock(m, miss((q) => q.part === 'vocab' && n++ < 5)).lk;
+    const allReading = scoreMock(m, miss((q) => q.part === 'reading')).lk;
+    expect(allReading).toBeLessThan(fiveVocab);
     expect(FORMATS.full.sections.map((s) => s.minutes)).toEqual([20, 40, 30]);
   });
 });
@@ -139,34 +195,57 @@ test.describe('readiness meter', () => {
   });
 });
 
-/** Goes through the mock on screen answering "I don't know" to everything. */
-async function skipAll(page) {
+/**
+ * Ends `parts` parts (default: all) from the answer sheet without answering, confirming the unanswered warning. The
+ * full mock's listening part has no finish button (the tape sets the pace), so only the mini mock finishes it here.
+ */
+async function finishAll(page, parts = 3) {
   const v = view(page);
-  for (let k = 0; k < 120; k++) {
+  for (let k = 0; k < parts; k++) {
     const begin = v.locator('[data-act=begin]');
-    if (await begin.count()) { await begin.click(); continue; }
-    if (!(await v.locator('[data-act=pick]').count())) return;
-    await v.getByRole('button', { name: "I don't know" }).click();
+    if (await begin.count()) await begin.click();
+    if (!(await v.locator('[data-act=sheet]').count())) return;
+    await v.locator('[data-act=sheet]').click();
+    await v.locator('[data-act=finishpart]').click();
+    await v.locator('[data-act=finishpart]').click();   // "Finish anyway?"
+    if (await v.locator('.exam-result').count()) return;
   }
 }
 
+/** Replaces the voice with an instant fake that records what was said (each line "ends" right away). */
+async function fakeVoice(page) {
+  await page.evaluate(async () => {
+    const { speaker } = await import('./js/audio.js');
+    const { TAPE } = await import('./js/exam.js');
+    TAPE.scale = 0.002;
+    window.__said = [];
+    speaker.speak = (text, o = {}) => { window.__said.push(text); setTimeout(() => o.onend && o.onend(), 5); };
+    speaker.stop = () => {};
+  });
+}
+
 test.describe('mock exam', () => {
-  test('a mini mock: no answers along the way, then the score, each part and every miss, which go into the Garden', async ({ page }) => {
+  test('a mini mock in practice mode: English hints, replay, every type, then the score and misses into the Garden', async ({ page }) => {
     await page.goto('./#/exam');
     const v = view(page);
     await expect(v.getByRole('heading', { name: 'Mock JLPT N5' })).toBeVisible();
+    await expect(v).toContainText('practice mode');
     await expectNoHorizontalScroll(page);
     await v.getByRole('button', { name: 'Start the mini mock' }).click();
-    await expect(v.getByRole('heading', { name: 'Vocabulary' })).toBeVisible();
+    await expect(v.locator('.section-title')).toContainText('もじ・ごい');
     await v.locator('[data-act=begin]').click();
-    // Vocabulary has no reading help; there's no clock in a mini mock.
-    await expect(v.locator('.exam[data-noruby]')).toHaveCount(1);
+    // Vocabulary: the booklet's Japanese instructions with an English line, no furigana, no clock.
+    await expect(v.locator('.exam-mondai')).toContainText('もんだい1');
+    await expect(v.locator('.exam-mondai')).toContainText('hiragana');
+    await expect(v.locator('.exam rt')).toHaveCount(0);
     await expect(v.locator('#ex-clock')).toHaveCount(0);
     await expectNoHorizontalScroll(page);
-    await skipAll(page);
+    await finishAll(page);
     await expect(v.getByRole('heading', { name: /Not yet/ })).toBeVisible();
     await expect(v.getByText('The pass line is 80.')).toBeVisible();
+    await expect(v).toContainText('scaled scores');
     await expect(v.locator('.exam-miss').first()).toBeVisible();
+    await expect(v.locator('.exam-miss .exam-scene')).toHaveCount(1);   // the 発話表現 picture, in review
     await expectNoHorizontalScroll(page);
     const s = await saved(page);
     expect(s.v).toBe(11);
@@ -178,6 +257,96 @@ test.describe('mock exam', () => {
     expect(Object.keys(s.grammar).length).toBeGreaterThan(0);
     await page.goto('./#/progress');
     await expect(view(page).locator('.mock-list')).toContainText('Mini mock');
+  });
+
+  test('the answer sheet: change an answer, go back, flag, and a warning before finishing with gaps', async ({ page }) => {
+    await page.goto('./#/exam');
+    const v = view(page);
+    await v.getByRole('button', { name: 'Start the full mock' }).click();
+    await v.locator('[data-act=begin]').click();
+    const first = await v.locator('.exam[data-qid]').getAttribute('data-qid');
+    await v.locator('[data-act=pick]').first().click();
+    await expect(v.locator('.exam[data-qid]')).not.toHaveAttribute('data-qid', first);   // moved on
+    await v.locator('[data-act=flag]').click();
+    await v.locator('[data-act=prev]').click();
+    await expect(v.locator('.exam[data-qid]')).toHaveAttribute('data-qid', first);
+    await expect(v.locator('.exam-opt.on')).toHaveCount(1);
+    await v.locator('[data-act=pick]').nth(1).click();   // change it
+    await v.locator('[data-act=sheet]').click();
+    await expect(v.locator('.exam-cell')).toHaveCount(21);
+    await expect(v.locator('.exam-cell.done')).toHaveCount(1);
+    await expect(v.locator('.exam-cell.flag')).toHaveCount(1);
+    await v.locator('[data-act=finishpart]').click();
+    await expect(v.getByRole('alert')).toContainText('20 unanswered and 1 flagged');
+    await v.locator('[data-act=back]').click();
+    await v.locator('[data-act=sheet]').click();
+    await v.locator('.exam-cell').nth(1).click();
+    await expect(v.locator('[data-act=flag]')).toHaveAttribute('aria-pressed', 'true');
+    await expectNoHorizontalScroll(page);
+  });
+
+  test('the full mock: no English hints, furigana only beyond N5, real reading pages', async ({ page }) => {
+    await page.goto('./#/exam');
+    const r = await page.evaluate(async () => {
+      const { furi } = await import('./js/exam.js');
+      return [furi('毎日 学校へ 行きます。'), furi('りょうりを 作ります。'), furi('毎日 料理を します。')];
+    });
+    expect(r[0]).not.toContain('<ruby>');
+    expect(r[1]).toContain('<ruby>作<rt>');
+    expect(r[2]).toMatch(/毎日 <ruby>料理<rt>りょうり<\/rt><\/ruby>/);
+    const v = view(page);
+    await v.getByRole('button', { name: 'Start the full mock' }).click();
+    await finishAll(page, 1);   // vocabulary
+    await v.locator('[data-act=begin]').click();
+    // Grammar: the context sentence has no English translation in the full mock.
+    await expect(v.locator('.exam-mondai')).toContainText('（　）に 何を 入れますか');
+    await expect(v.locator('.exam p.small.dim', { hasText: '"' })).toHaveCount(0);
+    // Jump to the information page (the last question of the part).
+    await v.locator('[data-act=sheet]').click();
+    await v.locator('.exam-cell').last().click();
+    await expect(v.locator('.exam-info')).toBeVisible();
+    await expect(v.locator('.exam[data-type=info]')).toBeVisible();
+    await expectNoHorizontalScroll(page);
+  });
+
+  test('full-mock listening plays each item once, with pauses, and moves on by itself; no replay', async ({ page }) => {
+    await page.goto('./#/exam');
+    const v = view(page);
+    await fakeVoice(page);
+    await v.getByRole('button', { name: 'Start the full mock' }).click();
+    await finishAll(page, 1);   // vocabulary
+    await v.locator('[data-act=begin]').click();
+    await v.locator('[data-act=sheet]').click();
+    await v.locator('[data-act=finishpart]').click();
+    await v.locator('[data-act=finishpart]').click();
+    await expect(v.locator('.section-title')).toContainText('ちょうかい');
+    await v.locator('[data-act=begin]').click();
+    await expect(v.locator('[data-act=play]')).toHaveCount(0);
+    await expect(v).toContainText('Each item plays once');
+    // Pictures for a picture task, while the tape runs; answer one on the way.
+    await v.locator('[data-act=pick]').first().click();
+    await expect(v.locator('.exam-result')).toBeVisible({ timeout: 20_000 });
+    const said = await page.evaluate(() => window.__said);
+    const mock = await page.evaluate(async () => {
+      const { store } = await import('./js/store.js');
+      return store.exam.seen;
+    });
+    // 24 listening items, each played once: every line is said exactly as often as the items in this mock contain it
+    // (課題/ポイント: the question twice, before and after the talk; a sentence can also appear in two items).
+    const { TASK, UTTER } = LISTEN2;
+    const { POINT, QUICK } = LISTEN1;
+    const ids = mock.filter((id) => /^(task|point|utter|quick):/.test(id));
+    expect(ids.length).toBe(24);
+    const want = {};
+    for (const id of ids) {
+      const [type, key] = id.split(':');
+      const it = { task: TASK, point: POINT, utter: UTTER, quick: QUICK }[type].find((x) => x.id === key);
+      const lines = type === 'task' || type === 'point' ? [it.question, ...it.lines, it.question] : [it.question || it.line, ...it.replies];
+      for (const l of lines) want[l.jp] = (want[l.jp] || 0) + 1;
+    }
+    const got = {};
+    for (const t of said) if (t in want) got[t] = (got[t] || 0) + 1;
+    expect(got).toEqual(want);
   });
 
   test('a full mock is timed per part, pauses, and moves on when time is up', async ({ page }) => {
@@ -198,8 +367,21 @@ test.describe('mock exam', () => {
     // Time runs out on the vocabulary part: it moves on, and says why.
     await page.clock.runFor(19 * 60_000);
     await expect(v.getByText(/Time's up for that part/)).toBeVisible();
-    await expect(v.getByRole('heading', { name: 'Grammar and reading' })).toBeVisible();
+    await expect(v.locator('.section-title')).toContainText('ぶんぽう');
     await expectNoHorizontalScroll(page);
+  });
+
+  test('pictures: a picture task shows four drawings, a situation question shows its scene (line art, no emoji)', async ({ page }) => {
+    await page.goto('./#/exam');
+    const html = await page.evaluate(async () => {
+      const { pictureSVG, sceneSVG } = await import('./js/exam-art.js');
+      const { TASK, UTTER } = await import('./js/exam-bank-listen2.js');
+      const pics = TASK.filter((t) => t.pictures).flatMap((t) => t.options).map((o) => pictureSVG(o));
+      const scenes = UTTER.map((u) => sceneSVG(u.scene));
+      return { pics, scenes };
+    });
+    for (const p of html.pics) expect(p).toMatch(/^<svg class="exam-pic/);
+    for (const s of html.scenes) { expect(s).toContain('exam-arrow'); expect(s).toContain('<circle'); }
   });
 
   test('passing a full mock finishes N5: the road moves on to N4', async ({ page }) => {
