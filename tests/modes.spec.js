@@ -136,6 +136,20 @@ test.describe('modes', () => {
     expect(Object.values(s.items).some((p) => p.pl > 0)).toBe(true);
   });
 
+  test('Rhythm: a live mic meter while singing, and a pointer to the mic check when only silence came in', async ({ page }) => {
+    await page.addInitScript(() => {
+      // A microphone that delivers nothing but silence.
+      navigator.mediaDevices.getUserMedia = async () => new AudioContext().createMediaStreamDestination().stream;
+    });
+    await page.goto('./#/play/rhythm');
+    const v = view(page);
+    await v.getByRole('button', { name: /Sing it/ }).click();
+    await expect(v.locator('.mic-meter')).toBeVisible();
+    await expect(v.getByText('The mic only sent silence.')).toBeVisible({ timeout: 15_000 });
+    await expect(v.getByRole('link', { name: 'sound and mic check' })).toHaveAttribute('href', '#/check');
+    await expect(v.locator('.mic-meter')).toHaveCount(0);
+  });
+
   test('Rhythm: quiet mode grades yourself', async ({ page }) => {
     await seed(page, { items: {}, settings: { quiet: true } });
     await page.goto('./#/play/rhythm');

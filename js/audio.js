@@ -424,7 +424,10 @@ export class PitchTracker {
   }
 
   async start() {
-    if (this.running) return;
+    // A mic that went quiet behind our back (iPhone audio interruptions, another tab taking the mic, a closed
+    // context) is reopened instead of reused, so a later try doesn't record silence.
+    if (this.running && !this.stale()) return;
+    if (this.running) this.stop();
     if (!micSupported) throw new Error('This browser has no microphone access.');
     const ctx = audioContext();
     if (!ctx) throw new Error('This browser has no Web Audio.');
@@ -438,7 +441,7 @@ export class PitchTracker {
       if (e && (e.name === 'OverconstrainedError' || e.name === 'TypeError')) this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       else { setAudioSession('playback'); throw e; }
     }
-    if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
+    if (ctx.state !== 'running') await ctx.resume().catch(() => {});
     this.ctx = ctx;
     this.source = ctx.createMediaStreamSource(this.stream);
     this.analyser = ctx.createAnalyser();
@@ -470,6 +473,15 @@ export class PitchTracker {
     this.samples.push({ time: t, hz, level: rms });
   }
 
+  /** True when the open mic can no longer deliver sound. */
+  stale() {
+    const track = this.stream && this.stream.getAudioTracks()[0];
+    return !track || track.readyState === 'ended' || track.muted || !this.ctx || this.ctx.state !== 'running';
+  }
+
+  /** Loudest level since the clock was last reset (0 means the mic sent only silence). */
+  get peak() { return this.samples.reduce((m, s) => Math.max(m, s.level), 0); }
+
   /** Restart the clock without stopping the mic (call right as the countdown starts). */
   resetClock() {
     this.startTime = performance.now();
@@ -479,7 +491,9 @@ export class PitchTracker {
   /** Sample ~1 second of room noise so quiet rooms and noisy rooms both work. */
   calibrateNoise(recent) {
     const levels = recent.map((s) => s.level).sort((a, b) => a - b);
-    if (levels.length) this.noiseFloor = levels[Math.floor(levels.length / 2)];
+    // The quieter part of the second, capped: someone who starts talking during the count-in mustn't set the
+    // floor to their own voice and then be ignored.
+    if (levels.length) this.noiseFloor = Math.min(levels[Math.floor(levels.length * 0.2)], 0.01);
   }
 
   stop() {

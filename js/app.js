@@ -530,7 +530,23 @@ initPron();   // every 🎤 "Check my pronunciation" button opens the one shared
 try { navigator.storage?.persist?.().catch(() => {}); } catch (e) { /* ignore */ }
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  // A new version installs in the background. When it takes over, offer a reload instead of yanking the page
+  // mid-game. A Home Screen app can sit paused for days, so look for an update whenever it comes back.
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) showUpdateReady(); });
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('SW registration failed', e));
+    navigator.serviceWorker.register('./sw.js').then((reg) => {
+      document.addEventListener('visibilitychange', () => { if (!document.hidden && reg) reg.update().catch(() => {}); });
+    }).catch((e) => console.warn('SW registration failed', e));
   });
+}
+
+function showUpdateReady() {
+  if (document.getElementById('update-ready')) return;
+  const b = document.createElement('button');
+  b.id = 'update-ready';
+  b.className = 'btn primary';
+  b.textContent = '↻ New version ready · tap to reload';
+  b.addEventListener('click', () => location.reload());
+  document.body.appendChild(b);
 }
