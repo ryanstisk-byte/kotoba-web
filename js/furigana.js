@@ -67,6 +67,7 @@ const escHTML = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;',
 // Characters a chunk may not start with (they belong to the kana before them).
 const NO_START = new Set([...'ゃゅょぁぃぅぇぉゎャュョァィゥェォヮー']);
 const CHUNK = 6;
+const PARTICLE_READ = { 'は': 'wa', 'へ': 'e', 'を': 'o' };
 
 /**
  * Ruby can't wrap, so a long kana word with romaji over it (ありがとうございました → arigatougozaimashita) can be
@@ -90,6 +91,8 @@ function annotateSegment(seg, cfg) {
   const hasKanji = KANJI_RE.test(seg);
   const wantRomaji = (HIRA_RE.test(seg) && cfg.hira) || (KATA_RE.test(seg) && cfg.kata) || (hasKanji && cfg.kanji === 'romaji');
   if (wantRomaji && !hasKanji && [...seg].length > CHUNK + 2) return chunkedRomaji(seg);
+  // A particle on its own (a word tile) is read as a particle: は "wa", へ "e".
+  if (wantRomaji && PARTICLE_READ[seg]) return `<ruby>${escHTML(seg)}<rt>${PARTICLE_READ[seg]}</rt></ruby>`;
   if (wantRomaji) {
     const reading = readingOf(seg);
     const r = reading ? romaji(reading) : null;

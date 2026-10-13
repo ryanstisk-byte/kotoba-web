@@ -42,6 +42,7 @@ export function mount(el, ctx) {
   let gram = null;         // the current grammar card's question: { q, picked }
   let heard = '';
   let heardOk = false;
+  let micOn = false;       // the mic only starts when the learner taps 🎤 (never on its own)
   let hint = false;        // Say it: the example's English is showing
   let fresh = [];          // words seen for the first time this session (recapped at the end)
   let recapOff = null;
@@ -69,6 +70,7 @@ export function mount(el, ctx) {
     gram = null;
     heard = '';
     heardOk = false;
+    micOn = false;
     hint = false;
     recognizer.stop();
     const card = cur();
@@ -91,7 +93,6 @@ export function mount(el, ctx) {
       return;
     }
     if (card.dir === 'listen') speaker.speak(sayOf(card.item), { mps: 3.5 });
-    if (card.dir === 'say' && speech) listen(card);
   }
 
   // ---------- Say it: speech recognition ----------
@@ -211,7 +212,8 @@ export function mount(el, ctx) {
         : `<p class="small dim">Say this in Japanese:</p>
            <p class="say-en">${esc(item.en)}</p>
            ${hint && ex ? `<p class="small trace-c">Used like: "${esc(ex.en)}"</p>` : ex ? '<button class="linkbtn" data-act="hint">💡 Example hint</button>' : ''}
-           ${speech ? `<p class="small dim" id="gd-heard" aria-live="polite">${heard ? `Heard: 「${esc(heard)}」` : '🎤 Listening… say it in Japanese'}</p>`
+           ${speech ? (micOn ? `<p class="small dim" id="gd-heard" aria-live="polite">${heard ? `Heard: 「${esc(heard)}」` : 'Starting the mic…'}</p>`
+             : '<button class="btn wide" data-act="mic">🎤 Tap to answer out loud</button><p class="small dim">Or say it, then Check and grade yourself.</p>')
              : `<p class="dim">${ctx.quiet ? 'Quiet mode: say it in your head' : 'Say it out loud'}, then check and grade yourself.</p>`}`;
     } else {
       body = revealed ? answerBlock(item)
@@ -407,6 +409,7 @@ export function mount(el, ctx) {
       speaker.speak(sayOf(card.item), { mps: 3.5 });
     },
     hint: () => { hint = true; render(); },
+    mic: () => { if (micOn || revealed) return; micOn = true; render(); listen(cur()); },
     hear: () => speaker.speak(sayOf(cur().item), { mps: 3.5 }),
     slow: () => speaker.speak(sayOf(cur().item), { mps: 2.5, speed: 'slow' }),
     hearEx: () => speaker.speak(cur().item.ex, { mps: 4 }),
