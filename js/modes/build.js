@@ -102,7 +102,7 @@ export function mount(el, ctx) {
         <div class="row-between"><span class="strong mono">${right}/${built} built right</span><span class="small dim">${Math.min(built, GOAL)}/${GOAL} today</span></div>
         ${note && step === 'build' && !built ? `<div class="panel note">${esc(note)}</div>` : ''}
         <div class="panel build-prompt">
-          <span class="build-scene" aria-hidden="true">${s.scene || '💬'}</span>
+          <span class="build-scene" aria-hidden="true">${s.scene || '🗣️'}</span>
           <div class="grow"><p class="small dim">Say this in Japanese:</p><p class="lead strong">${esc(s.en)}</p></div>
         </div>
         <div class="tile-row answer-row ${step !== 'build' ? (ok ? 'is-right' : 'is-wrong') : ''}" aria-label="Your sentence">

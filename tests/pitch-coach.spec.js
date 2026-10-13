@@ -231,7 +231,9 @@ test.describe('the Pitch Coach (fake mic singing known curves)', () => {
     const sheet = page.locator('.coach-sheet');
     const title = await attempt(page, [[0.45, st(180, -2)], [0.45, st(180, 2)]]);   // low then high: backwards
     expect(title).toBe('Try again');
-    await expect(sheet.locator('.coach-step.miss')).toContainText('(↘)');
+    // The expected direction, drawn as a falling arrow (with "down" for screen readers).
+    await expect(sheet.locator('.coach-step.miss svg.ico-fall')).toHaveCount(1);
+    await expect(sheet.locator('.coach-step.miss')).toContainText('(down)');
     await expect(sheet.getByText('Listen for the drop after あ')).toBeVisible();
     await expect(sheet.getByRole('button', { name: /Next step/ })).toHaveCount(0);
     // Any step can be chosen at any time.

@@ -112,6 +112,16 @@ export const EMOJI_ICONS = {
   "📋": "clipboard",
   "⬇": "download",
   "📁": "folder",
+  "☀": "sun",
+  "👟": "shoe",
+  "📺": "tv",
+  "🍞": "bread",
+  "🛏": "bed",
+  "🥚": "egg",
+  "🌧": "rain",
+  "🏆": "trophy",
+  "↗": "rise",
+  "↘": "fall",
 };
 
 /** A short spoken name for an icon that stands alone ("potted plant"). */
