@@ -58,6 +58,7 @@ export const ICON_ART = {
   "pencil": "<path d=\"M16 3.5l4.5 4.5L8 20.5H3.5V16Z\"/><line x1=\"13.5\" y1=\"6\" x2=\"18\" y2=\"10.5\"/>",
   "bandage": "<path d=\"M9 20L20 9A3.5 3.5 0 0 0 15 4L4 15A3.5 3.5 0 0 0 9 20Z\"/><line x1=\"11.3\" y1=\"7.7\" x2=\"16.3\" y2=\"12.7\"/><line x1=\"7.7\" y1=\"11.3\" x2=\"12.7\" y2=\"16.3\"/><circle cx=\"11\" cy=\"11\" r=\"0.8\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"13\" cy=\"13\" r=\"0.8\" fill=\"currentColor\" stroke=\"none\"/>",
   "eye": "<path d=\"M2 12C5 6 19 6 22 12C19 18 5 18 2 12Z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>",
+  "chat": "<path d=\"M4 5h16a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 20 17H10l-5 4v-4H4a1.5 1.5 0 0 1-1.5-1.5v-9A1.5 1.5 0 0 1 4 5Z\"/><path d=\"M7 10h10\"/><path d=\"M7 13h6\"/>",
   "speaking": "<path d=\"M4 21v-4.5C2.5 15 2 13 2 11a6.5 6.5 0 0 1 12.8-1.8L16 12h-1.5v2.5a2 2 0 0 1-2 2H11V21\"/><path d=\"M18 9Q19.5 11 18 13\"/><path d=\"M20.5 7Q23 11 20.5 15\"/>",
   "triangle-ruler": "<polygon points=\"3 3 3 21 21 21\"/><polygon points=\"7 11.5 7 17 12.5 17\"/><line x1=\"11\" y1=\"21\" x2=\"11\" y2=\"19.5\"/><line x1=\"15\" y1=\"21\" x2=\"15\" y2=\"19.5\"/>",
   "undo": "<polyline points=\"9 14 4 9 9 4\"/><path d=\"M4 9h10.5a5.5 5.5 0 0 1 0 11H11\"/>",

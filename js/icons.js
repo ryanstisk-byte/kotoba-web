@@ -66,6 +66,7 @@ export const EMOJI_ICONS = {
   "🩹": "bandage",
   "👁": "eye",
   "🗣": "speaking",
+  "💬": "chat",
   "📐": "triangle-ruler",
   "↩": "undo",
   "🕒": "clock",

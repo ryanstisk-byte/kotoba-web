@@ -48,13 +48,13 @@ SPEEDS = {'': 1.0, 'slow': 0.6}
 # Readings to use when a kanji run appears on its own or in text the build hasn't seen (Open JTalk's pick is off).
 # A kanji alone takes its most common reading on its own; sentences that read it differently (土よう日, 3時, 来ます)
 # get their own exception in SEGMENTS.
-RUN_OVERRIDE = {'一': 'いち', '二': 'に', '三': 'さん', '四': 'よん', '五': 'ご', '明': 'めい', '鍛冶': 'かじ', '生': 'せい',
+RUN_OVERRIDE = {'十時': 'じゅうじ', '一': 'いち', '二': 'に', '三': 'さん', '四': 'よん', '五': 'ご', '明': 'めい', '鍛冶': 'かじ', '生': 'せい',
                 '土': 'つち', '日': 'ひ', '時': 'とき', '組': 'くみ', '六': 'ろく'}
 # Sentences whose automatic split goes wrong, fixed by hand (a rebuild keeps them).
 SEGMENT_OVERRIDE = {
     '毎日六時に帰ります': [['毎日', 'まいにち'], ['六時', 'ろくじ'], ['に', None], ['帰', 'かえ'], ['ります', None]],
 }
-WRONG = {'鍛冶'}   # misread everywhere, not just alone
+WRONG = {'鍛冶', '十時'}   # misread everywhere, not just alone
 # Single kana whose reading differs when said alone (は alone is read as the particle "wa").
 SAY_AS = {'は': 'ハ', 'へ': 'ヘ'}
 
@@ -207,8 +207,9 @@ def strip_marks(s):
 def char_readings_from_pair(jp, reading):
     """Per-run readings for a jp text with a known (spaced) reading, e.g. story lines."""
     # Punctuation splits kanji runs (夜、母に… is 夜 + 母, not one run 夜母): align piece by piece when the
-    # reading has the same punctuation, so neighbouring kanji runs can't swallow each other's readings.
-    marks = r'[、。！？!?…「」『』（）()・〜~,.]+'
+    # reading has the same punctuation, so neighbouring kanji runs can't swallow each other's readings. Spaces count
+    # too when both sides are spaced the same way (何 食べた is 何 + 食, not one run 何食).
+    marks = r'[\s、。！？!?…「」『』（）()・〜~,.]+'
     jp_pieces = [x for x in re.split(marks, jp) if strip_marks(x)]
     rd_pieces = [x for x in re.split(marks, reading) if strip_marks(x)]
     if len(jp_pieces) > 1 and len(jp_pieces) == len(rd_pieces):
@@ -321,6 +322,8 @@ def build_readings(pairs, merge=False):
 
     def take(seg_map, source):
         for seg, parts in seg_map.items():
+            if any(IS_KANJI.search(t) and not r for t, r in parts):
+                continue   # a kanji without a reading here: leave the segment to Open JTalk or the run table
             for t, r in parts:
                 if r and IS_KANJI.search(t):
                     run_votes[t][r] += 3 if source == 'data' else 1

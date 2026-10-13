@@ -8,6 +8,8 @@ import { COURSE_EXAMPLES } from '../js/course-data.js';
 import { POINT, QUICK } from '../js/exam-bank-listen1.js';
 import { TASK, UTTER } from '../js/exam-bank-listen2.js';
 import { PARAPHRASE, TEXT_GRAMMAR, SHORT, MID, INFO } from '../js/exam-bank-reading.js';
+import { ALL_MESSAGES, SENDERS } from '../js/messages-data.js';
+import { rivalLines } from '../js/rival-data.js';
 import { DIALOGUES, NUMBER_SCENES, KATA_WORDS, CONJ_WORDS, VERB_FORMS, ADJ_FORMS, conjugate, conjPrompt, BUILD_SENTENCES } from '../js/practice-data.js';
 
 const clips = new Map();
@@ -58,6 +60,10 @@ for (const it of [...TASK, ...POINT, ...UTTER, ...QUICK]) {
     pairs.push([l.jp, l.reading]);
   }
 }
+// Ren's Messages: each message in its sender's voice.
+for (const m of ALL_MESSAGES) { add(m.jp, SENDERS[m.from].voice); pairs.push([m.jp, m.kana]); }
+// Rival Battle: each rival's taunts, counters and endings in their own voice, and Ren's finisher shouts.
+for (const [l, voice] of rivalLines()) { add(l.jp, voice); pairs.push([l.jp, l.reading]); }
 
 // N5 deck: each word with its pitch accent set, and its example sentence. Added last so these win over
 // an older clip of the same text.
