@@ -74,7 +74,15 @@ test('the answer reads word by word, particles as wa / o', async ({ page }) => {
     const P = await import('./js/practice-data.js');
     return P.BUILD_SENTENCES.find((x) => x.id === document.querySelector('#view [data-qid]').dataset.qid);
   });
-  for (const t of s.tiles) await v.locator('.bank [data-act=tile]', { hasText: t }).first().click();
+  // Match tiles by their text without the romaji over it (word-spaced romaji splits a tile like しょうぶします).
+  for (const t of s.tiles) {
+    const i = await v.locator('.bank [data-act=tile]').evaluateAll((els, want) => els.findIndex((el) => {
+      const c = el.cloneNode(true);
+      c.querySelectorAll('rt').forEach((r) => r.remove());
+      return c.textContent.trim() === want;
+    }), t);
+    await v.locator('.bank [data-act=tile]').nth(i).click();
+  }
   await v.locator('[data-act=check]').click();
   await expect(v.locator('.build-answer')).toBeVisible();
   const text = await plainText(v.locator('.build-answer'));
