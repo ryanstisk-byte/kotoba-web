@@ -100,3 +100,26 @@ test('the mic waits for a tap on 🎤', async ({ page }) => {
   await expect.poll(() => page.evaluate(() => window.__recStarts)).toBe(1);
   await expect(v.locator('#bd-heard')).toBeVisible();
 });
+
+test('with "Start the mic on its own" on, the mic starts after the model sentence', async ({ page }) => {
+  await page.addInitScript(fakeRecognizer);
+  await seed(page, { v: 2, items: {}, settings: { hideIosHint: true, autoMic: true } });
+  await page.goto('./#/play/build');
+  const v = view(page);
+  await v.locator('[data-act=learnnew]').click();
+  for (let i = 0; i < 9 && await v.locator('.bank [data-act=tile]').count(); i++) await v.locator('[data-act=hint]').click();
+  await v.locator('[data-act=check]').click();
+  await expect.poll(() => page.evaluate(() => window.__recStarts), { timeout: 15_000 }).toBe(1);
+  await expect(v.locator('#bd-heard')).toBeVisible();
+  await expect(v.getByRole('button', { name: /Say it/ })).toHaveCount(0);
+});
+
+test('the Settings switch turns the auto-start mic on and off', async ({ page }) => {
+  await page.goto('./#/settings');
+  const sw = page.locator('[data-act=automic]');
+  await expect(sw).not.toBeChecked();
+  await sw.check();
+  expect(await page.evaluate(async () => (await import('./js/store.js')).store.settings.autoMic)).toBe(true);
+  await sw.uncheck();
+  expect(await page.evaluate(async () => (await import('./js/store.js')).store.settings.autoMic)).toBe(false);
+});

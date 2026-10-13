@@ -42,7 +42,7 @@ export function mount(el, ctx) {
   let placed = [];       // { id, text } in the answer row
   let step = 'build';    // 'meet' (a new word appears) | 'build' | 'say' | 'done'
   let meet = [];         // the new words to learn before this sentence
-  let micOn = false;     // the mic starts only when the learner taps 🎤
+  let micOn = false;     // the mic starts when the learner taps 🎤, or on its own if Settings says so
   let ok = false;        // built right?
   let hinted = false;
   let heard = '';
@@ -156,7 +156,10 @@ export function mount(el, ctx) {
     for (const w of WORDS[order[pos % order.length]]) if (!isKnown(w)) store.plant(w.ids[0]);
     // Show the right sentence either way, in its usual order.
     if (!ok) placed = s.tiles.map((text, id) => ({ id, text }));
-    speaker.speak(s.say, { mps: 4, voice: s.voice });
+    // "Start the mic on its own" (Settings): listen once the model sentence has finished, so the mic doesn't hear it.
+    const at = pos;
+    const autoListen = () => { if (store.settings.autoMic && input === 'speech' && step === 'say' && !micOn && pos === at) { micOn = true; render(); listen(); } };
+    speaker.speak(s.say, { mps: 4, voice: s.voice, onend: autoListen });
     step = input === 'quiet' ? 'done' : 'say';
     if (ctx.today) {
       ctx.today.report(`${Math.min(built, GOAL)}/${GOAL}`);

@@ -33,6 +33,8 @@ export function mount(el, ctx) {
         <div class="hero-jp accent-c" lang="ja">斬</div>
         <p class="lead strong">Things fly up. Say their Japanese name out loud to slice them.</p>
         <p class="dim">Stuck? Tap an object for its first kana (half points). If one falls, you'll see the answer. Nothing is lost.</p>
+        <p class="small dim">Some objects share a sound, like 雨 (rain) and 飴 (candy), both あめ. They're written with が, the subject
+        marker, because the pitch after the word is what tells them apart.</p>
         ${fallbackNote ? `<div class="panel note">${esc(fallbackNote)}</div>` : ''}
         <button class="btn primary wide" data-act="start">🎤 Start a 60-second round</button>
       </div>`;
@@ -99,7 +101,10 @@ export function mount(el, ctx) {
         ${missed.length ? `<div class="panel left-text stack-sm">
           <p class="section-label">REVIEW THESE (they'll come back sooner)</p>
           ${missed.map(reviewRow).join('')}
-          ${missed.some((p) => p.isBoss) ? '<p class="small dim">Same sounds, different words: only the pitch tells them apart. Follow the dots and press play to hear it.</p>' : ''}
+          ${missed.some((p) => p.isBoss) ? `<p class="small dim">Same sounds, different words: only the pitch tells them apart. Follow the dots and press play to hear it.</p>
+          <p class="small dim">Why the が? It's the subject marker ("the rain…"), a real word you'll use all the time. Pitch dictionaries
+          write words with a particle after them because some words only show their drop on the next sound: 雨が drops before
+          が, 飴が never drops. Saying just the word (あめ) still slices it.</p>` : ''}
         </div>` : ''}
         <button class="btn primary wide" data-act="start">↻ Play again</button>
       </div>`;

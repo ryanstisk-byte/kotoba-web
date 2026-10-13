@@ -56,7 +56,7 @@ test.describe('saved progress from the current version (v1)', () => {
     expectNothingLost(FIXTURE, out);
     expect(out.v).toBe(8);
     expect(out.saga).toEqual(EMPTY_SAGA);
-    expect(out.settings).toEqual({ ...FIXTURE.settings, textSize: 'm', sfx: true, haptics: true, pace: 'normal', pronCheck: true, voice: null });
+    expect(out.settings).toEqual({ ...FIXTURE.settings, textSize: 'm', sfx: true, haptics: true, pace: 'normal', pronCheck: true, autoMic: false, voice: null });
   });
 
   test('a v1 blob in storage is saved back as the current version with nothing lost', async ({ page }) => {
