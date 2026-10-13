@@ -35,6 +35,9 @@ test('service worker registers, precaches everything and the app works offline',
   }
   // Settings says the voice clips are all saved for offline use.
   await expect(page.locator('#offline-status')).toContainText('Offline: ready.');
+  // …and which version is installed.
+  const version = (await (await context.request.get('./sw.js')).text()).match(/kotoba-beat-v(\d+)/)[1];
+  await expect(page.locator('#app-version')).toContainText(`Version ${version}.`);
 
   // A voice clip is served from the cache, whole and as a byte range (Safari asks for ranges).
   const clip = await page.evaluate(async () => {

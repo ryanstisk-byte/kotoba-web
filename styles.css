@@ -1027,3 +1027,16 @@ p:has(> .jr), .small:has(> .jr), .lead:has(> .jr), .strong:has(> .jr), span:has(
 .challenger { border: 2px solid var(--accent); animation: challenger-in 0.45s ease-out; }
 .challenger-head { font-size: 1.35rem; font-weight: 800; font-style: italic; color: var(--accent); letter-spacing: 0.02em; }
 @keyframes challenger-in { 0% { opacity: 0; transform: translateX(-24px) skewX(-6deg); } 70% { transform: translateX(4px); } 100% { opacity: 1; transform: none; } }
+
+/* "New version ready" reload button (js/app.js) */
+#update-ready {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--sp-5) + env(safe-area-inset-bottom));
+  z-index: var(--z-toast); max-width: calc(100% - 32px); box-shadow: var(--shadow-hard);
+}
+body.has-tabs #update-ready { bottom: calc(var(--tabbar-h) + var(--sp-3) + env(safe-area-inset-bottom)); }
+@media (min-width: 760px) { body.has-tabs #update-ready { bottom: var(--sp-5); } }
+
+/* Rhythm: live mic level while you sing (js/modes/rhythm.js) */
+.mic-meter { display: flex; align-items: center; gap: var(--sp-2); }
+.mic-meter-bar { flex: 1; height: 8px; border-radius: var(--r-pill); background: var(--line); overflow: hidden; }
+.mic-meter-bar > span { display: block; height: 100%; width: 0; background: var(--trace); transition: width 80ms linear; }

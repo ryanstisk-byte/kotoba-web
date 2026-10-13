@@ -136,6 +136,7 @@ export function mount(el, ctx) {
           <h2 class="section-title">Keep progress safe</h2>
           <p class="small">On iPhone: Share › Add to Home Screen keeps your progress safe. Safari can clear website data after about 7 days without a visit, but not for Home Screen apps. Export now and then as a backup.</p>
           <p class="small" id="offline-status">${offlineText}</p>
+          <p class="small dim" id="app-version">${esc(versionText)}</p>
           ${store.saveOk ? '' : '<p class="miss-c small">Saving is blocked in this browser (private mode?). Progress will not persist.</p>'}
           ${sync.status().connected ? '<p class="small dim">Sync is on: a reset only erases this device, and the next sync brings your progress back from GitHub. Disconnect sync first to start over everywhere.</p>' : ''}
           <button class="btn ${resetArmed ? 'danger' : ''}" data-act="reset">${resetArmed ? 'Tap again to erase all progress' : 'Reset all progress'}</button>
@@ -183,6 +184,7 @@ export function mount(el, ctx) {
 
   // How many voice clips the service worker has saved, so it's clear when the app is ready to use offline.
   let offlineText = 'Checking the offline download…';
+  let versionText = '';
   async function checkOffline() {
     let text;
     try {
@@ -203,6 +205,14 @@ export function mount(el, ctx) {
           : `Offline: ${saved.size} of ${files.size} voice clips saved so far. Keep the app open on Wi-Fi to finish; missing lines use the device voice.`;
       }
     } catch (e) { text = 'Offline: could not check this browser\'s storage.'; }
+    try {
+      const v = (await caches.keys()).filter((k) => k.startsWith('kotoba-beat-v')).map((k) => +k.slice(13)).sort((a, b) => b - a)[0];
+      if (v) {
+        versionText = `Version ${v}. Updates install on their own and show up the next time the app starts.`;
+        const vp = el.querySelector('#app-version');
+        if (vp) vp.textContent = versionText;
+      }
+    } catch (e) { /* no cache storage here */ }
     if (text === offlineText) return;
     offlineText = text;
     const p = el.querySelector('#offline-status');
