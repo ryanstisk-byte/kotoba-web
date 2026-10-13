@@ -1,6 +1,7 @@
 // Line drawings that stand in for the emoji the app used to show (see icons.js). Original artwork: 24x24, drawn
 // with round 2px strokes in the text colour.
 export const ICON_ART = {
+  "star": "<polygon points=\"12 3 14.6 9 21 9.4 16 13.6 17.6 20.5 12 16.8 6.4 20.5 8 13.6 3 9.4 9.4 9\"/>",
   "check": "<polyline points=\"4 12.5 9.5 18 20 6\"/>",
   "play": "<polygon points=\"7 4 19 12 7 20\"/>",
   "shush": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M7.5 9.5q1.2 1 2.5 0\"/><path d=\"M14 9.5q1.2 1 2.5 0\"/><path d=\"M8 15.5h2\"/><path d=\"M14 15.5h2\"/><path d=\"M10.5 22v-9a1.5 1.5 0 0 1 3 0v9\"/>",
