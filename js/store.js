@@ -23,6 +23,8 @@ export const DIRECTIONS = ['listen', 'say'];
 export const DIRECTION_STAGE = 3;
 /** Misses (since the last time it was cleared) after which a card is marked as needing help. */
 export const HELP_AFTER = 4;
+/** Card directions a Reading Dojo kana can have besides reading it (Kana Brush: hear it, draw it). Added in v10. */
+export const KANA_DIRECTIONS = ['draw'];
 /** Right answers in a row that clear the needs-help mark. */
 export const HELP_CLEAR = 2;
 
@@ -30,13 +32,14 @@ export const HELP_CLEAR = 2;
 export const SKILLS = ['kana', 'kanji', 'vocab', 'grammar', 'listening', 'pitch', 'speaking', 'counters'];
 
 /** Version of the saved progress shape. Bump it and add a step to MIGRATIONS whenever the shape changes. */
-export const STATE_VERSION = 9;
+export const STATE_VERSION = 10;
 
 function blank() {
   return {
     v: STATE_VERSION,
     items: {},          // id -> { level, due (ms), best, r (reviews), pl (planted ms), s (stability, days), d (difficulty 1-10), lr (last review ms),
-                        //        lapses, help, ok2 (needs-help bookkeeping, added in v6), dirs: { listen, say } (v6, see DIRECTIONS) }
+                        //        lapses, help, ok2 (needs-help bookkeeping, added in v6), dirs: { listen, say } (v6, see DIRECTIONS)
+                        //        or, on a 'kana:' item, dirs: { draw } (v10, Kana Brush, see KANA_DIRECTIONS) }
     lastSession: null,
     chapters: [],       // cleared chapter ids
     forged: [],         // forged kanji
@@ -168,6 +171,11 @@ const MIGRATIONS = {
   7: (raw) => ({ ...raw, settings: { voice: null, ...(raw.settings || {}) }, coach: raw.coach && typeof raw.coach === 'object' ? raw.coach : { ears: [] } }),
   // v8 -> v9: mock JLPT results and readiness (none yet). Nothing else changes.
   8: (raw) => ({ ...raw, exam: raw.exam && typeof raw.exam === 'object' ? raw.exam : blankExam() }),
+  // v9 -> v10: Kana Brush. A Reading Dojo kana can carry a drawing card (items['kana:あ'].dirs.draw) with its own
+  // schedule. None exist yet (each starts the first time that kana is drawn), so every item, review date, chapter and
+  // setting passes through untouched. The version still moves so an older copy of the app, which would drop the
+  // drawing cards, leaves synced v10 progress alone until it updates.
+  9: (raw) => ({ ...raw }),
 };
 
 /** Adds the guided-course field with defaults. Self-contained: it touches nothing else in the blob. */
@@ -207,7 +215,7 @@ function normalize(input) {
       };
       if (p.dirs && typeof p.dirs === 'object') {
         const dirs = {};
-        for (const dir of DIRECTIONS) { const c = normalizeCard(p.dirs[dir]); if (c) dirs[dir] = c; }
+        for (const dir of id.startsWith('kana:') ? KANA_DIRECTIONS : DIRECTIONS) { const c = normalizeCard(p.dirs[dir]); if (c) dirs[dir] = c; }
         if (Object.keys(dirs).length) s.items[id].dirs = dirs;
       }
     }
@@ -1105,6 +1113,38 @@ class Store {
     p.r = (p.r || 0) + 1;
     this.s.items[id] = p;
     this.log(ok);
+  }
+
+  // ----- Kana Brush: drawing cards on Reading Dojo kana -----
+  /** A kana's drawing card (items['kana:<k>'].dirs.draw), or null if it was never drawn. */
+  brushCard(kana) {
+    const p = this.s.items['kana:' + kana];
+    return (p && p.dirs && p.dirs.draw) || null;
+  }
+
+  /**
+   * Records one drawing of a kana met in the Reading Dojo: the same scheduler and rules as the Dojo's reading review
+   * (a first-time miss comes back in half a day, nothing is ever knocked down), on the kana's own drawing card.
+   */
+  recordBrush(kana, ok, now = Date.now()) {
+    const p = this.s.items['kana:' + kana];
+    if (!p) return null;
+    p.dirs = p.dirs || {};
+    const c = p.dirs.draw || (p.dirs.draw = newCard(now));
+    const firstTime = !c.r;
+    scheduleCard(c, ok, now);
+    trackHelp(c, ok);
+    if (!ok && firstTime) c.due = now + DAY / 2;
+    this.log(ok);
+    return c;
+  }
+
+  /** Kana whose drawing card is due again, most overdue first (as kana, not ids). */
+  brushDue(now = Date.now()) {
+    return Object.entries(this.s.items)
+      .filter(([id, p]) => id.startsWith('kana:') && p.dirs && p.dirs.draw && p.dirs.draw.due <= now)
+      .sort((a, b) => a[1].dirs.draw.due - b[1].dirs.draw.due)
+      .map(([id]) => id.slice(5));
   }
 
   /** Learned kana and kanji that are due again, most overdue first. */

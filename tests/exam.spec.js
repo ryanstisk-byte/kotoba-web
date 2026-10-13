@@ -169,7 +169,7 @@ test.describe('mock exam', () => {
     await expect(v.locator('.exam-miss').first()).toBeVisible();
     await expectNoHorizontalScroll(page);
     const s = await saved(page);
-    expect(s.v).toBe(9);
+    expect(s.v).toBe(10);
     expect(s.exam.history).toHaveLength(1);
     expect(s.exam.history[0]).toMatchObject({ level: 'N5', format: 'mini', total: 0, pass: false });
     expect(s.exam.seen.length).toBeGreaterThan(10);
@@ -228,7 +228,7 @@ test.describe('saved progress v8 → v9', () => {
     await seed(page, FIXTURE_V8);
     await page.goto('./');
     const s = await saved(page);
-    expect(s.v).toBe(9);
+    expect(s.v).toBe(10);
     expect(s.exam).toEqual({ history: [], real: {}, seen: [], later: {} });
     expect(s.settings).toEqual({ ...FIXTURE_V8.settings, autoMic: false });
     for (const k of ['items', 'grammar', 'days', 'chapters', 'forged', 'dojo', 'saga', 'course', 'engine', 'coach']) expect(s[k], k).toEqual(FIXTURE_V8[k]);
