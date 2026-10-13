@@ -21,10 +21,13 @@ export function median(values) {
  * Timing is "were you voicing during the beat?", pitch is "did you go up and down where the melody
  * goes up and down?" relative to your own voice, so any voice range works.
  */
-export function scoreRhythm(phrase, samples, beat, lineStart) {
+export function scoreRhythm(phrase, samples, beat, lineStart, floor = 0) {
   const morae = phrase.morae;
+  // Timing only asks "were you making sound?", so a voice the pitch finder can't read still counts as on the beat.
+  const loud = Math.max(floor * 2.5, 0.002);
+  const sounding = (s) => s.hz != null || s.level > loud;
   // Allow for reaction time: lock onto when the player actually started (up to half a second late).
-  const fv = samples.find((s) => s.hz != null && s.time > lineStart - 0.3);
+  const fv = samples.find((s) => sounding(s) && s.time > lineStart - 0.3);
   const firstVoiced = fv ? fv.time : lineStart;
   const offset = Math.min(Math.max(firstVoiced - lineStart, -0.15), 0.5);
   const start = lineStart + offset;
@@ -36,7 +39,7 @@ export function scoreRhythm(phrase, samples, beat, lineStart) {
     const lo = start + i * beat;
     const hi = lo + beat;
     const win = samples.filter((s) => s.time >= lo && s.time < hi);
-    const voicedShare = win.length ? win.filter((s) => s.hz != null).length / win.length : 0;
+    const voicedShare = win.length ? win.filter(sounding).length / win.length : 0;
     const hit = mo.silent ? voicedShare < 0.5 : voicedShare >= 0.25;
     const md = median(win.map((s) => s.hz).filter((h) => h != null));
     return { hit, semitone: mo.silent || md == null ? null : semitones(md, reference) };
@@ -279,7 +282,7 @@ export function mount(el, ctx) {
       if (selfGrade) {
         result = null;
       } else {
-        result = scoreRhythm(p, tracker.samples, beat(), COUNTDOWN + latency());
+        result = scoreRhythm(p, tracker.samples, beat(), COUNTDOWN + latency(), tracker.noiseFloor);
         store.recordRhythm(p, result.total);
         store.grade({ skill: 'speaking', id: p.id, ok: result.passed });
         store.grade({ skill: 'pitch', id: p.id, ok: result.pitch >= 0.75 });
