@@ -10,6 +10,7 @@ import { ICON_ART } from './icon-art.js';
 /** Emoji the app used to show, and the line drawing (js/icon-art.js) that now stands in for each. */
 export const EMOJI_ICONS = {
   "✓": "check",
+  "★": "star",
   "▶": "play",
   "🤫": "shush",
   "🔤": "abc",
