@@ -230,6 +230,25 @@ test.describe('Rival Battle', () => {
     for (const d of lengths) expect(d).toBeGreaterThan(0.8);
   });
 
+  test("every rival line's furigana matches its reading", async ({ page }) => {
+    await page.goto('./');
+    const wrong = await page.evaluate(async () => {
+      const { rivalLines } = await import('./js/rival-data.js');
+      const { readingOf } = await import('./js/furigana.js');
+      const { toHiragana } = await import('./js/romaji.js');
+      const clean = (s) => toHiragana(s).replace(/[、。！？「」…・\s]/g, '');
+      const split = (s) => s.split(/[\s、。！？「」…]+/).filter(Boolean);
+      const out = [];
+      for (const [l] of rivalLines()) {
+        const js = split(l.jp), ks = split(l.reading);
+        if (js.length !== ks.length) { out.push(l.jp); continue; }
+        js.forEach((seg, i) => { const r = readingOf(seg); if (r == null || clean(r) !== clean(ks[i])) out.push(seg); });
+      }
+      return out;
+    });
+    expect(wrong).toEqual([]);
+  });
+
   test('listed in Modes', async ({ page }) => {
     await page.goto('./#/modes');
     await expect(view(page).locator('a[href="#/play/rival"]')).toContainText('Rival Battle');

@@ -3,6 +3,7 @@
 // Elements with [data-noruby] (quiz prompts, charts) are left alone.
 import { store } from './store.js';
 import { SEGMENTS, RUNS } from './readings.js';
+import { WORD_BREAKS } from './words.js';
 import { romaji, toHiragana, KANJI_RE, HIRA_RE, KATA_RE } from './romaji.js';
 
 const SEG_RE = /[ぁ-ゖァ-ヺー一-鿿々]+/g;
@@ -87,9 +88,37 @@ function chunkedRomaji(seg) {
   return parts.map((t, i) => `<ruby>${escHTML(t)}<rt>${escHTML(romaji(t, { particles: i === parts.length - 1 }))}</rt></ruby>`).join('');
 }
 
+/** A segment split into words (よろしくおねがいします → よろしく, おねがいします), from js/words.js. */
+export function wordsOf(seg) {
+  const cuts = WORD_BREAKS[seg];
+  if (!cuts) return [seg];
+  const out = [];
+  let at = 0;
+  for (const c of [...cuts, seg.length]) { out.push(seg.slice(at, c)); at = c; }
+  return out;
+}
+
+/** Ruby with romaji for one word, or null when a kanji in it has no known reading. */
+function romajiWord(w) {
+  if (PARTICLE_READ[w]) return `<ruby>${escHTML(w)}<rt>${PARTICLE_READ[w]}</rt></ruby>`;
+  if (!KANJI_RE.test(w) && [...w].length > CHUNK + 2) return chunkedRomaji(w);
+  const reading = readingOf(w);
+  const r = reading ? romaji(reading) : null;
+  return r ? `<ruby>${escHTML(w)}<rt>${escHTML(r)}</rt></ruby>` : null;
+}
+
 function annotateSegment(seg, cfg) {
   const hasKanji = KANJI_RE.test(seg);
   const wantRomaji = (HIRA_RE.test(seg) && cfg.hira) || (KATA_RE.test(seg) && cfg.kata) || (hasKanji && cfg.kanji === 'romaji');
+  // Romaji is spaced word by word, the way textbooks write it (yoroshiku onegaishimasu), and a long line wraps
+  // between words instead of in the middle of one.
+  if (wantRomaji) {
+    const words = wordsOf(seg);
+    if (words.length > 1) {
+      const parts = words.map(romajiWord);
+      if (parts.every(Boolean)) return parts.join('<span class="wsp"></span>');
+    }
+  }
   if (wantRomaji && !hasKanji && [...seg].length > CHUNK + 2) return chunkedRomaji(seg);
   // A particle on its own (a word tile) is read as a particle: は "wa", へ "e".
   if (wantRomaji && PARTICLE_READ[seg]) return `<ruby>${escHTML(seg)}<rt>${PARTICLE_READ[seg]}</rt></ruby>`;
