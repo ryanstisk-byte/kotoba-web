@@ -4,6 +4,7 @@ import { MODE_BY_ID } from './data.js';
 import { TRACKS } from './dojo-data.js';
 import { BRUSH_KANA } from './brush-data.js';
 import { coursePlan } from './course.js';
+import { attackPool, unlockedRivals, MIN_ITEMS } from './rival-items.js';
 
 /**
  * Skill block by weekday, in two alternating weeks (A, B) so every mode gets regular time and no skill area starves:
@@ -138,10 +139,19 @@ export function todayPlan(date = new Date()) {
     }
   }
 
+  // Weekends: an optional Rival Battle (pure review), once enough has been learned to fight with. It never counts
+  // toward finishing the day.
+  const weekday = date.getDay();
+  if ((weekday === 6 || weekday === 0) && attackPool().length >= MIN_ITEMS) {
+    const rival = unlockedRivals().slice(-1)[0];
+    blocks.push({ id: 'rival', mode: 'rival', mins: 5, optional: true, title: 'Optional · Rival Battle',
+      desc: `${rival.name} challenges you with things you already know. Skip it freely.`, ctx: {} });
+  }
+
   blocks.forEach((b, i) => { b.n = i + 1; b.status = status(b.id); });
   const sunday = !short && date.getDay() === 0;
-  const finished = blocks.every((b) => b.status);
-  return { blocks, short, quiet, sunday, finished, minutes: blocks.reduce((a, b) => a + b.mins, 0) };
+  const finished = blocks.every((b) => b.status || b.optional);
+  return { blocks, short, quiet, sunday, finished, minutes: blocks.reduce((a, b) => a + (b.optional ? 0 : b.mins), 0) };
 }
 
 export function accuracyNote(rate, short) {

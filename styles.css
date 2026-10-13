@@ -1102,3 +1102,42 @@ body.has-tabs #update-ready { bottom: calc(var(--tabbar-h) + var(--sp-3) + env(s
 .exam-result .tiles .tile-v { font-size: var(--fs-xl); }
 .mock-list { margin: 0; padding-left: 1.2em; }
 .linkbtn.inline { min-height: 0; padding: 0; }
+
+/* ---------- Rival Battle ---------- */
+.rival { --rival: var(--trace); }
+.rival-list { display: grid; gap: var(--sp-2); }
+.rival-card { display: flex; gap: var(--sp-3); align-items: center; text-align: left; cursor: pointer; color: inherit; font: inherit; }
+.rival-card.on { border: 2px solid var(--rival); box-shadow: 3px 3px 0 var(--edge); }
+.rival-card:disabled { cursor: default; opacity: .7; }
+.rival-face { flex: none; display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%;
+  background: var(--rival); color: var(--accent-ink); font-family: var(--font-jp); font-size: 1.5rem; font-weight: 800; border: 2px solid var(--edge); }
+.rival-face.small-face { width: 40px; height: 40px; font-size: 1.15rem; }
+.rival-face.big-face { width: 88px; height: 88px; font-size: 2.6rem; justify-self: center; margin-inline: auto; }
+.rival-top { display: flex; gap: var(--sp-3); align-items: center; }
+.stack-xs { display: grid; gap: 4px; }
+.rival-hp { height: 12px; border-radius: 999px; background: var(--surface-2); border: 1.5px solid var(--edge); overflow: hidden; }
+.rival-hp > span { display: block; height: 100%; background: var(--rival); transition: width .35s ease-out; }
+.rival-bubble { display: grid; gap: 2px; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-sm); border: 1.5px solid var(--rival);
+  background: color-mix(in srgb, var(--rival) 10%, var(--surface)); min-height: 3.2em; }
+.rival-bubble.quiet { border-style: dashed; }
+.rival-combo { display: inline-flex; gap: 4px; vertical-align: middle; margin-left: 4px; }
+.rival-combo i { width: 14px; height: 14px; border-radius: 3px; border: 1.5px solid var(--border-strong); transform: skewX(-12deg); }
+.rival-combo i.on { background: var(--accent); border-color: var(--accent); }
+.rival-attack { position: relative; }
+.rival-prompt { font-family: var(--font-jp); font-size: var(--fs-jp-xl); font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
+.rival-prompt.latin { font-family: var(--font-ui); font-size: var(--fs-2xl); }
+.rival-kicker { font-family: var(--font-mono); font-weight: 800; letter-spacing: .12em; color: var(--rival); font-size: var(--fs-sm); }
+.rival-finisher { position: fixed; inset: 0; z-index: 40; display: grid; place-content: center; justify-items: center; gap: var(--sp-2);
+  background: color-mix(in srgb, var(--bg) 82%, transparent); pointer-events: none; text-align: center; padding: var(--sp-4); }
+.rival-fin-name { font-size: clamp(2rem, 9vw, 3.5rem); font-weight: 900; font-style: italic; color: var(--accent); text-shadow: 3px 3px 0 var(--edge);
+  animation: rival-pop .5s cubic-bezier(.2, 1.6, .4, 1) both; }
+.rival-fin-line { font-family: var(--font-jp); font-size: var(--fs-xl); font-weight: 800; }
+.rival-slash { position: absolute; left: -10%; right: -10%; top: 50%; height: 10px; background: var(--accent); transform: rotate(-14deg) scaleX(0);
+  transform-origin: left center; animation: rival-slash .35s ease-out forwards; opacity: .85; }
+@keyframes rival-pop { from { transform: scale(.4) rotate(-6deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes rival-slash { to { transform: rotate(-14deg) scaleX(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .rival-fin-name, .rival-slash { animation: none; }
+  .rival-slash { transform: rotate(-14deg); }
+  .rival-hp > span { transition: none; }
+}

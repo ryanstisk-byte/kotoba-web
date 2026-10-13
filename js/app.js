@@ -21,6 +21,7 @@ import * as conj from './modes/conj.js';
 import * as build from './modes/build.js';
 import * as kata from './modes/kata.js';
 import * as numbers from './modes/numbers.js';
+import * as rival from './modes/rival.js';
 import * as settings from './settings.js';
 import * as soundcheck from './soundcheck.js';
 import * as placement from './placement.js';
@@ -36,13 +37,13 @@ import { initPron, closePron } from './pron.js';
 import { closeCoach } from './pitch-coach.js';
 import { initIcons } from './icons.js';
 
-const MOUNTS = { dojo, brush, garden, story, particle, forge, rhythm, duel, slice, shop, listen, conj, build, kata, numbers };
+const MOUNTS = { dojo, brush, garden, story, particle, forge, rhythm, duel, slice, shop, listen, conj, build, kata, numbers, rival };
 /** Screens the Today plan can open that aren't modes (the course lesson). */
 const TODAY_MOUNTS = { ...MOUNTS, lesson: { mount: course.mountLesson } };
 const modeTitle = (id) => MODE_BY_ID[id]?.title || 'Lesson';
 /** A one-glyph badge per mode (decorative; the English title is the label). */
 const MODE_GLYPH = { dojo: '読', brush: '書', garden: '庭', story: '話', particle: 'は', forge: '漢', rhythm: '拍', duel: '音', slice: '斬', shop: '店',
-  listen: '耳', conj: '活', build: '組', kata: 'カ', numbers: '数' };
+  listen: '耳', conj: '活', build: '組', kata: 'カ', numbers: '数', rival: '戦' };
 const TABS = { '': 'today', modes: 'modes', garden: 'garden', progress: 'progress', settings: 'settings' };
 
 const view = document.getElementById('view');
@@ -294,7 +295,7 @@ function showReward(plan) {
   if (document.querySelector('.reward')) return;
   const acc = store.weekAccuracy();
   const d = store.day();
-  const done = plan.blocks.filter((b) => b.status === 'done').length;
+  const done = plan.blocks.filter((b) => b.status === 'done' && !b.optional).length;
   const before = document.activeElement;
   const el = document.createElement('div');
   el.className = 'reward';
@@ -304,7 +305,7 @@ function showReward(plan) {
   el.innerHTML = `<div class="reward-card">
       <p class="reward-kicker">TODAY · COMPLETE</p>
       <h2 class="reward-title" id="reward-h" lang="ja">おつかれさま！</h2>
-      <p class="lead strong">That's today's training done. ${done} of ${plan.blocks.length} blocks.</p>
+      <p class="lead strong">That's today's training done. ${done} of ${plan.blocks.filter((b) => !b.optional).length} blocks.</p>
       <div class="tiles">
         <div class="tile"><span class="tile-v mono">${d.rev}</span><span class="small dim">reviewed</span></div>
         <div class="tile"><span class="tile-v mono">${d.tot ? Math.round((d.ok / d.tot) * 100) + '%' : '–'}</span><span class="small dim">right today</span></div>
@@ -364,8 +365,9 @@ function renderHome() {
   const well = items.filter((p) => p.level >= 2).length;
   const quiet = store.settings.quiet;
   const showHint = !isStandalone() && !store.settings.hideIosHint;
-  const doneCount = plan.blocks.filter((b) => b.status === 'done').length;
-  const next = plan.blocks.find((b) => !b.status) || plan.blocks.find((b) => b.status === 'skipped');
+  const required = plan.blocks.filter((b) => !b.optional);   // an optional block (weekend Rival Battle) never counts
+  const doneCount = required.filter((b) => b.status === 'done').length;
+  const next = plan.blocks.find((b) => !b.status && !b.optional) || plan.blocks.find((b) => b.status === 'skipped' && !b.optional);
   const now = new Date();
 
   const blockRow = (b) => {
@@ -373,7 +375,7 @@ function renderHome() {
     const href = `#/today/${b.id}`;
     return `<div class="block-row ${st || ''} ${b === next && !st ? 'next' : ''}">
       <span class="block-check" aria-label="${st === 'done' ? 'done' : st === 'skipped' ? 'skipped' : 'to do'}">${st === 'done' ? '✓' : st === 'skipped' ? '–' : b.n}</span>
-      <span class="grow"><span class="strong">${esc(b.title)}</span> <span class="small dim">~${b.mins} min</span><br><span class="small dim">${esc(b.desc)}</span></span>
+      <span class="grow"><span class="strong">${esc(b.title)}</span> <span class="small dim">~${b.mins} min</span>${b.optional ? ' <span class="tag">optional</span>' : ''}<br><span class="small dim">${esc(b.desc)}</span></span>
       ${st === 'done' ? `<a class="btn small-btn" href="${href}">Again</a>`
         : `<span class="block-actions"><a class="btn ${b === next ? 'primary' : ''} small-btn" href="${href}">${st === 'skipped' ? 'Do it' : 'Start'}</a>${st ? '' : `<button class="btn small-btn ghost" data-act="skip" data-id="${b.id}">Skip</button>`}</span>`}
     </div>`;
@@ -389,7 +391,7 @@ function renderHome() {
           <p class="dim">${esc(welcome())}</p>
           <div class="meter-row">
             <span class="pips" aria-hidden="true">${plan.blocks.map((b) => `<span class="pip ${b.status || ''}"></span>`).join('')}</span>
-            <span class="small dim">${doneCount} of ${plan.blocks.length} done · about ${plan.minutes} min</span>
+            <span class="small dim">${doneCount} of ${required.length} done · about ${plan.minutes} min</span>
           </div>
           ${next ? `<div class="hero-next">
               <a class="btn primary wide" href="#/today/${next.id}">▶ ${next.status === 'skipped' ? 'Do' : 'Start'}: ${esc(next.title)}</a>
