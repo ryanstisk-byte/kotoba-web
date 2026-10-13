@@ -47,6 +47,7 @@ const FILES = [
   './js/tuning.js',
   './js/ui.js',
   './js/word-help.js',
+  './js/words.js',
   './js/modes/build.js',
   './js/modes/conj.js',
   './js/modes/dojo.js',
