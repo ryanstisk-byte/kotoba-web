@@ -62,6 +62,17 @@ for (const f of required) {
   if (!seen.has(rel)) errors.push(`${rel} is part of the site but missing from the sw.js precache list`);
 }
 
+// ---- furigana: no kanji gets a reading that swallowed its neighbours (帰 → ちろくじにかえ) ----
+const { SEGMENTS } = await import(new URL('../js/readings.js', import.meta.url));
+for (const [seg, parts] of Object.entries(SEGMENTS)) {
+  for (const [text, reading] of parts) {
+    const n = [...text].length;
+    if (reading && /[一-鿿々]/.test(text) && (reading.length < n || reading.length > n * 3)) {
+      errors.push(`js/readings.js: ${seg} gives ${text} the reading ${reading}`);
+    }
+  }
+}
+
 if (errors.length) {
   console.error(`Static checks failed (${errors.length}):\n- ` + errors.join('\n- '));
   process.exit(1);
