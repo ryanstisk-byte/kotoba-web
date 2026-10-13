@@ -5,6 +5,9 @@ import { LESSONS, KANJI_LESSONS, READ_WORDS } from '../js/dojo-data.js';
 import { N5_WORDS } from '../js/data.js';
 import { N5 } from '../js/n5.js';
 import { COURSE_EXAMPLES } from '../js/course-data.js';
+import { POINT, QUICK } from '../js/exam-bank-listen1.js';
+import { TASK, UTTER } from '../js/exam-bank-listen2.js';
+import { PARAPHRASE, TEXT_GRAMMAR, SHORT, MID, INFO } from '../js/exam-bank-reading.js';
 import { DIALOGUES, NUMBER_SCENES, KATA_WORDS, CONJ_WORDS, VERB_FORMS, ADJ_FORMS, conjugate, conjPrompt, BUILD_SENTENCES } from '../js/practice-data.js';
 
 const clips = new Map();
@@ -46,6 +49,15 @@ for (const l of KANJI_LESSONS) for (const j of l.kanji) { add(j.reading); pairs.
 for (const v of READ_WORDS) add(v.w);
 // Course example sentences, each in its speaker's voice (0 narrator, 1 Ren, 2 Master, 3 Kaito).
 for (const ex of COURSE_EXAMPLES) { add(ex.jp, ex.voice); pairs.push([ex.jp, ex.reading]); }
+
+// Mock JLPT listening (js/exam-bank-listen*.js): every question, conversation line and reply in its voice. Each item
+// plays once in the full mock, so only normal speed is needed; the mini mock's replay uses the same clip.
+for (const it of [...TASK, ...POINT, ...UTTER, ...QUICK]) {
+  for (const l of [it.question, it.line, ...(it.lines || []), ...(it.replies || [])].filter(Boolean)) {
+    clips.set(l.jp + '#' + l.voice, [l.jp, l.voice, null, ['']]);
+    pairs.push([l.jp, l.reading]);
+  }
+}
 
 // N5 deck: each word with its pitch accent set, and its example sentence. Added last so these win over
 // an older clip of the same text.

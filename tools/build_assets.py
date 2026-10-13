@@ -286,6 +286,9 @@ def source_texts():
             if not f.endswith('.js') or f in ('readings.js', 'clips.js', 'n5.js'):
                 continue
             src = open(os.path.join(dirpath, f), encoding='utf-8').read()
+            # Lists of look-alike characters (js/word-help.js) are not text: reading 右石 as a word would give 石 the
+            # reading せき everywhere.
+            src = re.sub(r'const LOOK_ALIKE = \[.*?\];', '', src, flags=re.S)
             for m in JS_STR.finditer(src):
                 s = m.group(0)[1:-1]
                 s = re.sub(r'\$\{[^}]*\}', ' ', s)

@@ -1,31 +1,40 @@
 // Mock JLPT: the question bank, a mock's layout and its score. Pure data and maths (no DOM, no store), so it runs in
-// Node for the tests. Every question is made from the app's own content (the N5 deck, the course grammar, Sentence
-// Builder, the story and the listening scenes), never from official tests, and only existing lines are spoken, so
-// every one has its VOICEVOX clip. The screen is js/exam.js; readiness is js/readiness.js.
+// Node for the tests. Every question is original: made from the app's own content (the N5 deck, the course grammar,
+// Sentence Builder) or hand-written for the mock (js/exam-bank-*.js), never taken from official tests. Every spoken
+// line has a VOICEVOX clip. The screen is js/exam.js; readiness is js/readiness.js.
 //
-// It follows the real N5's parts and question types where the app has the material for them:
-//   Vocabulary  kanji reading (漢字読み), which spelling (表記), word in context (文脈規定)
-//   Grammar     sentence grammar (文法形式の判断), the starred slot (文の組み立て)
-//   Reading     short story passages with questions (読解)
-//   Listening   short scenes (課題・ポイント理解), numbers and times (課題理解), what a line means (発話の理解)
-// Paraphrase, text grammar and notices are left out until there is hand-written material for them.
+// It follows the real N5: the same parts, question types, order and (approximate) counts, with the instructions in
+// Japanese as in the test booklet and an English line under each:
+//   Vocabulary (20 min)          漢字読み 7, 表記 5, 文脈規定 6, 言い換え類義 3
+//   Grammar and reading (40 min) 文法形式の判断 9, 文の組み立て 4, 文章の文法 4, 内容理解(短文) 2, 内容理解(中文) 2, 情報検索 1
+//   Listening (30 min)           課題理解 7, ポイント理解 6, 発話表現 5, 即時応答 6
 import { N5_WORDS } from './data.js';
-import { CHAPTERS } from './data.js';
-import { QUIZZES } from './story-data.js';
-import { DIALOGUES, NUMBER_SCENES, BUILD_SENTENCES } from './practice-data.js';
+import { BUILD_SENTENCES } from './practice-data.js';
 import { STUDY_UNITS } from './course-data.js';
 import { unitCardKeys, cardQuestion } from './grammar-cards.js';
+import { PARAPHRASE, TEXT_GRAMMAR, SHORT, MID, INFO } from './exam-bank-reading.js';
+import { POINT, QUICK } from './exam-bank-listen1.js';
+import { TASK, UTTER } from './exam-bank-listen2.js';
+
+/**
+ * The kanji an N5 learner is expected to know (the commonly used N5 list, about 100). The vocabulary part shows no
+ * furigana at all; everywhere else in the mock, like the real test, only kanji beyond this list get furigana.
+ */
+export const N5_KANJI = new Set([...'一二三四五六七八九十百千万円年月日時分半午前後今週毎何上下左右中外東西南北名山川天気雨電車駅道店社会学校生先友父母子女男人口目耳手足見聞読書話言語食飲行来出入休買立高安長新古大小白花空魚金土木水火国本間少多']);
 
 /** The levels the app knows about, easiest first. Only N5 has a mock so far. */
 export const LEVELS = ['N5', 'N4', 'N3', 'N2', 'N1'];
 export const MOCK_LEVELS = ['N5'];
 
-/** The real N5's score: two scored sections, a pass line and a minimum for each section. */
+/**
+ * The real N5's score: two scored sections, a pass line and a minimum for each section. The real test scales its
+ * scores (each question's weight depends on how hard it proved), so the mock's score is an estimate.
+ */
 export const SCORING = {
   N5: { lk: { max: 120, min: 38 }, li: { max: 60, min: 19 }, total: 180, pass: 80 },
 };
 
-/** Parts of a mock, in order. `group` is the scored section: lk = language knowledge and reading, li = listening. */
+/** Parts of a mock. `group` is the scored section: lk = language knowledge and reading, li = listening. */
 export const PARTS = {
   vocab: { title: 'Vocabulary', group: 'lk', practice: [['garden', 'Garden'], ['forge', 'Kanji Forge'], ['dojo', 'Reading Dojo']] },
   grammar: { title: 'Grammar', group: 'lk', practice: [['particle', 'Particle Train'], ['build', 'Sentence Builder'], ['conj', 'Conjugation Dojo']] },
@@ -34,24 +43,75 @@ export const PARTS = {
 };
 
 /**
- * Timed sections, as in the real N5 (minutes): vocabulary 20, grammar and reading 40, listening 30. The mini mock
- * uses the same order with a few questions from each part and no clock.
+ * Every question type: its part, the 問題 heading and instructions as in the booklet (with an English line), and its
+ * weight. Weights roughly follow the real test, where a reading question is worth a few vocabulary questions and the
+ * longer listening tasks a little more than the quick replies; they only shape the estimate.
+ */
+export const TYPES = {
+  read: { part: 'vocab', mondai: 'もんだい1', weight: 1,
+    ja: '＿＿の ことばは ひらがなで どう かきますか。1・2・3・4から いちばん いい ものを ひとつ えらんで ください。',
+    en: 'How is the underlined word written in hiragana? Choose the best answer.' },
+  spell: { part: 'vocab', mondai: 'もんだい2', weight: 1,
+    ja: '＿＿の ことばは どう かきますか。1・2・3・4から いちばん いい ものを ひとつ えらんで ください。',
+    en: 'How is the underlined word written? Choose the best answer.' },
+  context: { part: 'vocab', mondai: 'もんだい3', weight: 1,
+    ja: '（　）に なにが はいりますか。1・2・3・4から いちばん いい ものを ひとつ えらんで ください。',
+    en: 'What goes in the blank? Choose the best answer.' },
+  para: { part: 'vocab', mondai: 'もんだい4', weight: 1,
+    ja: '＿＿の ぶんと だいたい おなじ いみの ぶんが あります。1・2・3・4から いちばん いい ものを ひとつ えらんで ください。',
+    en: 'Which sentence means about the same as the underlined one?' },
+  grammar: { part: 'grammar', mondai: 'もんだい1', weight: 1,
+    ja: '（　）に 何を 入れますか。1・2・3・4から いちばん いい ものを 一つ えらんで ください。',
+    en: 'What goes in the blank? Choose the best answer.' },
+  star: { part: 'grammar', mondai: 'もんだい2', weight: 1,
+    ja: '★に 入る ものは どれですか。1・2・3・4から いちばん いい ものを 一つ えらんで ください。',
+    en: 'Put the pieces in order. Which one goes in the ★ slot?' },
+  textgram: { part: 'grammar', mondai: 'もんだい3', weight: 1,
+    ja: '＿＿に 何を 入れますか。ぶんしょうの いみを かんがえて、1・2・3・4から いちばん いい ものを 一つ えらんで ください。',
+    en: 'What goes in each numbered blank? Think about the meaning of the whole text.' },
+  short: { part: 'reading', mondai: 'もんだい4', weight: 3,
+    ja: 'つぎの ぶんしょうを 読んで、しつもんに こたえて ください。こたえは、1・2・3・4から いちばん いい ものを 一つ えらんで ください。',
+    en: 'Read the short text and answer the question.' },
+  mid: { part: 'reading', mondai: 'もんだい5', weight: 3,
+    ja: 'つぎの ぶんしょうを 読んで、しつもんに こたえて ください。こたえは、1・2・3・4から いちばん いい ものを 一つ えらんで ください。',
+    en: 'Read the text and answer the questions.' },
+  info: { part: 'reading', mondai: 'もんだい6', weight: 3,
+    ja: 'みぎの ページを 見て、下の しつもんに こたえて ください。こたえは、1・2・3・4から いちばん いい ものを 一つ えらんで ください。',
+    en: 'Look at the page and answer the question.' },
+  task: { part: 'listening', mondai: 'もんだい1', weight: 1.5, pause: 12,
+    ja: 'もんだい1では、はじめに しつもんを 聞いて ください。それから 話を 聞いて、もんだいようしの 1から4の 中から、いちばん いい ものを 一つ えらんで ください。',
+    en: 'Listen to the question, then the conversation, and choose what the person will do.' },
+  point: { part: 'listening', mondai: 'もんだい2', weight: 1.5, pause: 12,
+    ja: 'もんだい2では、はじめに しつもんを 聞いて ください。それから 話を 聞いて、もんだいようしの 1から4の 中から、いちばん いい ものを 一つ えらんで ください。',
+    en: 'Listen to the question, then the conversation, and catch the point it asks about.' },
+  utter: { part: 'listening', mondai: 'もんだい3', weight: 1, pause: 8,
+    ja: 'もんだい3では、えを 見ながら しつもんを 聞いて ください。→（やじるし）の 人は 何と 言いますか。1から3の 中から、いちばん いい ものを 一つ えらんで ください。',
+    en: 'Look at the picture. What does the person with the arrow say?' },
+  quick: { part: 'listening', mondai: 'もんだい4', weight: 1, pause: 8,
+    ja: 'もんだい4は、えなどが ありません。ぶんを 聞いて、1から3の 中から、いちばん いい へんじを 一つ えらんで ください。',
+    en: 'No pictures. Listen to the line and choose the best reply.' },
+};
+
+/**
+ * Sections in order, each a list of [type, count] in the real test's order. A group type (a text with several
+ * questions) counts its questions. The mini mock is the same shape with a few of each, untimed, in practice mode
+ * (English hints and replay).
  */
 export const FORMATS = {
   full: {
-    title: 'Full mock', timed: true,
+    title: 'Full mock', timed: true, practice: false,
     sections: [
-      { id: 'vocab', title: 'Vocabulary', minutes: 20, parts: { read: 7, spell: 5, context: 9 } },
-      { id: 'grammar', title: 'Grammar and reading', minutes: 40, parts: { grammar: 10, star: 5, passage: 3 } },
-      { id: 'listening', title: 'Listening', minutes: 30, parts: { scene: 3, number: 6, line: 8 } },
+      { id: 'vocab', title: 'Vocabulary', ja: 'げんごちしき（もじ・ごい）', minutes: 20, parts: [['read', 7], ['spell', 5], ['context', 6], ['para', 3]] },
+      { id: 'grammar', title: 'Grammar and reading', ja: 'げんごちしき（ぶんぽう）・どっかい', minutes: 40, parts: [['grammar', 9], ['star', 4], ['textgram', 4], ['short', 2], ['mid', 2], ['info', 1]] },
+      { id: 'listening', title: 'Listening', ja: 'ちょうかい', minutes: 30, parts: [['task', 7], ['point', 6], ['utter', 5], ['quick', 6]] },
     ],
   },
   mini: {
-    title: 'Mini mock', timed: false, minutes: 10,
+    title: 'Mini mock', timed: false, practice: true, minutes: 15,
     sections: [
-      { id: 'vocab', title: 'Vocabulary', parts: { read: 2, spell: 1, context: 2 } },
-      { id: 'grammar', title: 'Grammar and reading', parts: { grammar: 3, star: 1, passage: 1 } },
-      { id: 'listening', title: 'Listening', parts: { scene: 1, number: 1, line: 2 } },
+      { id: 'vocab', title: 'Vocabulary', ja: 'げんごちしき（もじ・ごい）', parts: [['read', 2], ['spell', 1], ['context', 1], ['para', 1]] },
+      { id: 'grammar', title: 'Grammar and reading', ja: 'げんごちしき（ぶんぽう）・どっかい', parts: [['grammar', 2], ['star', 1], ['textgram', 4], ['short', 1], ['info', 1]] },
+      { id: 'listening', title: 'Listening', ja: 'ちょうかい', parts: [['task', 2], ['point', 1], ['utter', 1], ['quick', 2]] },
     ],
   },
 };
@@ -171,8 +231,6 @@ const starts = (s) => {
 /** Sentence Builder sentences with one right order, no repeated tiles and somewhere to put four unambiguous slots. */
 const STAR = BUILD_SENTENCES.filter((s) => s.tiles.length >= 4 && !(s.alts || []).length && new Set(s.tiles).size === s.tiles.length && starts(s).length);
 
-const PASSAGES = CHAPTERS.filter((c) => (QUIZZES[c.id] || []).length);
-
 // ---------- question builders ----------
 
 function readQuestion(w, rand) {
@@ -244,114 +302,138 @@ function starQuestion(s, rand) {
   };
 }
 
-function passageQuestions(ch) {
-  const passage = { id: ch.id, title: `${ch.title} (${ch.en})`, lines: ch.beats.map((b) => ({ who: b.speaker.name, jp: b.jp })) };
-  return QUIZZES[ch.id].map((q, i) => ({
-    id: `pass:${ch.id}`, qid: `pass:${ch.id}:${i}`, part: 'reading', type: 'passage', label: 'Reading',
-    ask: q.q, passage, options: q.options.slice(), ja: false,
-    answer: q.options[0], why: q.why,
-  }));
-}
-
-function sceneQuestions(d) {
-  const lines = d.lines.map((l) => ({ text: l.jp, voice: l.who.voice, who: l.who.name }));
-  return d.questions.map((q, i) => ({
-    id: `scene:${d.id}`, qid: `scene:${d.id}:${i}`, part: 'listening', type: 'scene', label: 'Listen to the scene',
-    ask: q.q, say: lines, transcript: lines, options: q.options.slice(), ja: false,
-    answer: q.options[0], why: q.why,
-  }));
-}
-
-function numberQuestion(s) {
+function paraQuestion(p) {
   return {
-    id: 'num:' + s.id, part: 'listening', type: 'number', label: 'Numbers and times',
-    ask: s.q, say: [{ text: s.jp, voice: s.voice }], transcript: [{ text: s.jp, voice: s.voice }], options: s.options.slice(), ja: false,
-    answer: s.options[0], why: `${s.why} (${s.en})`, garden: s.garden || [],
+    id: 'para:' + p.id, part: 'vocab', type: 'para', sentence: p.sentence, noruby: true,
+    options: p.options.slice(), ja: true, answer: p.options[0], why: p.why,
   };
 }
 
-function lineQuestion(w, rand) {
-  const pool = shuffleWith(DECK.filter((x) => x !== w && !sharesWord(x.exEn, w.exEn)), rand).map((x) => x.exEn);
-  return {
-    id: 'line:' + w.id, part: 'listening', type: 'line', label: 'What does it mean?',
-    ask: 'Listen. What does it mean?', say: [{ text: w.ex, voice: 0 }], transcript: [{ text: w.ex, voice: 0 }],
-    options: options(w.exEn, pool), ja: false,
-    answer: w.exEn, why: `You heard ${w.ex}: "${w.exEn}".`, garden: [w.id],
-  };
+/** A student's essay with numbered blanks: one question per blank, sharing the essay. */
+function textgramQuestions(t) {
+  const essay = { id: t.id, title: t.title, author: t.author, text: t.text };
+  return t.blanks.map((b, i) => ({
+    id: 'tg:' + t.id, qid: `tg:${t.id}:${i}`, part: 'grammar', type: 'textgram', essay, blank: i + 1,
+    options: b.options.slice(), ja: true, answer: b.options[0], why: b.why,
+  }));
 }
+
+/** A reading text (short, mid or an information page) with its questions. */
+function readingQuestions(type, it) {
+  return it.questions.map((q, i) => ({
+    id: `${type}:${it.id}`, qid: `${type}:${it.id}:${i}`, part: 'reading', type, doc: it, ask: q.q,
+    options: q.options.slice(), ja: true, answer: q.options[0], why: q.why,
+  }));
+}
+
+const spoken = (l) => ({ text: l.jp, voice: l.voice, reading: l.reading });
+
+/**
+ * A listening question. 課題理解 / ポイント理解: the question, the conversation, the question again; the options are
+ * printed (pictures or short text). 発話表現 / 即時応答: the situation or line, then three replies that are only heard
+ * (`heard`: the screen numbers them 1-3 and plays them in the order shown).
+ */
+function listenQuestion(type, it) {
+  const base = { id: `${type}:${it.id}`, part: 'listening', type, why: it.why, ja: true };
+  if (type === 'task' || type === 'point') {
+    const q = spoken(it.question);
+    return { ...base, ask: it.question.jp, say: [q, ...it.lines.map(spoken), q], transcript: [q, ...it.lines.map(spoken)],
+      pictures: !!it.pictures, options: it.options.slice(), answer: it.options[0] };
+  }
+  const lead = spoken(type === 'utter' ? it.question : it.line);
+  const replies = it.replies.map(spoken);
+  return { ...base, ask: lead.text, scene: it.scene || null, lead, heard: true,
+    replyLine: Object.fromEntries(replies.map((r) => [r.text, r])),
+    say: [lead, ...replies], transcript: [lead, ...replies],
+    options: replies.map((r) => r.text), answer: replies[0].text };
+}
+
+/** Each pool: the items one question type is drawn from, and how an item becomes questions. */
+const POOLS = {
+  read: { list: READ, id: (w) => 'read:' + w.id, make: (w, rand) => [readQuestion(w, rand)], word: true },
+  spell: { list: SPELL, id: (w) => 'spell:' + w.id, make: (w, rand) => [spellQuestion(w, rand)], word: true },
+  context: { list: CONTEXT, id: (w) => 'ctx:' + w.id, make: (w, rand) => [contextQuestion(w, rand)], word: true },
+  para: { list: PARAPHRASE, id: (p) => 'para:' + p.id, make: (p) => [paraQuestion(p)] },
+  // Like the real test, always four options: a grammar card with fewer sensible ones is left out.
+  grammar: { list: null, id: (k) => 'gram:' + k, make: (k, rand) => [grammarQuestion(k, rand)].filter((q) => q && q.options.length === 4) },
+  star: { list: STAR, id: (x) => 'star:' + x.id, make: (x, rand) => [starQuestion(x, rand)] },
+  textgram: { list: TEXT_GRAMMAR, id: (t) => 'tg:' + t.id, make: (t) => textgramQuestions(t) },
+  short: { list: SHORT, id: (t) => 'short:' + t.id, make: (t) => readingQuestions('short', t) },
+  mid: { list: MID, id: (t) => 'mid:' + t.id, make: (t) => readingQuestions('mid', t) },
+  info: { list: INFO, id: (t) => 'info:' + t.id, make: (t) => readingQuestions('info', t) },
+  task: { list: TASK, id: (t) => 'task:' + t.id, make: (t) => [listenQuestion('task', t)] },
+  point: { list: POINT, id: (t) => 'point:' + t.id, make: (t) => [listenQuestion('point', t)] },
+  utter: { list: UTTER, id: (t) => 'utter:' + t.id, make: (t) => [listenQuestion('utter', t)] },
+  quick: { list: QUICK, id: (t) => 'quick:' + t.id, make: (t) => [listenQuestion('quick', t)] },
+};
+POOLS.grammar.list = N5_GRAMMAR_KEYS;
 
 // ---------- a whole mock ----------
 
 /**
- * Lays out a mock: { level, format, timed, sections: [{ id, title, minutes, questions }] }. `seen` holds question ids
- * from recent mocks; fresh ones are picked first, so two mocks in a row share few questions. `rand` is for tests.
+ * Lays out a mock: { level, format, timed, practice, sections: [{ id, title, ja, minutes, questions }] }, the
+ * questions in the real test's order. `seen` holds question ids from recent mocks; fresh ones are picked first, so
+ * mocks in a row share few questions. `rand` is for tests.
  */
 export function buildMock({ level = 'N5', format = 'mini', seen = [], rand = Math.random } = {}) {
   const f = FORMATS[format] || FORMATS.mini;
   const s = new Set(seen);
+  const usedWords = new Set();   // a deck word is asked once per mock, whichever vocabulary type picks it
   const sections = f.sections.map((sec) => {
-    const p = sec.parts;
-    let qs = [];
-    if (sec.id === 'vocab') {
-      const used = new Set();
-      const pick = (list, n, prefix) => {
-        const got = takeFresh(list.filter((w) => !used.has(w.id)), n, s, rand, (w) => prefix + w.id);
-        got.forEach((w) => used.add(w.id));
-        return got;
-      };
-      qs = [
-        ...pick(READ, p.read, 'read:').map((w) => readQuestion(w, rand)),
-        ...pick(SPELL, p.spell, 'spell:').map((w) => spellQuestion(w, rand)),
-        ...pick(CONTEXT, p.context, 'ctx:').map((w) => contextQuestion(w, rand)),
-      ];
-    } else if (sec.id === 'grammar') {
-      qs = [
-        ...takeFresh(N5_GRAMMAR_KEYS, p.grammar, s, rand, (k) => 'gram:' + k).map((k) => grammarQuestion(k, rand)).filter(Boolean),
-        ...takeFresh(STAR, p.star, s, rand, (x) => 'star:' + x.id).map((x) => starQuestion(x, rand)),
-        ...takeFresh(PASSAGES, p.passage, s, rand, (c) => 'pass:' + c.id).flatMap(passageQuestions),
-      ];
-    } else {
-      qs = [
-        ...takeFresh(DIALOGUES, p.scene, s, rand, (d) => 'scene:' + d.id).flatMap(sceneQuestions),
-        ...takeFresh(NUMBER_SCENES, p.number, s, rand, (x) => 'num:' + x.id).map(numberQuestion),
-        ...takeFresh(DECK, p.line, s, rand, (w) => 'line:' + w.id).map((w) => lineQuestion(w, rand)),
-      ];
+    const qs = [];
+    for (const [type, n] of sec.parts) {
+      const pool = POOLS[type];
+      const list = pool.word ? pool.list.filter((w) => !usedWords.has(w.id)) : pool.list;
+      let got = 0;
+      for (const item of takeFresh(list, list.length, s, rand, pool.id)) {
+        if (got >= n) break;
+        const made = pool.make(item, rand);
+        if (!made.length) continue;
+        if (pool.word) usedWords.add(item.id);
+        qs.push(...made);
+        got += made.length;
+      }
     }
-    return { id: sec.id, title: sec.title, minutes: f.timed ? sec.minutes : null, questions: qs };
+    return { id: sec.id, title: sec.title, ja: sec.ja, minutes: f.timed ? sec.minutes : null, questions: qs };
   });
-  return { level, format, timed: f.timed, sections };
+  return { level, format, timed: f.timed, practice: f.practice, sections };
 }
 
-/** Every question's id in a mock (a passage or scene counts once), for "seen recently". */
+/** Every question's id in a mock (a text with several questions counts once), for "seen recently". */
 export const mockIds = (mock) => [...new Set(mock.sections.flatMap((s) => s.questions.map((q) => q.id)))];
 
 /**
- * Scores answered questions like the real test: each scored section scales to its maximum by the share right, then
- * the pass line and each section's minimum are checked. `answers` maps a question's index (in order, over all
- * sections) to the option picked, or null / missing when unanswered.
+ * Scores answered questions like the real test: each scored section scales to its maximum by the share of its
+ * question weight answered right (weights in TYPES), then the pass line and each section's minimum are checked.
+ * `answers` maps a question's index (in order, over all sections) to the option picked, or null when unanswered.
+ * The real test uses scaled scores, so this is an estimate.
  */
 export function scoreMock(mock, answers) {
   const sc = SCORING[mock.level];
   const parts = {};
   for (const id of Object.keys(PARTS)) parts[id] = [0, 0];
+  const w = { lk: [0, 0], li: [0, 0] };
   let i = 0;
   for (const sec of mock.sections) {
     for (const q of sec.questions) {
       const t = parts[q.part];
+      const g = w[PARTS[q.part].group];
+      const weight = TYPES[q.type]?.weight || 1;
+      const ok = answers[i] != null && answers[i] === q.answer;
       t[1] += 1;
-      if (answers[i] != null && answers[i] === q.answer) t[0] += 1;
+      g[1] += weight;
+      if (ok) { t[0] += 1; g[0] += weight; }
       i++;
     }
   }
-  const group = (g) => Object.entries(parts).filter(([id]) => PARTS[id].group === g).reduce((a, [, t]) => [a[0] + t[0], a[1] + t[1]], [0, 0]);
-  const [lkOk, lkTot] = group('lk');
-  const [liOk, liTot] = group('li');
-  const lk = lkTot ? Math.round((sc.lk.max * lkOk) / lkTot) : 0;
-  const li = liTot ? Math.round((sc.li.max * liOk) / liTot) : 0;
+  const lk = w.lk[1] ? Math.round((sc.lk.max * w.lk[0]) / w.lk[1]) : 0;
+  const li = w.li[1] ? Math.round((sc.li.max * w.li[0]) / w.li[1]) : 0;
   const total = lk + li;
   const pass = total >= sc.pass && lk >= sc.lk.min && li >= sc.li.min;
-  return { lk, li, total, pass, parts, ok: lkOk + liOk, n: lkTot + liTot };
+  const n = Object.values(parts).reduce((a, t) => a + t[1], 0);
+  const ok = Object.values(parts).reduce((a, t) => a + t[0], 0);
+  return { lk, li, total, pass, parts, ok, n };
 }
 
-/** Sizes of the bank, for the tests and the intro screen. */
-export const BANK = { read: READ.length, spell: SPELL.length, context: CONTEXT.length, grammar: N5_GRAMMAR_KEYS.length, star: STAR.length, passage: PASSAGES.length, scene: DIALOGUES.length, number: NUMBER_SCENES.length, line: DECK.length };
+/** Sizes of the bank (items per question type), for the tests and the intro screen. */
+export const BANK = Object.fromEntries(Object.entries(POOLS).map(([k, p]) => [k, p.list.length]));
