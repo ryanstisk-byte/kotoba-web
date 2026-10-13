@@ -193,6 +193,15 @@ test.describe('mergeProgress (pure merge in store.js)', () => {
     expect(await merge(page, m, pc)).toEqual(m);
   });
 
+  test("Ren's Messages: both devices' messages are kept once, and a reply made on either device wins", async ({ page }) => {
+    const e = (id, day, at, extra = {}) => ({ id, day, at, reply: null, ok: null, ...extra });
+    const phone = { v: 9, items: {}, messages: { thread: [e('r1', '2026-10-06', T0 - 50 * H, { ok: true, reply: 1 }), e('r2', '2026-10-07', T0 - 20 * H)] } };
+    const pc = { v: 10, items: {}, messages: { thread: [e('r1', '2026-10-06', T0 - 50 * H), e('r2', '2026-10-07', T0 - 21 * H, { ok: false, reply: 0 }), e('r7', '2026-10-08', T0 + H)] } };
+    const m = await merge(page, phone, pc);
+    expect(m.messages.thread.map((x) => [x.id, x.reply, x.ok])).toEqual([['r1', 1, true], ['r2', 0, false], ['r7', null, null]]);
+    expect((await merge(page, pc, phone)).messages).toEqual(m.messages);
+  });
+
   test('lines mined on both devices under the same number are both kept, and both devices agree on ids', async ({ page }) => {
     const line = (id, jp, at) => ({ id, jp, reading: '', en: jp + ' (en)', parts: [], at });
     const phone = { v: 5, items: { 'mine:1': item(T0 + H, { level: 1 }) }, saga: { mined: [line('mine:1', '腹へった', T0)], seq: 1 } };

@@ -30,7 +30,7 @@ export const HELP_CLEAR = 2;
 export const SKILLS = ['kana', 'kanji', 'vocab', 'grammar', 'listening', 'pitch', 'speaking', 'counters'];
 
 /** Version of the saved progress shape. Bump it and add a step to MIGRATIONS whenever the shape changes. */
-export const STATE_VERSION = 9;
+export const STATE_VERSION = 10;
 
 function blank() {
   return {
@@ -57,6 +57,7 @@ function blank() {
     grammar: {},        // added in v6: grammar review cards, key -> card (see migrateCards and js/grammar-cards.js)
     coach: { ears: [] }, // added in v8: Pitch Coach; ears = words whose "where does it drop?" warm-up is done
     exam: blankExam(),  // added in v9: mock JLPT results and readiness (see blankExam)
+    messages: blankMessages(),   // added in v10: Ren's Messages (see blankMessages and js/messages.js)
   };
 }
 
@@ -73,6 +74,49 @@ const LEVEL_RE = /^N[1-5]$/;
  *   later    { level: 'YYYY-MM-DD' }: "ready for a mock" stays quiet until this day ("Later")
  * A level is done once a full mock is passed or the real test is marked; readiness then moves to the next level.
  */
+/**
+ * Ren's Messages (js/messages.js): the thread, oldest first. Each entry: { id (message id), day ('YYYY-MM-DD' it
+ * arrived), at (ms), reply (index of the reply chosen, or null), ok (the "what did they mean?" answer: true, false,
+ * or null before it's answered) }. At most one arrives a day; nothing in it ever expires.
+ */
+export function blankMessages() {
+  return { thread: [] };
+}
+export const MESSAGES_MAX = 500;
+
+function normalizeMessages(raw) {
+  const m = blankMessages();
+  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.thread)) return m;
+  const seen = new Set();
+  for (const e of raw.thread) {
+    if (!e || typeof e !== 'object' || typeof e.id !== 'string' || !/^[a-z0-9_-]{1,40}$/i.test(e.id)) continue;
+    if (typeof e.day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(e.day)) continue;
+    const key = e.id + '|' + e.day;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    m.thread.push({
+      id: e.id, day: e.day, at: Math.max(0, Number(e.at) || 0),
+      reply: Number.isInteger(e.reply) && e.reply >= 0 && e.reply < 5 ? e.reply : null,
+      ok: e.ok === true ? true : e.ok === false ? false : null,
+    });
+  }
+  m.thread.sort((a, b) => a.at - b.at || (a.day < b.day ? -1 : 1));
+  m.thread = m.thread.slice(-MESSAGES_MAX);
+  return m;
+}
+
+/** Two devices' threads: every message from both, once; a copy with the reply (and answer) chosen wins. */
+function mergeMessages(a, b) {
+  const by = new Map();
+  for (const e of [...a.thread, ...b.thread]) {
+    const key = e.id + '|' + e.day;
+    const cur = by.get(key);
+    const score = (x) => (x.reply != null ? 2 : 0) + (x.ok != null ? 1 : 0);
+    if (!cur || score(e) > score(cur) || (score(e) === score(cur) && e.at < cur.at)) by.set(key, { ...e });
+  }
+  return normalizeMessages({ thread: [...by.values()] });
+}
+
 export function blankExam() {
   return { history: [], real: {}, seen: [], later: {} };
 }
@@ -168,6 +212,9 @@ const MIGRATIONS = {
   7: (raw) => ({ ...raw, settings: { voice: null, ...(raw.settings || {}) }, coach: raw.coach && typeof raw.coach === 'object' ? raw.coach : { ears: [] } }),
   // v8 -> v9: mock JLPT results and readiness (none yet). Nothing else changes.
   8: (raw) => ({ ...raw, exam: raw.exam && typeof raw.exam === 'object' ? raw.exam : blankExam() }),
+  // v9 -> v10: Ren's Messages. An empty thread (the first message arrives the next time the app opens). Nothing
+  // else changes.
+  9: (raw) => ({ ...raw, messages: raw.messages && typeof raw.messages === 'object' ? raw.messages : blankMessages() }),
 };
 
 /** Adds the guided-course field with defaults. Self-contained: it touches nothing else in the blob. */
@@ -261,6 +308,7 @@ function normalize(input) {
     }
   }
   s.exam = normalizeExam(raw.exam);
+  s.messages = normalizeMessages(raw.messages);
   return s;
 }
 
@@ -562,6 +610,7 @@ export function mergeProgress(local, remote, now = Date.now()) {
   for (const [lv, d] of Object.entries(b.exam.later)) if (!later[lv] || d > later[lv]) later[lv] = d;
   const real = { ...a.exam.real };
   for (const [lv, r] of Object.entries(b.exam.real)) if (!real[lv] || r.at > real[lv].at) real[lv] = { ...r };
+  out.messages = mergeMessages(a.messages, b.messages);
   out.exam = {
     history: [...hist.values()].sort((x, y) => x.at - y.at).slice(-EXAM_HISTORY_MAX).map((h) => ({ ...h, parts: { ...h.parts } })),
     real, later,
@@ -1191,6 +1240,31 @@ class Store {
   /** Whether a word's "where does the pitch drop?" warm-up is done (it comes first in its first Pitch Coach). */
   earsDone(id) { return this.s.coach.ears.includes(id); }
   markEars(id) { if (id && !this.s.coach.ears.includes(id)) { this.s.coach.ears.push(id); this.save(); } }
+
+  // ----- Ren's Messages (js/messages.js) -----
+  get messages() { return this.s.messages.thread; }
+  /** Adds a message that just arrived (at most one a day is the caller's rule; js/messages.js keeps it). */
+  deliverMessage(id, now = Date.now()) {
+    const day = dateKey(new Date(now));
+    if (this.s.messages.thread.some((e) => e.id === id && e.day === day)) return;
+    this.s.messages.thread.push({ id, day, at: now, reply: null, ok: null });
+    this.s.messages.thread = this.s.messages.thread.slice(-MESSAGES_MAX);
+    this.save();
+  }
+  /** The thread entry for a message (the latest copy, for welcome-back notes that can come more than once). */
+  messageEntry(id) { return [...this.s.messages.thread].reverse().find((e) => e.id === id) || null; }
+  answerMessage(id, ok) {
+    const e = this.messageEntry(id);
+    if (!e || e.ok != null) return;
+    e.ok = !!ok;
+    this.log(ok);
+  }
+  replyMessage(id, index) {
+    const e = this.messageEntry(id);
+    if (!e || e.reply != null) return;
+    e.reply = index;
+    this.markStudied();
+  }
 
   // ----- mock JLPT (js/exam.js, js/readiness.js) -----
   get exam() { return this.s.exam; }

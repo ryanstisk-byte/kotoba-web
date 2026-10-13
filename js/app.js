@@ -29,6 +29,7 @@ import * as progress from './progress.js';
 import { checkinCard, checkinHandlers } from './checkin.js';
 import { initReadingHelp, clearReadingHelp, readingConfig } from './furigana.js';
 import * as course from './course.js';
+import * as messages from './messages.js';
 import { UNIT_BY_ID } from './course-data.js';
 import * as sync from './sync.js';
 import { initPron, closePron } from './pron.js';
@@ -228,6 +229,7 @@ function routeView(a, b, c) {
     cleanup = soundcheck.mount(view);
     return;
   }
+  if (a === 'messages') { setTitle('Messages', true); cleanup = messages.mount(view); return; }
   if (a === 'modes') { setTitle('Modes', false); renderModes(); return; }
   if (a === 'progress') { setTitle('Progress', false); cleanup = progress.render(view); return; }
   setTitle('Kotoba Beat', false);
@@ -357,6 +359,7 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 
 // ---------- home ----------
 function renderHome() {
+  messages.deliver();   // opening the app can bring one new message a day (js/messages.js)
   const plan = todayPlan();
   const items = Object.values(store.s.items);
   const thirsty = store.thirsty().length;
@@ -396,7 +399,7 @@ function renderHome() {
             : `<p class="lead strong good-c">✓ Today's plan is done. Come back whenever.</p>`}
         </section>
 
-        ${checkinCard()}${placementCardHTML()}
+        ${messages.inboxCard()}${checkinCard()}${placementCardHTML()}
         <section class="panel today" aria-label="Today's plan">
           <div class="row-between wrap-gap">
             <h2 class="section-title">The plan</h2>

@@ -5,6 +5,7 @@ import { LESSONS, KANJI_LESSONS, READ_WORDS } from '../js/dojo-data.js';
 import { N5_WORDS } from '../js/data.js';
 import { N5 } from '../js/n5.js';
 import { COURSE_EXAMPLES } from '../js/course-data.js';
+import { ALL_MESSAGES, SENDERS } from '../js/messages-data.js';
 import { DIALOGUES, NUMBER_SCENES, KATA_WORDS, CONJ_WORDS, VERB_FORMS, ADJ_FORMS, conjugate, conjPrompt, BUILD_SENTENCES } from '../js/practice-data.js';
 
 const clips = new Map();
@@ -46,6 +47,9 @@ for (const l of KANJI_LESSONS) for (const j of l.kanji) { add(j.reading); pairs.
 for (const v of READ_WORDS) add(v.w);
 // Course example sentences, each in its speaker's voice (0 narrator, 1 Ren, 2 Master, 3 Kaito).
 for (const ex of COURSE_EXAMPLES) { add(ex.jp, ex.voice); pairs.push([ex.jp, ex.reading]); }
+
+// Ren's Messages: each message in its sender's voice.
+for (const m of ALL_MESSAGES) { add(m.jp, SENDERS[m.from].voice); pairs.push([m.jp, m.kana]); }
 
 // N5 deck: each word with its pitch accent set, and its example sentence. Added last so these win over
 // an older clip of the same text.
