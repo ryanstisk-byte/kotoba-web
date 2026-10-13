@@ -175,6 +175,29 @@ test.describe('readability', () => {
     expect(r.overflow).toBeLessThanOrEqual(0);
   });
 
+  test('romaji is spaced and broken by word, never in the middle of one', async ({ page }) => {
+    await seed(page, { v: 2, items: {}, settings: { readingHelp: 'romaji' } });
+    await page.goto('./#/modes');
+    const r = await page.evaluate(async () => {
+      const out = {};
+      for (const text of ['よろしくおねがいします', 'わたしはがくせいです', 'ありがとうございます']) {
+        const p = document.createElement('p');
+        p.style.width = '120px';
+        p.lang = 'ja';
+        p.textContent = text;
+        document.getElementById('view').prepend(p);
+        await new Promise((res) => setTimeout(res, 100));
+        out[text] = { rts: [...p.querySelectorAll('rt')].map((x) => x.textContent), gaps: p.querySelectorAll('.wsp').length, plain: p.textContent };
+      }
+      return out;
+    });
+    expect(r['よろしくおねがいします'].rts).toEqual(['yoroshiku', 'onegaishimasu']);
+    expect(r['わたしはがくせいです'].rts).toEqual(['watashi wa', 'gakuseidesu']);
+    expect(r['ありがとうございます'].rts).toEqual(['arigatou', 'gozaimasu']);
+    for (const v of Object.values(r)) expect(v.gaps).toBe(v.rts.length - 1);
+    expect(r['よろしくおねがいします'].plain).toBe('よろしくyoroshikuおねがいしますonegaishimasu');   // the gap adds no text
+  });
+
   for (const help of ['romaji', 'kana']) {
     test(`${help} reading help never overlaps other text`, async ({ page }) => {
       await seed(page, { v: 2, items: {}, settings: { readingHelp: help, textSize: 'l' } });

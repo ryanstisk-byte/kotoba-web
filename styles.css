@@ -426,8 +426,8 @@ body.has-tabs #toast { bottom: calc(var(--tabbar-h) + var(--sp-3) + env(safe-are
 .block-row.skipped { opacity: 0.7; }
 .block-actions { display: flex; gap: var(--sp-2); flex-direction: column; }
 @media (min-width: 520px) { .block-actions { flex-direction: row; } }
-.mode-grid { display: grid; grid-template-columns: 1fr; gap: var(--sp-3); }
-@media (min-width: 760px) { .mode-grid { grid-template-columns: 1fr 1fr; } }
+.mode-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-3); }
+@media (min-width: 760px) { .mode-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (min-width: 1000px) { .mode-grid.wide { grid-template-columns: repeat(3, 1fr); } }
 .mode-card { display: flex; gap: var(--sp-3); align-items: flex-start; text-decoration: none; color: var(--ink); transition: transform var(--dur-fast), box-shadow var(--dur-fast), border-color var(--dur-fast); }
 .mode-card:hover { border-color: var(--ink); box-shadow: var(--shadow-hard); transform: translate(-1px, -1px); }
@@ -471,7 +471,8 @@ body.has-tabs #toast { bottom: calc(var(--tabbar-h) + var(--sp-3) + env(safe-are
 .plant { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md); min-height: 88px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--sp-2) var(--sp-1); min-width: 0; }
 .plant-emoji { font-size: 2rem; position: relative; }
 .drop { position: absolute; font-size: var(--fs-sm); right: -12px; top: -4px; }
-.plant-jp { font-size: var(--fs-sm); font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-jp); text-align: center; line-height: var(--lh-ruby); }
+.plant-jp { font-size: var(--fs-sm); font-weight: 700; max-width: 100%; font-family: var(--font-jp); text-align: center; line-height: var(--lh-ruby); }
+.plant-jp.long { font-size: var(--fs-xs); letter-spacing: -0.02em; }
 .card-review { display: flex; flex-direction: column; align-items: center; gap: var(--sp-4); text-align: center; min-height: calc(100dvh - 240px); padding-top: var(--sp-3); max-width: 560px; margin: 0 auto; width: 100%; }
 .card-review .row2 { width: 100%; }
 .review-jp { font-family: var(--font-jp); font-size: var(--fs-jp-xl); font-weight: 900; word-break: break-word; margin-top: 6vh; line-height: 1.3; }
@@ -668,7 +669,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); min-height: 44px
 /* ======================================================================
    Reading help (romaji / furigana). Readings get their own line space so they never overlap other text.
    ====================================================================== */
-ruby { ruby-position: over; ruby-align: center; }
+ruby { ruby-position: over; ruby-align: center; white-space: nowrap; }   /* a word never breaks under its romaji; lines wrap between words */
+.jr { overflow-wrap: anywhere; }   /* lines can still break between words that each keep their romaji */
+.wsp { display: inline-block; width: 0.3em; }   /* the gap between romaji words (no text, so copying stays plain Japanese) */
 rt {
   font-size: 0.5em; font-weight: 600; color: var(--dim); font-family: var(--font-ui); font-style: normal;
   letter-spacing: 0; line-height: 1; user-select: none; -webkit-user-select: none;

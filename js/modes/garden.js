@@ -174,7 +174,7 @@ export function mount(el, ctx) {
             return `
             <div class="plant${hurt ? ' needs-help' : ''}" title="${esc(item.reading)} · ${esc(item.en)}${hurt ? ' · needs a little help' : ''}">
               <span class="plant-emoji">${gardenStage(prog.level)}${prog.due <= Date.now() ? '<span class="drop">💧</span>' : ''}${hurt ? '<span class="bandage" aria-label="needs help">🩹</span>' : ''}</span>
-              <span class="plant-jp">${esc(item.jp)}</span>
+              <span class="plant-jp${[...item.jp].length > 4 ? ' long' : ''}">${esc(item.jp)}</span>
             </div>`;
           }).join('')}
         </div>
