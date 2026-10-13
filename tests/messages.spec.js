@@ -1,11 +1,11 @@
 // Ren's Messages: one message a day at most, pitched at the learner's level (kana-only polite first, then casual, then
 // N4 grammar; kanji only once known), at most one new word (tap to plant it), the "what did they mean?" check, replies
 // that pick the next message, story-tied messages, Kaito and the Master joining later, a warm welcome back after time
-// away, every message voiced with matching furigana, and the v9 -> v10 migration (tests/fixtures/progress-v9.json).
+// away, every message voiced with matching furigana, and the v10 -> v11 migration (tests/fixtures/progress-v10.json).
 import { readFileSync } from 'node:fs';
 import { test, expect, seed, saved, view, expectNoHorizontalScroll } from './helpers.js';
 
-const FIXTURE_V9 = JSON.parse(readFileSync(new URL('./fixtures/progress-v9.json', import.meta.url), 'utf8'));
+const FIXTURE_V10 = JSON.parse(readFileSync(new URL('./fixtures/progress-v10.json', import.meta.url), 'utf8'));
 const DAY = 86_400_000;
 const T = (d) => new Date(`${d}T10:00:00`);
 
@@ -210,15 +210,15 @@ test.describe("Ren's Messages", () => {
   });
 });
 
-test.describe('saved progress v9 → v10', () => {
-  test('the v9 fixture loads with every word, review date, chapter, setting and exam result kept, and an empty thread', async ({ page }) => {
-    await seed(page, FIXTURE_V9);
+test.describe('saved progress v10 → v11', () => {
+  test('the v10 fixture loads with every word, review date, chapter, setting and exam result kept, and an empty thread', async ({ page }) => {
+    await seed(page, FIXTURE_V10);
     await page.goto('./#/settings');
     const s = await saved(page);
-    expect(s.v).toBe(10);
-    expect(s.items).toEqual(FIXTURE_V9.items);
-    expect(s.settings).toEqual(FIXTURE_V9.settings);
-    for (const k of ['chapters', 'forged', 'dojo', 'saga', 'course', 'engine', 'grammar', 'days', 'coach', 'exam', 'storyReplays']) expect(s[k], k).toEqual(FIXTURE_V9[k]);
+    expect(s.v).toBe(11);
+    expect(s.items).toEqual(FIXTURE_V10.items);
+    expect(s.settings).toEqual(FIXTURE_V10.settings);
+    for (const k of ['chapters', 'forged', 'dojo', 'saga', 'course', 'engine', 'grammar', 'days', 'coach', 'exam', 'storyReplays']) expect(s[k], k).toEqual(FIXTURE_V10[k]);
     expect(s.messages).toEqual({ thread: [] });
   });
 
@@ -226,13 +226,13 @@ test.describe('saved progress v9 → v10', () => {
     await page.goto('./');
     const r = await page.evaluate(async (fx) => {
       const { store } = await import('./js/store.js');
-      return store.parseImport(JSON.stringify({ ...fx, v: 10, messages: { thread: [
+      return store.parseImport(JSON.stringify({ ...fx, v: 11, messages: { thread: [
         { id: 'r2', day: '2026-10-14', at: 2, reply: 0, ok: true },
         { id: 'r1', day: '2026-10-13', at: 1, reply: 9, ok: 'x' },
         { id: '<script>', day: '2026-10-15', at: 3 },
         { id: 'r3', day: 'yesterday', at: 4 },
       ] } })).messages.thread;
-    }, FIXTURE_V9);
+    }, FIXTURE_V10);
     expect(r).toEqual([
       { id: 'r1', day: '2026-10-13', at: 1, reply: null, ok: null },
       { id: 'r2', day: '2026-10-14', at: 2, reply: 0, ok: true },
