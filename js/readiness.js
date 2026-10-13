@@ -8,6 +8,8 @@
 //   Grammar     N5 course grammar points whose Garden card has held for a week or more
 //   Listening   first-try listening accuracy over the last 4 weeks, once there are enough answers
 //   Reading     kana learned, and Story chapters cleared
+// N4 readiness (once N5 is done) has the same five areas on the N4 content: the N4 deck, the N4 kanji, the N4 course
+// grammar, listening, and the N4 Story arc with the N4 kanji lessons (N4_TARGETS).
 // "Ready for a mock" comes when the areas average 90% of their targets and none is under 60%. A mock is optional
 // practice: the mini mock is open any time, and nothing is locked.
 import { store, dateKey } from './store.js';

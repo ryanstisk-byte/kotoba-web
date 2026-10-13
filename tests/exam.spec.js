@@ -185,7 +185,7 @@ test.describe('readiness meter', () => {
     await view(page).getByRole('button', { name: 'I passed the real N5' }).click();
     await view(page).getByRole('button', { name: 'Yes, I passed it' }).click();
     await expect(view(page).getByRole('heading', { name: 'Road to JLPT N4' })).toBeVisible();
-    await expect(view(page).locator('.road')).toContainText('still to come');
+    await expect(view(page).locator('.road')).toContainText('of the way to a mock N4');   // N4 has its areas and mock now
     expect((await saved(page)).exam.real.N5.on).toBe(true);
     await page.goto('./');
     await expect(view(page).locator('.road-card')).toContainText('Road to N4');
@@ -248,7 +248,7 @@ test.describe('mock exam', () => {
     await expect(v.locator('.exam-miss .exam-scene')).toHaveCount(1);   // the 発話表現 picture, in review
     await expectNoHorizontalScroll(page);
     const s = await saved(page);
-    expect(s.v).toBe(11);
+    expect(s.v).toBe(12);
     expect(s.exam.history).toHaveLength(1);
     expect(s.exam.history[0]).toMatchObject({ level: 'N5', format: 'mini', total: 0, pass: false });
     expect(s.exam.seen.length).toBeGreaterThan(10);
@@ -410,9 +410,9 @@ test.describe('saved progress v8 → v9', () => {
     await seed(page, FIXTURE_V8);
     await page.goto('./');
     const s = await saved(page);
-    expect(s.v).toBe(11);
+    expect(s.v).toBe(12);
     expect(s.exam).toEqual({ history: [], real: {}, seen: [], later: {} });
-    expect(s.settings).toEqual({ ...FIXTURE_V8.settings, autoMic: false });
+    expect(s.settings).toEqual({ ...FIXTURE_V8.settings, autoMic: false, showAllLevels: false });
     for (const k of ['items', 'grammar', 'days', 'chapters', 'forged', 'dojo', 'saga', 'course', 'engine', 'coach']) expect(s[k], k).toEqual(FIXTURE_V8[k]);
   });
 

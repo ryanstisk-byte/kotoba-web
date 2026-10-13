@@ -749,7 +749,7 @@ export const UNITS = [
         [{ ans: 'やすい', wrong: ['にくい', 'そうに', 'ながら'] }, { ans: 'にくい', wrong: ['やすい', 'そうに', 'ながら'] }]),
     ],
     vocab: ['開ける', '窓', '飲み物', '高い', '作る', '分かる'],
-    practice: {} },
+    practice: { story: { chapter: 'ch15', from: 0, to: 9 } } },
 
   { id: 'p2-16', phase: 'p2', level: 'N4', title: 'Guess, expect and wonder',
     goal: 'Say what should be true, what might be, and ask questions inside sentences.',
@@ -780,7 +780,7 @@ export const UNITS = [
         [{ ans: 'でしょう', wrong: ['ましょう', 'でした', 'だ'] }, { ans: 'だろう', wrong: ['だった', 'でした', 'だ'] }, { ans: 'だろ', wrong: ['だった', 'でした', 'だ'] }]),
     ],
     vocab: ['多分', '鍵', '鞄', 'まだ', '休み', '午後'],
-    practice: {} },
+    practice: { story: { chapter: 'ch15', from: 9, to: 17 } } },
 ];
 
 tagLevel(UNITS, 'N5');   // Phase 0-1; the Phase 2 units carry level: 'N4'

@@ -33,7 +33,7 @@ async function readToQuestions(page) {
 }
 
 test.describe('story saga data', () => {
-  test('chapters 5-12 are complete, valid and graded; chapters 1-4 are unchanged', async ({ page }) => {
+  test('chapters 5-17 are complete, valid and graded; chapters 1-4 are unchanged', async ({ page }) => {
     await page.goto('./');
     const problems = await page.evaluate(async () => {
       const { CHAPTERS, CAST, GARDEN_CATALOG, QUIZZES, ARCS } = await import('./js/data.js');
@@ -44,12 +44,15 @@ test.describe('story saga data', () => {
       const speakers = new Set(Object.values(CAST));
       const str = (x) => typeof x === 'string' && x.trim().length > 0;
       const kana = (s) => toHiragana(s).replace(/[^ぁ-ゖー]/g, '');
-      if (CHAPTERS.map((c) => c.id).join() !== Array.from({ length: 12 }, (_, i) => 'ch' + (i + 1)).join()) out.push('chapter ids');
+      if (CHAPTERS.map((c) => c.id).join() !== Array.from({ length: 17 }, (_, i) => 'ch' + (i + 1)).join()) out.push('chapter ids');
+      // Chapters 1-12 are N5 (the last arc leaning toward N4); 13-17 are the N4 Journey arc (js/story-n4.js).
+      if (CHAPTERS.map((c) => c.level).join() !== [...Array(12).fill('N5'), ...Array(5).fill('N4')].join()) out.push('chapter levels');
       // Chapters 1-4 stay exactly as they were (saved progress refers to them).
       if (CHAPTERS.slice(0, 4).map((c) => c.beats.length).join() !== '8,9,8,8') out.push('ch1-4 beat counts changed');
       if (CHAPTERS[3].title !== 'さいごの しょうぶ' || CHAPTERS[0].beats[0].jp !== 'ここは 小さい 町です。') out.push('ch1-4 content changed');
       for (const ch of CHAPTERS.slice(4)) {
-        if (ch.beats.length < 7 || ch.beats.length > 10) out.push(`${ch.id}: ${ch.beats.length} beats`);
+        const [lo, hi] = ch.level === 'N4' ? [12, 20] : [7, 10];   // N4 chapters are longer
+        if (ch.beats.length < lo || ch.beats.length > hi) out.push(`${ch.id}: ${ch.beats.length} beats`);
         if (!ch.beats.some((b) => b.choice)) out.push(`${ch.id}: no choice`);
         ch.beats.forEach((b, i) => {
           const at = `${ch.id}[${i}]`;
@@ -70,11 +73,12 @@ test.describe('story saga data', () => {
             if (!str(c.prompt) || !str(c.wrongReply) || c.options.length < 2 || !(c.answer >= 0 && c.answer < c.options.length)) out.push(`${at}: bad choice`);
           }
         });
-        if (ch.number >= 9 && !ch.beats.some((b) => b.note && /ねえ|ぜ|じゃねえ|casual|rough/.test(b.note))) out.push(`${ch.id}: no casual-speech note`);
+        if (ch.number >= 9 && ch.number <= 12 && !ch.beats.some((b) => b.note && /ねえ|ぜ|じゃねえ|casual|rough/.test(b.note))) out.push(`${ch.id}: no casual-speech note`);
       }
       for (const ch of CHAPTERS) {
         const qs = QUIZZES[ch.id];
-        if (!qs || qs.length < 2 || qs.length > 3) { out.push(`${ch.id}: needs 2-3 questions`); continue; }
+        const [qlo, qhi] = ch.level === 'N4' ? [3, 4] : [2, 3];
+        if (!qs || qs.length < qlo || qs.length > qhi) { out.push(`${ch.id}: needs ${qlo}-${qhi} questions`); continue; }
         qs.forEach((q, i) => {
           if (!str(q.q) || !str(q.why) || q.options.length < 2 || !(q.answer >= 0 && q.answer < q.options.length)) out.push(`${ch.id} q${i}: bad`);
           if (!SKILLS.includes(q.skill)) out.push(`${ch.id} q${i}: skill ${q.skill}`);
@@ -103,14 +107,15 @@ test.describe('story saga data', () => {
 });
 
 test.describe('chapter map', () => {
-  test('a new learner sees all 12 chapters, the first one next and the rest locked but visible', async ({ page }) => {
+  test('a new learner sees all 17 chapters (the N4 arc too), the first one next and the rest locked but visible', async ({ page }) => {
     await page.goto('./#/play/story');
     const v = view(page);
-    await expect(v.locator('.saga-node')).toHaveCount(12);
+    await expect(v.locator('.saga-node')).toHaveCount(17);
     await expect(v.locator('.saga-node.next')).toHaveCount(1);
     await expect(v.locator('.saga-node').first()).toHaveClass(/next/);
-    await expect(v.locator('.saga-node.locked')).toHaveCount(11);
-    await expect(v.locator('.saga-node.locked button')).toHaveCount(11);
+    await expect(v.locator('.saga-node.locked')).toHaveCount(16);
+    await expect(v.locator('.saga-node.locked button')).toHaveCount(16);
+    await expect(v.getByText('Journey Arc', { exact: false })).toBeVisible();
     for (const b of await v.locator('.saga-node.locked button').all()) await expect(b).toBeDisabled();
     await expect(v.getByText('Tournament Arc', { exact: false })).toBeVisible();
     await expect(v.getByText('Final Arc', { exact: false })).toBeVisible();
@@ -125,7 +130,7 @@ test.describe('chapter map', () => {
     await expect(v.locator('.saga-node.next')).toContainText('The Tournament Notice');
     await expect(v.getByRole('button', { name: /^Replay chapter/ })).toHaveCount(4);
     await expect(v.getByRole('button', { name: /^No-furigana challenge/ })).toHaveCount(4);
-    await expect(v.locator('.saga-node.locked')).toHaveCount(7);
+    await expect(v.locator('.saga-node.locked')).toHaveCount(12);   // 6-12, and the N4 arc (13-17) until N4 opens
     await expectNoHorizontalScroll(page);
   });
 });
@@ -333,9 +338,9 @@ test.describe('saved progress with the story saga (v4)', () => {
     await page.goto('./#/play/story');
     const out = await parse(page, FIXTURE_STORY);
     // Later versions only add blocks (and v7 one setting).
-    expect(out).toEqual(expect.objectContaining({ ...FIXTURE_STORY, v: out.v, settings: { ...FIXTURE_STORY.settings, pronCheck: true, autoMic: false, voice: null } }));
+    expect(out).toEqual(expect.objectContaining({ ...FIXTURE_STORY, v: out.v, settings: { ...FIXTURE_STORY.settings, pronCheck: true, autoMic: false, voice: null, showAllLevels: false } }));
     const s = await saved(page);
-    expect(s).toEqual(expect.objectContaining({ ...FIXTURE_STORY, v: s.v, lastSession: s.lastSession, settings: { ...FIXTURE_STORY.settings, pronCheck: true, autoMic: false, voice: null } }));
+    expect(s).toEqual(expect.objectContaining({ ...FIXTURE_STORY, v: s.v, lastSession: s.lastSession, settings: { ...FIXTURE_STORY.settings, pronCheck: true, autoMic: false, voice: null, showAllLevels: false } }));
     await expect(view(page).locator('.saga-results').first()).toContainText('Questions 3/3 · Challenge best 2/3');
     const planted = await page.evaluate(async () => (await import('./js/store.js')).store.planted().map((p) => p.item.id));
     expect(planted).toEqual(expect.arrayContaining(['mine:2', 'mine:5', 'arigatou', 'w:大会']));

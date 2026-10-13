@@ -130,7 +130,7 @@ export const FORMATS = {
 /**
  * The real N4's layout (same parts as N5, a few more of each, plus 用法 "usage"):
  *   Vocabulary (25 min)          漢字読み 7, 表記 5, 文脈規定 8, 言い換え類義 4, 用法 4
- *   Grammar and reading (55 min) 文法形式の判断 13, 文の組み立て 4, 文章の文法 4, 内容理解(短文) 3, 内容理解(中文) 3, 情報検索 2
+ *   Grammar and reading (55 min) 文法形式の判断 13, 文の組み立て 4, 文章の文法 5 (one text), 内容理解(短文) 3, 内容理解(中文) 3, 情報検索 2
  *   Listening (35 min)           課題理解 8, ポイント理解 7, 発話表現 5, 即時応答 8
  */
 export const FORMATS_N4 = {
@@ -138,7 +138,7 @@ export const FORMATS_N4 = {
     title: 'Full mock', timed: true, practice: false,
     sections: [
       { id: 'vocab', title: 'Vocabulary', ja: 'げんごちしき（もじ・ごい）', minutes: 25, parts: [['read', 7], ['spell', 5], ['context', 8], ['para', 4], ['usage', 4]] },
-      { id: 'grammar', title: 'Grammar and reading', ja: 'げんごちしき（ぶんぽう）・どっかい', minutes: 55, parts: [['grammar', 13], ['star', 4], ['textgram', 4], ['short', 3], ['mid', 3], ['info', 2]] },
+      { id: 'grammar', title: 'Grammar and reading', ja: 'げんごちしき（ぶんぽう）・どっかい', minutes: 55, parts: [['grammar', 13], ['star', 4], ['textgram', 5], ['short', 3], ['mid', 3], ['info', 2]] },
       { id: 'listening', title: 'Listening', ja: 'ちょうかい', minutes: 35, parts: [['task', 8], ['point', 7], ['utter', 5], ['quick', 8]] },
     ],
   },

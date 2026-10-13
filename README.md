@@ -229,6 +229,34 @@ planted from Story or Kanji Forge. Each word is voiced with its listed pitch acc
 too (normal and slow). Readings were checked against JMdict (EDRDG, CC BY-SA 4.0). After editing the TSV, run the
 build below; it regenerates `js/n5.js`.
 
+## JLPT levels (N5, then N4)
+
+Every piece of content carries a JLPT level (`js/level-tag.js`; everything from before N4 is N5), and every mode draws
+its content through `js/levels.js`, which answers "which levels are open?" and "this mode's content for them". A session
+draws about 70% from the newest open level and 30% review from the levels below (`mixed`, `pickMixed`).
+
+- **The gate.** N5 is always open. N4 opens once N5 is done: a full mock N5 passed, or the real N5 marked as passed on
+  Progress (`store.examDone()`). Until then N4 content shows, locked, with one line: "Unlocks when you pass a full mock
+  N5, or mark the real N5 as passed." Settings › JLPT levels › **Show every level** opens every level (a per-device
+  setting, added in progress v12). Locking never takes anything away: whatever is planted keeps its reviews.
+- **N4 content**, in its own files so N5 stays as it was:
+  - `tools/n4.tsv`: the N4 deck (731 words, same columns as the N5 deck), introduced in the Garden after the N5 deck.
+  - `js/course-data.js`: Phase 2 "N4 bridge" units p2-1 to p2-16, each point with its own grammar-card blank (`cloze`).
+  - `js/n4-kanji.js`: the 175 N4 kanji as Reading Dojo lessons (track `kanji4`) and 55 Kanji Forge kanji.
+  - `js/story-n4.js`: the Journey arc, chapters 13-17, with questions.
+  - `js/n4-listening.js`, `js/n4-practice.js`, `js/n4-speaking.js` and `js/n4-extras.js`: Listening Lab scenes,
+    Numbers & Time, Particle Train (each N4 train has its own palette of connectors), Sentence Builder, Conjugation
+    Dojo (verbs, adjectives and the N4 forms: potential, volitional, passive, causative, ば), Katakana Rush, Rhythm and
+    Speak Slice phrases, Pitch Duel pairs, the Shopkeeper's keigo, N4 rivals, tier 4 messages, and Kana Brush words.
+  - `js/exam-bank-n4-*.js`: the mock N4 (vocabulary 25 min, grammar and reading 55 min, listening 35 min; pass 90 of
+    180 with at least 38 and 19), including 用法 (usage) questions.
+- Modes get harder at N4: longer, faster Rhythm lines; N4 connectors in Particle Train and Sentence Builder; plain
+  casual chat in Ren's Messages; rivals at full power in Rival Battle; keigo customers and replies at the Shopkeeper;
+  whole words to write in Kana Brush.
+- `tests/levels.spec.js` fails if any mode has too little content at any level, or a mode screen doesn't import
+  `js/levels.js`. A new level adds its content to every source in `SOURCES`; a new mode adds a source and covers every
+  level.
+
 ## Voice clips and readings
 
 The app ships its own Japanese voices (VOICEVOX, one per character, at normal and slow speed) as small MP3s in
@@ -242,7 +270,7 @@ come from `js/readings.js`. Both are generated. After changing any Japanese text
 dictionary and the .vvm voice models) and which voices are used. Voices used: VOICEVOX:四国めたん, VOICEVOX:白上虎太郎,
 VOICEVOX:青山龍星, VOICEVOX:玄野武宏, VOICEVOX:東北イタコ, VOICEVOX:ずんだもん (credited in Settings, as their terms require).
 
-Most lines get a normal and a slow clip; the N5 words' extra voices 1 and 3 (for Pitch Coach's Ears first) are normal speed only, with pitch shaped from the accent. It synthesizes only new lines, rewrites `js/clips.js`, `js/readings.js`, `js/words.js` (where romaji puts spaces between words) and the precache list in `sw.js`. Then bump `CACHE_VERSION`.
+Most lines get a normal and a slow clip; the N5 words' extra voices 1 and 3 (for Pitch Coach's Ears first) are normal speed only, with pitch shaped from the accent. It synthesizes only new lines, rewrites `js/clips.js`, `js/readings.js`, `js/words.js` (where romaji puts spaces between words), `js/n5.js` and `js/n4.js` (from the decks) and the lists in `sw.js`: `FILES` (precached on install) and `LATER` (clips only a later level uses, cached in the background once that level is unlocked, so a phone doesn't download N4 audio before it's needed). Then bump `CACHE_VERSION`.
 
 ## Tests
 

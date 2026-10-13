@@ -1196,3 +1196,24 @@ body.has-tabs #update-ready { bottom: calc(var(--tabbar-h) + var(--sp-3) + env(s
   .rival-slash { transform: rotate(-14deg); }
   .rival-hp > span { transition: none; }
 }
+
+/* ---------- JLPT levels (js/levels.js) ---------- */
+.level-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1) var(--sp-2); min-width: 0; }
+.level-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px; font-family: var(--font-mono);
+  font-size: var(--fs-sm); font-weight: 700; border: 1.5px solid var(--border-strong); }
+.level-chip.on { border-color: var(--accent); color: var(--accent); }
+.level-chip.locked { color: var(--dim); border-style: dashed; }
+.level-bar .small { flex: 1 1 14em; min-width: 0; }
+.unit-row.locked { opacity: .7; }
+.levels-line { overflow-wrap: anywhere; }
+/* Particle Train at N4: longer pieces (ので, ながら, かどうか) fit their buttons. */
+.particle-grid .btn.particle { min-width: 0; overflow-wrap: anywhere; }
+/* Kana Brush at N4: the word being written, one slot per kana. */
+.brush-word-row { display: flex; flex-wrap: wrap; gap: 6px; font-family: var(--font-jp); font-size: var(--fs-jp-md); }
+.brush-slot { display: inline-grid; place-items: center; width: 1.8em; height: 1.8em; border-radius: var(--r-sm); border: 1.5px solid var(--border-strong); }
+.brush-slot.done { background: var(--surface-2); }
+.brush-slot.now { border-color: var(--accent); color: var(--accent); font-weight: 800; }
+/* Mock N4 用法: a word, then four full sentences. */
+.exam-word { font-size: var(--fs-jp-md); }
+.exam-opts.exam-long { grid-template-columns: 1fr; }
+.exam-opts.exam-long .btn { text-align: left; justify-content: flex-start; }

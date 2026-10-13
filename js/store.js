@@ -632,7 +632,7 @@ export function mergeProgress(local, remote, now = Date.now()) {
     seen: union(a.exam.seen, b.exam.seen).slice(-EXAM_SEEN_MAX),
   };
 
-  out.settings = { ...a.settings };
+  out.settings = { ...a.settings };   // per device: theme, voice range, "Show every level" (v12)…
   return out;
 }
 

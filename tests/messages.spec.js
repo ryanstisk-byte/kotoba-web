@@ -215,9 +215,9 @@ test.describe('saved progress v10 → v11', () => {
     await seed(page, FIXTURE_V10);
     await page.goto('./#/settings');
     const s = await saved(page);
-    expect(s.v).toBe(11);
+    expect(s.v).toBe(12);
     expect(s.items).toEqual(FIXTURE_V10.items);
-    expect(s.settings).toEqual(FIXTURE_V10.settings);
+    expect(s.settings).toEqual({ ...FIXTURE_V10.settings, showAllLevels: false });
     for (const k of ['chapters', 'forged', 'dojo', 'saga', 'course', 'engine', 'grammar', 'days', 'coach', 'exam', 'storyReplays']) expect(s[k], k).toEqual(FIXTURE_V10[k]);
     expect(s.messages).toEqual({ thread: [] });
   });

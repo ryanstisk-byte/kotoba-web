@@ -134,6 +134,19 @@ test.describe('mergeProgress (pure merge in store.js)', () => {
     expect((await merge(page, phone, { v: 6, items: {} })).settings.pronCheck).toBe(false);
   });
 
+  test('"Show every level" stays per device; a passed N5 on either device opens N4 on both (v12)', async ({ page }) => {
+    const pass = { level: 'N5', format: 'full', pass: true, total: 120, lk: 80, li: 40, at: T0 };
+    const phone = { v: 12, items: { ohayou: item(T0) }, settings: { showAllLevels: true }, exam: { history: [], real: {}, seen: [], later: {} } };
+    const pc = { v: 12, items: { arigatou: item(T0 + H) }, settings: { showAllLevels: false }, exam: { history: [pass], real: {}, seen: [], later: {} } };
+    const a = await merge(page, phone, pc);
+    expect(a.settings.showAllLevels).toBe(true);
+    expect((await merge(page, pc, phone)).settings.showAllLevels).toBe(false);
+    // The passed mock comes over, so N5 counts as done here too (that's what opens N4: js/levels.js).
+    expect(a.exam.history.map((h) => [h.level, h.format, h.pass])).toEqual([['N5', 'full', true]]);
+    // An older copy (v11, before the setting) never switches it on or off here.
+    expect((await merge(page, phone, { v: 11, items: {} })).settings.showAllLevels).toBe(true);
+  });
+
   test('the saved voice range stays per device; "ears first" words done on either device are kept', async ({ page }) => {
     const phoneVoice = { mid: 210, lo: -3, hi: 4, n: 5 };
     const pcVoice = { mid: 120, lo: -2.5, hi: 3, n: 2 };

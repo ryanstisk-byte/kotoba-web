@@ -21,13 +21,14 @@ const settle = (page) => page.evaluate(() => Promise.all(document.getAnimations(
 const blockTitles = (page) => view(page).locator('.block-row .strong').allInnerTexts();
 
 test.describe('course path and units', () => {
-  test('the path shows every phase, the current unit and outlines for Phase 2', async ({ page }) => {
+  test('the path shows every phase, the current unit, and Phase 2 (N4) locked until N5 is done', async ({ page }) => {
     await page.goto('./#/course');
     await expect(page.locator('#title')).toHaveText('Course');
     const v = view(page);
     await expect(v.locator('.section-label')).toHaveText(['PHASE 0 · RE-ENTRY', 'PHASE 1 · N5 CORE', 'PHASE 2 · N4 BRIDGE']);
     await expect(v.locator('a.unit-row')).toHaveCount(12);
-    await expect(v.locator('.unit-row.outline')).toHaveCount(8);
+    await expect(v.locator('.unit-row.locked')).toHaveCount(16);
+    await expect(v.getByText('Unlocks when you pass a full mock N5, or mark the real N5 as passed.')).toBeVisible();
     const current = v.locator('.unit-row[aria-current=step]');
     await expect(current).toHaveCount(1);
     await expect(current).toContainText('Say hello and introduce yourself');
@@ -78,19 +79,27 @@ test.describe('course path and units', () => {
     await expect(v.getByRole('button', { name: 'Make this my current unit' })).toHaveCount(0);
   });
 
-  test('every Phase 0 and 1 unit has 3-5 grammar points, 4-6 examples with readings, and practice', async ({ page }) => {
+  test('every unit has 3-5 grammar points, examples with readings, and practice (Phase 0-1: 4-6 examples; N4: a grammar card per point)', async ({ page }) => {
     await page.goto('./');
     const report = await page.evaluate(async () => {
       const { STUDY_UNITS, UNITS } = await import('./js/course-data.js');
       const { practiceList } = await import('./js/course.js');
+      const { unitCardKeys } = await import('./js/grammar-cards.js');
       return { total: UNITS.length, units: STUDY_UNITS.map((u) => ({
-        id: u.id, points: u.points.length, examples: u.points.reduce((a, p) => a + p.examples.length, 0),
-        readings: u.points.every((p) => p.examples.every((e) => /^[ぁ-ゖー\s、。！？]+$/.test(e.reading) && [0, 1, 2, 3].includes(e.voice))),
-        practice: practiceList(u).length,
+        id: u.id, n4: u.level === 'N4', points: u.points.length, examples: u.points.reduce((a, p) => a + p.examples.length, 0),
+        readings: u.points.every((p) => p.examples.every((e) => /^[ぁ-ゖー\s、。！？「」…]+$/.test(e.reading) && [0, 1, 2, 3, 4, 5].includes(e.voice))),
+        practice: practiceList(u).length, cards: unitCardKeys(u.id).length,
       })) };
     });
-    expect(report.units).toHaveLength(12);
-    for (const u of report.units) {
+    expect(report.units).toHaveLength(28);
+    for (const u of report.units.filter((x) => x.n4)) {
+      expect(u.points, u.id).toBeGreaterThanOrEqual(3);
+      expect(u.points, u.id).toBeLessThanOrEqual(5);
+      expect(u.readings, u.id).toBe(true);
+      expect(u.cards, u.id).toBe(u.points);   // every N4 point has a sentence to blank
+      expect(u.practice, u.id).toBeGreaterThanOrEqual(1);   // its N4 trains
+    }
+    for (const u of report.units.filter((x) => !x.n4)) {
       expect(u.points, u.id).toBeGreaterThanOrEqual(3);
       expect(u.points, u.id).toBeLessThanOrEqual(5);
       expect(u.examples, u.id).toBeGreaterThanOrEqual(4);
