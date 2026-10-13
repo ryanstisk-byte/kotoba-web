@@ -42,3 +42,22 @@ test('icons appear as things render: toasts, buttons, and a plant standing alone
   await page.goto('./#/play/garden');
   await expect(view(page).getByRole('img', { name: 'seedling' }).first()).toBeVisible();
 });
+
+test('every emoji written in the code has a line drawing, so none can show as an emoji', async () => {
+  const { readdirSync, readFileSync } = await import('node:fs');
+  const { EMOJI_ICONS } = await import('../js/icons.js');
+  const { ICON_ART } = await import('../js/icon-art.js');
+  const re = /(?:\p{Extended_Pictographic}(?:️|‍\p{Extended_Pictographic}️?)*)/gu;
+  const dir = new URL('../js/', import.meta.url);
+  const files = [...readdirSync(dir).map((f) => 'js/' + f), ...readdirSync(new URL('modes/', dir)).map((f) => 'js/modes/' + f)]
+    .filter((f) => f.endsWith('.js') && !/clips|readings|icon-art/.test(f));
+  const missing = [];
+  for (const f of files) {
+    for (const e of new Set(readFileSync(new URL('../' + f, import.meta.url), 'utf8').match(re) || [])) {
+      if (e === '©') continue;   // the dictionary credit: ordinary text
+      const name = EMOJI_ICONS[e.replace(/️/g, '')];
+      if (!name || !ICON_ART[name]) missing.push(`${e} in ${f}`);
+    }
+  }
+  expect(missing).toEqual([]);
+});

@@ -291,7 +291,8 @@ function drillHTML() {
     </div>`;
 }
 
-const arrow = (d) => ({ up: '↗', down: '↘', level: '→' }[d] || '');
+// The arrows draw as line icons (icons.js); the hidden word says the direction to screen readers.
+const arrow = (d) => ({ up: '↗<span class="sr-only">up</span>', down: '↘<span class="sr-only">down</span>', level: '→<span class="sr-only">level</span>' }[d] || '');
 
 /** Plays the model for the current exercise; resolves when it's done. Moves the playhead along the target. */
 function playModel() {
