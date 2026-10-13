@@ -57,7 +57,7 @@ A handwriting mode for hiragana and katakana (`js/modes/brush.js`). The learner 
 - **Misses.** The correct strokes animate in order with their numbers, then Try again with the guide on. Only the first try is graded; nothing is lost.
 - **Guide.** The outline is full until a kana is drawn right once, then fades with its drawing card's stability, and comes back if the card needs help. New kana show their writing mnemonic first.
 - **Mnemonics.** `js/brush-data.js` has an original stroke-by-stroke picture for each kana (English only, so no clips); kana with ゛ or ゜ build on their base kana's.
-- **Schedule.** Each kana's drawing card is `items['kana:あ'].dirs.draw` (saved progress v9), scheduled like the Dojo's reading review: same scheduler, a first-time miss back in half a day, never knocked down. The Dojo screen links to it with the due count. Results feed `store.grade` with skill `'kana'`.
+- **Schedule.** Each kana's drawing card is `items['kana:あ'].dirs.draw` (saved progress v10), scheduled like the Dojo's reading review: same scheduler, a first-time miss back in half a day, never knocked down. The Dojo screen links to it with the due count. Results feed `store.grade` with skill `'kana'`.
 - **Today.** While the kana are still being learned, every third day the reading block is Kana Brush (6 kana) instead of the next Dojo lesson, once 5 kana are met and unless 15+ reading reviews wait.
 - **Touch.** The pad has `touch-action: none` and cancels `touchmove`, so drawing never scrolls the page on iPhone Safari.
 
@@ -72,6 +72,32 @@ Templates still write the emoji. `js/icons.js` swaps each one for its drawing as
 - An icon that stands alone (a plant, a customer) is a named image.
 
 `tests/icons.spec.js` checks that no screen shows an emoji.
+
+## Exam readiness and the mock JLPT
+
+**Road to N5.** Today and Progress show how close you are to a mock exam for the next JLPT level you haven't done (`js/readiness.js`). Each area fills toward a target:
+
+| Area | What counts | Target |
+|---|---|---|
+| Vocabulary | N5 deck words at the Seedling stage or later | 75% of the deck |
+| Kanji | kanji learned in the Reading Dojo or forged | 80% of the ones the app teaches |
+| Grammar | N5 course grammar points whose Garden card holds for a week | 80% |
+| Listening | first-try listening accuracy, last 4 weeks | 80% over 40+ answers |
+| Reading | kana learned, and Story chapters cleared | all kana, 6 chapters |
+
+"Ready for a mock" comes when the areas average 90% of their targets with none under 60%. "Later" quiets it for a week. Nothing is locked: the mini mock is open any time.
+
+**Done levels drop off.** A level is done once a full mock is passed or the real test is marked as passed on Progress (which can be undone). Its meter then gives way to the next level. N4 has no lessons or mock yet, so its meter only shows the N5 words grown strong and the N4 bridge units.
+
+**Mock JLPT** (`#/exam`, `js/exam.js`, questions in `js/exam-data.js`). Every question is made from the app's own content, so every spoken line already has a clip:
+- Vocabulary: kanji reading with near-miss wrong readings (long vowels, voicing, っ, ゃゅょ), which spelling, word in context. No reading help.
+- Grammar: grammar-card blanks and the starred slot (Sentence Builder sentences whose four slots have only one right order).
+- Reading: Story chapters with their comprehension questions.
+- Listening: Listening Lab scenes, Numbers & Time, and N5 example sentences. Quiet mode shows the lines instead.
+
+There are two formats: a mini mock (no clock) and a full mock timed like the real N5 (20 / 40 / 30 minutes, with pause). It's scored like the real N5: 0-120 for vocabulary, grammar and reading, 0-60 for listening, a pass at 80 with minimums of 38 and 19. Every question counts the same here, so the score is a guide. Results show each part with where to practise, and every miss with its answer. Misses come back in the Garden. Recently asked questions are remembered so the next mock picks fresh ones.
+
+Saved progress v9 adds `exam`: `history`, `real` (marks by level), `seen` (recent question ids) and `later`. The sync merge keeps each mock once, the latest real-test mark, the union of seen ids and the later "Later".
 
 ## Pronunciation check (optional)
 
@@ -191,10 +217,11 @@ Actions (`.github/workflows/tests.yml`).
 - `tests/course.spec.js`: the guided course (path, units, lesson, grammar search, Today drawing from the current unit, unit completion, the saved `course` field).
 - `tests/progress.spec.js`: saved progress loads with nothing lost (`tests/fixtures/progress-v1.json`), export/import, reload, reset.
 - `tests/pron.spec.js`: the pronunciation check. It covers mora, sound, length and pitch analysis on synthetic data, the tip table, where the 🎤 appears, and the flow with a fake mic and recognizer (no recognition, a blocked mic, skipping), plus the v6 → v7 migration (`tests/fixtures/progress-v6.json`).
+- `tests/exam.spec.js`: the mock JLPT's question bank and scoring (in Node), the readiness meter on Today and Progress, "ready for a mock", marking the real test, a mini mock, the full mock's clock and pause, misses going into the Garden, and the v8 → v9 migration and sync merge (`tests/fixtures/progress-v8.json`).
 - `tests/pitch-coach.spec.js`: the Pitch Coach. Unit tests for the semitone scale, median filter, voice learning, scoring and が, then a fake mic (an oscillator in place of `getUserMedia`) sings known pitch curves to drive the live line, the ladder, Bigger, just this step, ears first, the first-time voice step and the warm-up buttons, plus the v7 → v8 migration (`tests/fixtures/progress-v7.json`).
 - `tests/garden-cards.spec.js`: Listen and Say it cards, grammar and conjugation cards, the needs-help mark and panel, the daily limits, and the v5 → v6 migration (`tests/fixtures/progress-v5.json`).
 - `tests/recap.spec.js`: the recap quiz in lessons, story scenes, the Garden and Kanji Forge (misses, retries, skipping, quiet mode, reading help, earlier Garden reviews, every spoken line having a clip).
-- `tests/brush.spec.js`: Kana Brush. The checker on every kana (sloppy redraws pass, other kana don't), joins, splits, order and look-alikes, drawing with the mouse and with touch (no page scroll), misses and retries, the guide fading, only Dojo kana, the Today block, and the v8 → v9 migration (`tests/fixtures/progress-v8.json`) with the sync merge.
+- `tests/brush.spec.js`: Kana Brush. The checker on every kana (sloppy redraws pass, other kana don't), joins, splits, order and look-alikes, drawing with the mouse and with touch (no page scroll), misses and retries, the guide fading, only Dojo kana, the Today block, and the v9 → v10 migration (`tests/fixtures/progress-v9.json`) with the sync merge.
 - `tests/sync.spec.js`: the sync merge (phone-vs-PC conflict, idempotence, mined-line clashes), and syncing against a mocked api.github.com (connect, find the gist, the automatic syncs, offline, bad token, Disconnect, the token never leaking).
 - `tests/offline.spec.js`: the service worker precaches everything and the app works with no network.
 - `tests/smoke.spec.js` and `tests/store.spec.js`: settings, the `#/check` screen, layout and store bookkeeping.

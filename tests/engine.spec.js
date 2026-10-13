@@ -359,7 +359,7 @@ test.describe('Progress screen', () => {
     }
     await expect(charts.first()).toHaveAttribute('aria-label', /Kana \d+% \(\d+\)/);
     await expect(charts.first().locator('title').first()).toContainText('right on the first try');
-    await expect(view(page).getByText('JLPT N5 coverage (estimate)')).toBeVisible();
+    await expect(view(page).getByRole('heading', { name: 'Road to JLPT N5' })).toBeVisible();
     await expect(view(page).locator('.stat-grid')).toContainText('days studied this month');
     await expect(view(page).getByText(/streak/i)).toHaveText(/No streaks/);
     const vw = page.viewportSize().width;
@@ -370,7 +370,7 @@ test.describe('Progress screen', () => {
   test('a brand-new learner sees an empty but friendly Progress screen', async ({ page }) => {
     await page.goto('./#/progress');
     await expect(view(page).getByText('Play any mode and your accuracy per skill shows up here.')).toBeVisible();
-    await expect(view(page).locator('svg.chart')).toHaveCount(2);   // kana/kanji and N5 still draw
+    await expect(view(page).locator('svg.chart')).toHaveCount(2);   // kana/kanji and the road to N5 still draw
     await expectNoHorizontalScroll(page);
   });
 });

@@ -24,6 +24,8 @@ import * as numbers from './modes/numbers.js';
 import * as settings from './settings.js';
 import * as soundcheck from './soundcheck.js';
 import * as placement from './placement.js';
+import * as exam from './exam.js';
+import { readinessCard } from './readiness.js';
 import * as progress from './progress.js';
 import { checkinCard, checkinHandlers } from './checkin.js';
 import { initReadingHelp, clearReadingHelp, readingConfig } from './furigana.js';
@@ -217,13 +219,18 @@ function routeView(a, b, c) {
     cleanup = placement.mount(view, { done: goHome });
     return;
   }
+  if (a === 'exam') {
+    setTitle('Mock JLPT', true);
+    cleanup = exam.mount(view, { done: goHome, quiet: store.settings.quiet });
+    return;
+  }
   if (a === 'check') {
     setTitle('Sound & mic check', true);
     cleanup = soundcheck.mount(view);
     return;
   }
   if (a === 'modes') { setTitle('Modes', false); renderModes(); return; }
-  if (a === 'progress') { setTitle('Progress', false); progress.render(view); return; }
+  if (a === 'progress') { setTitle('Progress', false); cleanup = progress.render(view); return; }
   setTitle('Kotoba Beat', false);
   renderHome();
 }
@@ -420,6 +427,7 @@ function renderHome() {
 
       <aside class="stack home-side" aria-label="At a glance">
         ${course.courseCard()}
+        ${readinessCard()}
         ${!store.trackDone('hiragana') && !store.clearedLessons.size ? `<a class="panel hint link-panel" href="#/play/dojo"><span class="grow small">🔤 <span class="strong">New to reading Japanese?</span> Start in the Reading Dojo: hiragana, katakana, then kanji. Until then, every game shows romaji (tap ふa at the top to change it).</span><span class="dim chev" aria-hidden="true">›</span></a>` : ''}
         <section class="panel stack-sm" aria-label="Garden at a glance">
           <div class="tiles">
@@ -438,6 +446,7 @@ function renderHome() {
     skip: (b) => { store.setBlock(b.dataset.id, 'skipped'); renderHome(); maybeReward(); },
     len: (b) => { store.setSetting('length', b.dataset.v); renderHome(); },
     hidehint: () => { store.setSetting('hideIosHint', true); renderHome(); },
+    'exam-later': (b) => { store.examLater(b.dataset.level); renderHome(); },
     ...checkinHandlers(renderHome),
   });
   const onChange = (ev) => {

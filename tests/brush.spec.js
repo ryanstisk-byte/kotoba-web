@@ -1,10 +1,10 @@
 // Kana Brush: the stroke checker on made-up drawings, drawing with the mouse and with touch (no page scroll), misses
 // that show the strokes and allow a retry, the guide fading, only Dojo kana, the Reading Dojo's schedule, the Today
-// reading block, Settings credits, and the v8 -> v9 migration (tests/fixtures/progress-v8.json) and sync merge.
+// reading block, Settings credits, and the v9 -> v10 migration (tests/fixtures/progress-v9.json) and sync merge.
 import { readFileSync } from 'node:fs';
 import { test, expect, seed, saved, view, expectNoHorizontalScroll } from './helpers.js';
 
-const FIXTURE_V8 = JSON.parse(readFileSync(new URL('./fixtures/progress-v8.json', import.meta.url), 'utf8'));
+const FIXTURE_V9 = JSON.parse(readFileSync(new URL('./fixtures/progress-v9.json', import.meta.url), 'utf8'));
 const DAY = 86_400_000;
 
 /** A learner who has done the first two hiragana lessons (あ row and か row) and drawn nothing yet. */
@@ -375,20 +375,20 @@ test.describe('Today', () => {
   });
 });
 
-test.describe('saved progress v8 → v9', () => {
-  test('the v8 fixture loads with every word, review date, chapter and setting kept', async ({ page }) => {
-    await seed(page, FIXTURE_V8);
+test.describe('saved progress v9 → v10', () => {
+  test('the v9 fixture loads with every word, review date, chapter and setting kept', async ({ page }) => {
+    await seed(page, FIXTURE_V9);
     await page.goto('./');
     const s = await saved(page);
-    expect(s.v).toBe(9);
-    expect(s.items).toEqual(FIXTURE_V8.items);
-    expect(s.settings).toEqual(FIXTURE_V8.settings);
-    expect(s.coach).toEqual(FIXTURE_V8.coach);
-    for (const k of ['chapters', 'forged', 'dojo', 'saga', 'course', 'engine', 'grammar', 'days', 'storyReplays']) expect(s[k]).toEqual(FIXTURE_V8[k]);
+    expect(s.v).toBe(10);
+    expect(s.items).toEqual(FIXTURE_V9.items);
+    expect(s.settings).toEqual(FIXTURE_V9.settings);
+    expect(s.coach).toEqual(FIXTURE_V9.coach);
+    for (const k of ['chapters', 'forged', 'dojo', 'saga', 'course', 'engine', 'grammar', 'days', 'storyReplays', 'exam']) expect(s[k], k).toEqual(FIXTURE_V9[k]);
   });
 
   test('migrated kana can be drawn; drawing cards survive reload, export and import, and the sync merge', async ({ page }) => {
-    await seed(page, FIXTURE_V8);
+    await seed(page, FIXTURE_V9);
     await page.goto('./#/play/brush');
     await expect(view(page).locator('.brush-cell')).toHaveCount(8);   // あいうえおかくキ: met in the Dojo
     await startRound(page);
@@ -401,7 +401,7 @@ test.describe('saved progress v8 → v9', () => {
     const card = s.items['kana:' + k].dirs.draw;
     expect(card.r).toBe(1);
     // Everything else from the fixture is still there.
-    for (const [id, p] of Object.entries(FIXTURE_V8.items)) {
+    for (const [id, p] of Object.entries(FIXTURE_V9.items)) {
       if (id !== 'kana:' + k) expect(s.items[id]).toEqual(p);
       else expect({ ...s.items[id], dirs: undefined }).toEqual({ ...p, dirs: undefined });
     }
@@ -414,7 +414,7 @@ test.describe('saved progress v8 → v9', () => {
       // A drawing card on a garden word is not a thing: it is dropped, its Listen card kept.
       const odd = store.parseImport(JSON.stringify({ ...fx, items: { ...fx.items, arigatou: { ...fx.items.arigatou, dirs: { ...fx.items.arigatou.dirs, draw: { due: 1, r: 1 } } } } }));
       return { back: back.items['kana:' + kk].dirs.draw, merged: merged.items['kana:' + kk].dirs.draw, merged2: merged2.items['kana:' + kk].dirs.draw, odd: odd.items.arigatou.dirs };
-    }, [FIXTURE_V8, k]);
+    }, [FIXTURE_V9, k]);
     expect(r.back).toEqual(card);
     expect(r.merged).toEqual(card);
     expect(r.merged2).toEqual(card);

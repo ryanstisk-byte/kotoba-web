@@ -1,5 +1,5 @@
 // Service worker: precache every file so the app works offline. Bump CACHE_VERSION on every update.
-const CACHE_VERSION = 'kotoba-beat-v30';
+const CACHE_VERSION = 'kotoba-beat-v31';
 const FILES = [
   './',
   './index.html',
@@ -15,6 +15,8 @@ const FILES = [
   './js/course.js',
   './js/data.js',
   './js/dojo-data.js',
+  './js/exam-data.js',
+  './js/exam.js',
   './js/furigana.js',
   './js/fx.js',
   './js/grammar-cards.js',
@@ -33,6 +35,7 @@ const FILES = [
   './js/pron-analysis.js',
   './js/pron-tips.js',
   './js/pron.js',
+  './js/readiness.js',
   './js/readings.js',
   './js/recap.js',
   './js/romaji.js',

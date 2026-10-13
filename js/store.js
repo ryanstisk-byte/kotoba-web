@@ -23,7 +23,7 @@ export const DIRECTIONS = ['listen', 'say'];
 export const DIRECTION_STAGE = 3;
 /** Misses (since the last time it was cleared) after which a card is marked as needing help. */
 export const HELP_AFTER = 4;
-/** Card directions a Reading Dojo kana can have besides reading it (Kana Brush: hear it, draw it). Added in v9. */
+/** Card directions a Reading Dojo kana can have besides reading it (Kana Brush: hear it, draw it). Added in v10. */
 export const KANA_DIRECTIONS = ['draw'];
 /** Right answers in a row that clear the needs-help mark. */
 export const HELP_CLEAR = 2;
@@ -32,14 +32,14 @@ export const HELP_CLEAR = 2;
 export const SKILLS = ['kana', 'kanji', 'vocab', 'grammar', 'listening', 'pitch', 'speaking', 'counters'];
 
 /** Version of the saved progress shape. Bump it and add a step to MIGRATIONS whenever the shape changes. */
-export const STATE_VERSION = 9;
+export const STATE_VERSION = 10;
 
 function blank() {
   return {
     v: STATE_VERSION,
     items: {},          // id -> { level, due (ms), best, r (reviews), pl (planted ms), s (stability, days), d (difficulty 1-10), lr (last review ms),
                         //        lapses, help, ok2 (needs-help bookkeeping, added in v6), dirs: { listen, say } (v6, see DIRECTIONS)
-                        //        or, on a 'kana:' item, dirs: { draw } (v9, Kana Brush, see KANA_DIRECTIONS) }
+                        //        or, on a 'kana:' item, dirs: { draw } (v10, Kana Brush, see KANA_DIRECTIONS) }
     lastSession: null,
     chapters: [],       // cleared chapter ids
     forged: [],         // forged kanji
@@ -59,7 +59,25 @@ function blank() {
     course: blankCourse(),   // added in v5: the guided course (see migrateCourse)
     grammar: {},        // added in v6: grammar review cards, key -> card (see migrateCards and js/grammar-cards.js)
     coach: { ears: [] }, // added in v8: Pitch Coach; ears = words whose "where does it drop?" warm-up is done
+    exam: blankExam(),  // added in v9: mock JLPT results and readiness (see blankExam)
   };
+}
+
+/** Mock results kept (the oldest drop off), and question ids remembered so the next mocks pick fresh ones. */
+export const EXAM_HISTORY_MAX = 50;
+export const EXAM_SEEN_MAX = 400;
+const LEVEL_RE = /^N[1-5]$/;
+
+/**
+ * Mock JLPT (js/exam.js) and readiness (js/readiness.js):
+ *   history  [{ level, format ('mini'|'full'), at, lk, li, total, pass, ok, n, parts: { part: [right, asked] } }], oldest first
+ *   real     { level: { on, at } }: the learner marked the real test as passed (on), or took the mark back
+ *   seen     question ids from recent mocks, newest last
+ *   later    { level: 'YYYY-MM-DD' }: "ready for a mock" stays quiet until this day ("Later")
+ * A level is done once a full mock is passed or the real test is marked; readiness then moves to the next level.
+ */
+export function blankExam() {
+  return { history: [], real: {}, seen: [], later: {} };
 }
 
 /**
@@ -151,11 +169,13 @@ const MIGRATIONS = {
   // v7 -> v8: the Pitch Coach. The learner's voice range (a per-device setting, learned later, so none yet) and the
   // words whose pitch ear-training is done.
   7: (raw) => ({ ...raw, settings: { voice: null, ...(raw.settings || {}) }, coach: raw.coach && typeof raw.coach === 'object' ? raw.coach : { ears: [] } }),
-  // v8 -> v9: Kana Brush. A Reading Dojo kana can carry a drawing card (items['kana:あ'].dirs.draw) with its own
+  // v8 -> v9: mock JLPT results and readiness (none yet). Nothing else changes.
+  8: (raw) => ({ ...raw, exam: raw.exam && typeof raw.exam === 'object' ? raw.exam : blankExam() }),
+  // v9 -> v10: Kana Brush. A Reading Dojo kana can carry a drawing card (items['kana:あ'].dirs.draw) with its own
   // schedule. None exist yet (each starts the first time that kana is drawn), so every item, review date, chapter and
   // setting passes through untouched. The version still moves so an older copy of the app, which would drop the
-  // drawing cards, leaves synced v9 progress alone until it updates.
-  8: (raw) => ({ ...raw }),
+  // drawing cards, leaves synced v10 progress alone until it updates.
+  9: (raw) => ({ ...raw }),
 };
 
 /** Adds the guided-course field with defaults. Self-contained: it touches nothing else in the blob. */
@@ -248,7 +268,40 @@ function normalize(input) {
       if (n) s.grammar[key] = n;
     }
   }
+  s.exam = normalizeExam(raw.exam);
   return s;
+}
+
+/** Cleans the mock JLPT block, keeping every well-formed result. */
+function normalizeExam(raw) {
+  const e = blankExam();
+  if (!raw || typeof raw !== 'object') return e;
+  if (Array.isArray(raw.history)) {
+    for (const h of raw.history) {
+      if (!h || typeof h !== 'object' || !LEVEL_RE.test(h.level) || !(Number(h.at) > 0)) continue;
+      const parts = {};
+      if (h.parts && typeof h.parts === 'object') {
+        for (const [k, t] of Object.entries(h.parts)) {
+          if (/^[a-z]+$/.test(k) && Array.isArray(t) && t.length >= 2) parts[k] = [Math.max(0, Math.floor(num(t[0]))), Math.max(0, Math.floor(num(t[1])))];
+        }
+      }
+      e.history.push({
+        level: h.level, format: h.format === 'full' ? 'full' : 'mini', at: Number(h.at),
+        lk: Math.max(0, Math.round(num(h.lk))), li: Math.max(0, Math.round(num(h.li))), total: Math.max(0, Math.round(num(h.total))),
+        pass: !!h.pass, ok: Math.max(0, Math.floor(num(h.ok))), n: Math.max(0, Math.floor(num(h.n))), parts,
+      });
+    }
+    e.history.sort((a, b) => a.at - b.at);
+    e.history = e.history.slice(-EXAM_HISTORY_MAX);
+  }
+  if (raw.real && typeof raw.real === 'object') {
+    for (const [lv, r] of Object.entries(raw.real)) if (LEVEL_RE.test(lv) && r && typeof r === 'object') e.real[lv] = { on: !!r.on, at: num(r.at) };
+  }
+  if (Array.isArray(raw.seen)) e.seen = [...new Set(raw.seen.filter((x) => typeof x === 'string' && x.length < 200))].slice(-EXAM_SEEN_MAX);
+  if (raw.later && typeof raw.later === 'object') {
+    for (const [lv, d] of Object.entries(raw.later)) if (LEVEL_RE.test(lv) && /^\d{4}-\d{2}-\d{2}$/.test(d)) e.later[lv] = d;
+  }
+  return e;
 }
 
 /** A saved voice range, or null if it's missing or doesn't look like a human voice. */
@@ -508,6 +561,20 @@ export function mergeProgress(local, remote, now = Date.now()) {
   }
 
   out.coach = { ears: union(a.coach.ears, b.coach.ears) };
+
+  // Mock results from both devices (the same mock synced twice counts once); the latest real-test mark per level;
+  // recently seen questions from both; the later of two "Later" days.
+  const hist = new Map();
+  for (const h of [...a.exam.history, ...b.exam.history]) hist.set(`${h.level}|${h.format}|${h.at}`, h);
+  const later = { ...a.exam.later };
+  for (const [lv, d] of Object.entries(b.exam.later)) if (!later[lv] || d > later[lv]) later[lv] = d;
+  const real = { ...a.exam.real };
+  for (const [lv, r] of Object.entries(b.exam.real)) if (!real[lv] || r.at > real[lv].at) real[lv] = { ...r };
+  out.exam = {
+    history: [...hist.values()].sort((x, y) => x.at - y.at).slice(-EXAM_HISTORY_MAX).map((h) => ({ ...h, parts: { ...h.parts } })),
+    real, later,
+    seen: union(a.exam.seen, b.exam.seen).slice(-EXAM_SEEN_MAX),
+  };
 
   out.settings = { ...a.settings };
   return out;
@@ -1164,6 +1231,39 @@ class Store {
   /** Whether a word's "where does the pitch drop?" warm-up is done (it comes first in its first Pitch Coach). */
   earsDone(id) { return this.s.coach.ears.includes(id); }
   markEars(id) { if (id && !this.s.coach.ears.includes(id)) { this.s.coach.ears.push(id); this.save(); } }
+
+  // ----- mock JLPT (js/exam.js, js/readiness.js) -----
+  get exam() { return this.s.exam; }
+
+  /** Levels done: a full mock passed, or the real test marked as passed. */
+  examDone() {
+    const done = new Set(this.s.exam.history.filter((h) => h.format === 'full' && h.pass).map((h) => h.level));
+    for (const [lv, r] of Object.entries(this.s.exam.real)) { if (r.on) done.add(lv); }
+    return done;
+  }
+
+  /** Saves a finished mock and remembers its questions as seen. */
+  recordMock(result, ids = [], now = Date.now()) {
+    const e = this.s.exam;
+    e.history.push({ ...result, at: now });
+    e.history = e.history.slice(-EXAM_HISTORY_MAX);
+    e.seen = [...e.seen.filter((x) => !ids.includes(x)), ...ids].slice(-EXAM_SEEN_MAX);
+    this.markStudied();
+  }
+
+  /** "I passed the real test" (on) or taking that back (off). */
+  markRealPass(level, on, now = Date.now()) {
+    if (!LEVEL_RE.test(level)) return;
+    this.s.exam.real[level] = { on: !!on, at: now };
+    this.save();
+  }
+
+  /** Hides "ready for a mock" for a level until `days` days from now. */
+  examLater(level, days = 7, now = new Date()) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + days);
+    this.s.exam.later[level] = dateKey(d);
+    this.save();
+  }
 
   /** Milestones worth syncing right away (a Today block finished). Returns an unsubscribe function. */
   onMilestone(fn) { milestoneListeners.add(fn); return () => milestoneListeners.delete(fn); }

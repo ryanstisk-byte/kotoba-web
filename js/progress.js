@@ -1,5 +1,5 @@
 // Progress screen: words known, kana and kanji progress, accuracy by skill over the last 4 weeks, days studied this
-// month (a calendar, never a streak) and a rough JLPT N5 coverage estimate. Charts are plain SVG, coloured with the
+// month (a calendar, never a streak) and the road to the next JLPT level (js/readiness.js) with mock results. Charts are plain SVG, coloured with the
 // design tokens (so they follow light and dark), each with a text alternative.
 import { store, dateKey, SKILLS } from './store.js';
 import { CHAPTERS, KANJI, N5_WORDS } from './data.js';
@@ -7,7 +7,9 @@ import { ALL_LESSONS, LESSONS, KANJI_LESSONS, TRACKS } from './dojo-data.js';
 import { SKILL_LABELS } from './skills.js';
 import { knobs } from './tuning.js';
 import { accuracyNote } from './today.js';
-import { esc } from './ui.js';
+import { esc, delegate } from './ui.js';
+import { readiness, mockLine, N5_TARGETS, READY_AVERAGE, READY_FLOOR } from './readiness.js';
+import { SCORING } from './exam-data.js';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const MON = MONTHS.map((m) => m.slice(0, 3));
@@ -132,12 +134,7 @@ export function render(view) {
     { label: 'Starter kanji', value: d.starter.n / d.starter.of, text: `${d.starter.n}/${d.starter.of}` },
     { label: 'Kanji Forge', value: d.forged.n / d.forged.of, text: `${d.forged.n}/${d.forged.of}` },
   ];
-  const vocabCov = d.n5Known / d.n5Total;
-  const kanjiCov = Math.min(1, d.kanjiKnown / N5_KANJI_ESTIMATE);
-  const n5Rows = [
-    { label: 'N5 vocabulary', value: vocabCov, text: `${d.n5Known}/${d.n5Total}`, title: `N5 vocabulary: ${d.n5Known} of ${d.n5Total} words known (${pct(vocabCov)})` },
-    { label: 'N5 kanji (est.)', value: kanjiCov, text: `${d.kanjiKnown}/~${N5_KANJI_ESTIMATE}`, title: `N5 kanji: ${d.kanjiKnown} of about ${N5_KANJI_ESTIMATE} (${pct(kanjiCov)})` },
-  ];
+  const road = readiness(now);
 
   // This month's calendar: a mark for every day you studied. Gaps are fine.
   const first = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -181,12 +178,7 @@ export function render(view) {
       <p class="small dim">Reading Dojo lessons: ${TRACKS.map((t) => `${esc(t.title)} ${lessonsDone(t.id)}/${ALL_LESSONS.filter((l) => l.track === t.id).length}`).join(' · ')}. Story chapters: ${store.clearedChapters.size}/${CHAPTERS.length}.</p>
     </section>
 
-    <section class="panel stack-sm" aria-labelledby="n5-h">
-      <h2 class="section-title" id="n5-h">JLPT N5 coverage (estimate)</h2>
-      <p><span class="stat-v mono">${pct(vocabCov)}</span> <span class="small dim">of the N5 vocabulary deck known</span></p>
-      ${barChart(n5Rows, { label: `JLPT N5 coverage: ${n5Rows.map((r) => `${r.label} ${r.text}`).join(', ')}.` })}
-      <p class="small dim">A rough guide, not a test score. Vocabulary counts the app's ${d.n5Total}-word N5 deck: a word is "known" once it has reached the Seedling stage in your garden. There's no official kanji list; about ${N5_KANJI_ESTIMATE} is the common estimate, and kanji count once learned in the Dojo or forged. Grammar and listening aren't measured here.</p>
-    </section>
+    ${roadSection(road, d)}
 
     <section class="panel stack-sm" aria-labelledby="garden-h">
       <h2 class="section-title" id="garden-h">Garden</h2>
@@ -203,5 +195,48 @@ export function render(view) {
     </section>
     <a class="btn wide" href="#/settings">Move progress to another device (Settings)</a>
   </div>`;
+  if (offRoad) offRoad();
+  offRoad = delegate(view, {
+    'real-ask': (b) => { const box = view.querySelector('.real-pass'); if (box) box.innerHTML = realConfirm(b.dataset.level); box?.querySelector('button')?.focus(); },
+    'real-yes': (b) => { store.markRealPass(b.dataset.level, true); render(view); },
+    'real-no': () => render(view),
+    'real-undo': (b) => { store.markRealPass(b.dataset.level, false); render(view); },
+  });
+  return () => { if (offRoad) offRoad(); offRoad = null; };
+}
+let offRoad = null;
+
+const realConfirm = (lv) => `<p class="small">Mark ${lv} as passed? Its meter makes way for the next level. You can undo this here.</p>
+  <div class="row2"><button class="btn primary" data-act="real-yes" data-level="${lv}">Yes, I passed it</button><button class="btn ghost" data-act="real-no">Cancel</button></div>`;
+
+/** The road to the next JLPT level: readiness by area, mock results, and levels already done. */
+function roadSection(road, d) {
+  const hist = store.exam.history;
+  const doneList = store.examDone();
+  const doneLines = [...doneList].map((lv) => {
+    const real = store.exam.real[lv];
+    const mock = hist.filter((h) => h.level === lv && h.format === 'full' && h.pass).pop();
+    return `<li>${lv} done${mock ? ` (${esc(mockLine(mock))})` : ''}${real && real.on ? ` · marked as passed for real <button class="linkbtn inline" data-act="real-undo" data-level="${lv}">Undo</button>` : ''}</li>`;
+  }).join('');
+  const recent = hist.slice(-5).reverse();
+  if (!road) {
+    return `<section class="panel stack-sm" aria-labelledby="road-h"><h2 class="section-title" id="road-h">JLPT</h2>
+      <ul class="small">${doneLines}</ul></section>`;
+  }
+  const rows = road.areas.map((a) => ({ label: a.label, value: a.value, text: a.text, title: a.title }));
+  const sc = SCORING[road.level];
+  return `<section class="panel stack-sm road" aria-labelledby="road-h">
+      <h2 class="section-title" id="road-h">Road to JLPT ${road.level}</h2>
+      <p><span class="stat-v mono">${pct(road.overall)}</span> <span class="small dim">of the way to ${road.mock ? `a mock ${road.level}` : road.level}</span></p>
+      ${barChart(rows, { label: `Readiness for ${road.level}: ${rows.map((r) => `${r.label} ${r.text}`).join(', ')}.` })}
+      ${road.mock ? `<p class="small">${road.ready ? `<span class="strong good-c">Ready for a mock ${road.level}.</span> ` : ''}Each bar fills toward a target, and "ready" comes when they average ${pct(READY_AVERAGE)} with none under ${pct(READY_FLOOR)}.</p>
+      <p class="small dim">Targets: ${pct(N5_TARGETS.vocab)} of the ${d.n5Total}-word N5 deck known (Seedling or later); ${pct(N5_TARGETS.kanji)} of the kanji the app teaches; ${pct(N5_TARGETS.grammar)} of the N5 grammar points remembered for a week; ${pct(N5_TARGETS.listening)} right in listening over ${N5_TARGETS.listeningAnswers}+ answers; the kana and ${N5_TARGETS.chapters} Story chapters. The real ${road.level} also uses about ${N5_KANJI_ESTIMATE} kanji, more than the app teaches yet, so its kanji questions come from words you know.</p>`
+        : `<p class="small dim">${road.level} lessons and a mock ${road.level} are still to come. Until then this shows the ground they build on.</p>`}
+      ${road.mock ? `<div class="row2"><a class="btn ${road.ready ? 'primary' : ''}" href="#/exam">Mock ${road.level}</a>
+        <span class="real-pass"><button class="btn ghost wide" data-act="real-ask" data-level="${road.level}">I passed the real ${road.level}</button></span></div>` : ''}
+      ${sc && recent.length ? `<h3 class="small strong">Mock results</h3><ul class="small mock-list">${recent.map((h) => `<li>${esc(mockLine(h))}</li>`).join('')}</ul>
+        <p class="tiny dim">The pass line is ${sc.pass}/${sc.total}. Only a full mock counts toward finishing a level.</p>` : ''}
+      ${doneLines ? `<ul class="small">${doneLines}</ul>` : ''}
+    </section>`;
 }
 
