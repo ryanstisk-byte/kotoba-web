@@ -2,7 +2,7 @@
 
 A personal Japanese study game for PC and phone. It has a Reading Dojo (hiragana, katakana, starter kanji) and thirteen game modes (Garden, Story, Particle Train, Kanji Forge, Conjugation Dojo, Sentence Builder, Katakana Rush, Rhythm, Pitch Duel, Speak Slice, Shopkeeper, Listening Lab and Numbers & Time) and a guided **Today** session.
 
-Live site: https://ryanstisk-byte.github.io/kotoba-web/
+Live site: https://rykoha.github.io/kotoba-web/
 
 - Plain HTML, CSS and JS with no build step. It works offline as a home-screen web app.
 - Progress is saved in the browser on each device. To keep devices in step, turn on Settings > Sync across devices (optional, below). Export / Import still works as a manual backup.
