@@ -45,6 +45,22 @@ Two right answers in a row clear the mark. The Garden screen's "Needs help" butt
 
 The migration plants grammar cards for lessons already read and conjugation forms already practised. The sync merge keeps each card's own most recent review.
 
+## Ren's Messages
+
+A phone-style thread from Ren, with Kaito (after story chapter 2) and the Master (after chapter 4) joining later. Engine in `js/messages.js`, messages in `js/messages-data.js`, inbox at `#/messages`, card on Today.
+
+- **One a day at most.** Opening the app (Today) can bring one new message. Nothing expires: unanswered messages stay, and skipped days lose nothing.
+- **Welcome back.** After 4 or more days away the next message is a warm 久しぶり！ note, never a guilt trip.
+- **Levels** (`learnerTier`):
+  - Tier 1: kana-only polite messages.
+  - Tier 2: casual speech, once hiragana is done and 4 course units (or 60 Garden words) are.
+  - Tier 3: N4 grammar (～たら, ～てしまう, ～なければならない, ～そうだ, ～かもしれない, ～ようと思う), once unit p1-10 is done (or 200 words).
+  - Kanji show only when every kanji in the message is known (Dojo or Kanji Forge). Otherwise the kana version shows.
+- **Words.** Each message lists its Garden words. It can arrive only when at most one of them is new, and that word has a "＋ New word" chip that plants it.
+- **Reading it.** Each message is voiced in its sender's VOICEVOX voice, with the usual reading help. A "what did they mean?" tap checks comprehension lightly: a miss shows the answer, nothing else. The tap is graded as `vocab` (`msg:<id>`).
+- **Replies.** 2-3 Japanese replies with English under each. The reply picks the next message (short conversations over days). Otherwise the next one is a fresh conversation: story moments first (the latest chapter reached), then the learner's tier.
+- **Pool.** 45 messages plus 3 welcome-back notes, original writing. 14 are tied to story chapters.
+- **Saved progress v11** adds `messages.thread` (`{ id, day, at, reply, ok }`, oldest first). The sync merge keeps every message from both devices once, and a copy with a reply or answer wins.
 ## Rival Battle
 
 A boss fight built entirely from review (`js/modes/rival.js`, attacks in `js/rival-items.js`, lines in `js/rival-data.js`).
@@ -238,6 +254,7 @@ Actions (`.github/workflows/tests.yml`).
 - `tests/pitch-coach.spec.js`: the Pitch Coach. Unit tests for the semitone scale, median filter, voice learning, scoring and が, then a fake mic (an oscillator in place of `getUserMedia`) sings known pitch curves to drive the live line, the ladder, Bigger, just this step, ears first, the first-time voice step and the warm-up buttons, plus the v7 → v8 migration (`tests/fixtures/progress-v7.json`).
 - `tests/garden-cards.spec.js`: Listen and Say it cards, grammar and conjugation cards, the needs-help mark and panel, the daily limits, and the v5 → v6 migration (`tests/fixtures/progress-v5.json`).
 - `tests/recap.spec.js`: the recap quiz in lessons, story scenes, the Garden and Kanji Forge (misses, retries, skipping, quiet mode, reading help, earlier Garden reviews, every spoken line having a clip).
+- `tests/messages.spec.js`: Ren's Messages. One a day, the inbox check and replies, replies picking the next message, welcome back, levels and kanji display, story-tied messages, the pool, every message voiced and playable with matching furigana, and the v10 → v11 migration (`tests/fixtures/progress-v10.json`).
 - `tests/rival.spec.js`: Rival Battle. Rivals unlocking, attacks only from what was learned, combos and the finisher, counters and comebacks, the training montage, Quiet mode, a spoken answer (fake recognizer), every line voiced and playable, and the optional weekend block.
 - `tests/brush.spec.js`: Kana Brush. The checker on every kana (sloppy redraws pass, other kana don't), joins, splits, order and look-alikes, drawing with the mouse and with touch (no page scroll), misses and retries, the guide fading, only Dojo kana, the Today block, and the v9 → v10 migration (`tests/fixtures/progress-v9.json`) with the sync merge.
 - `tests/sync.spec.js`: the sync merge (phone-vs-PC conflict, idempotence, mined-line clashes), and syncing against a mocked api.github.com (connect, find the gist, the automatic syncs, offline, bad token, Disconnect, the token never leaking).
