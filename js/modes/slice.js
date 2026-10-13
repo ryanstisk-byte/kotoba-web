@@ -4,8 +4,8 @@
 import { store } from '../store.js';
 import { sliceSpawn } from '../tuning.js';
 import { speaker, Recognizer, recognitionSupported, normalizeJa } from '../audio.js';
-import { PHRASES } from '../data.js';
-import { esc, shuffle, pick, rand, delegate } from '../ui.js';
+import { PHRASES, PHRASE_BY_ID } from '../data.js';
+import { esc, shuffle, pick, rand, delegate, melodySVG } from '../ui.js';
 import * as fx from '../fx.js';
 
 const ROUND = 60;
@@ -78,6 +78,18 @@ export function mount(el, ctx) {
       : '<p class="small dim">Wait for the next one…</p><div class="choice-grid"></div>';
   }
 
+  // One missed word: picture and meaning, the word, and how it sounds. Same-sound pairs (雨 rain / 飴 candy) both read
+  // "ame", so they get the pitch melody and a play button instead of plain kana.
+  function reviewRow(p) {
+    const meaning = p.meaning.replace(/\s*\(\+ が\)$/, '');
+    const picture = /\p{Extended_Pictographic}/u.test(p.prompt);
+    const label = picture ? `${esc(p.prompt)} ${esc(meaning)}` : esc(p.meaning);
+    const sound = p.isBoss
+      ? `<span class="review-sound">${melodySVG(p.morae, { height: 44 })}<button class="btn small" data-act="hear" data-id="${esc(p.id)}" aria-label="Hear ${esc(meaning)}">🔊</button></span>`
+      : `<span class="dim" lang="ja">${esc(p.kana)}</span>`;
+    return `<div class="word-row review-row" data-review="${esc(p.id)}"><span class="w110">${label}</span><span class="strong" lang="ja">${esc(p.display)}</span><span class="grow"></span>${sound}</div>`;
+  }
+
   function renderSummary() {
     const missed = [...new Map(g.missed.map((p) => [p.id, p])).values()].sort((a, b) => (a.id < b.id ? -1 : 1));
     el.innerHTML = `
@@ -86,7 +98,8 @@ export function mount(el, ctx) {
         <p class="strong lead">${g.hits} sliced · ${g.misses} got away</p>
         ${missed.length ? `<div class="panel left-text stack-sm">
           <p class="section-label">REVIEW THESE (they'll come back sooner)</p>
-          ${missed.map((p) => `<div class="word-row"><span class="w110">${esc(p.prompt)}</span><span class="strong" lang="ja">${esc(p.display)}</span><span class="grow"></span><span class="dim" lang="ja">${esc(p.kana)}</span></div>`).join('')}
+          ${missed.map(reviewRow).join('')}
+          ${missed.some((p) => p.isBoss) ? '<p class="small dim">Same sounds, different words: only the pitch tells them apart. Follow the dots and press play to hear it.</p>' : ''}
         </div>` : ''}
         <button class="btn primary wide" data-act="start">↻ Play again</button>
       </div>`;
@@ -308,6 +321,7 @@ export function mount(el, ctx) {
 
   const off = delegate(el, {
     start,
+    hear: (b) => { const p = PHRASE_BY_ID[b.dataset.id]; if (p) speaker.speak(p.speak, { mps: 3.5 }); },
     hint: (b) => {
       const f = g && g.flyers.find((x) => x.id === +b.dataset.id);
       if (f && !f.slicedAt) { f.hinted = true; drawFlyers(performance.now()); }
