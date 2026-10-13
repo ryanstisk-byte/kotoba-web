@@ -2,6 +2,7 @@
 import { store, DAILY_REVIEW_CAP, DAILY_REVIEW_CAP_SHORT } from './store.js';
 import { MODE_BY_ID } from './data.js';
 import { TRACKS } from './dojo-data.js';
+import { BRUSH_KANA } from './brush-data.js';
 import { coursePlan } from './course.js';
 import { attackPool, unlockedRivals, MIN_ITEMS } from './rival-items.js';
 
@@ -45,6 +46,18 @@ export function dayNumber(date) {
 export function weekParity(date) {
   return Math.floor((dayNumber(date) + 3) / 7) % 2;
 }
+/** Kana per Kana Brush round when it is the day's reading block. */
+const BRUSH_TODAY = 6;
+/**
+ * While the kana are still being learned, every third day the reading block is Kana Brush (draw kana met in the Dojo
+ * from memory) instead of the next Dojo lesson, once at least 5 kana have been met. Not when lots of reading reviews
+ * are waiting: those come first.
+ */
+export function brushDay(date, { beginner, dojoDue }) {
+  if (!beginner || dojoDue >= 15 || dayNumber(date) % 3 !== 0) return false;
+  return BRUSH_KANA.filter((x) => store.item('kana:' + x.k)).length >= 5;
+}
+
 const WEEKDAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 /** Builds today's blocks from the date and settings. Statuses come from the store. */
@@ -60,7 +73,14 @@ export function todayPlan(date = new Date()) {
   const nextLesson = store.nextLesson();
   const dojoDue = store.dojoDue().length;
   const beginner = !store.trackDone('hiragana') || !store.trackDone('katakana');
-  if (nextLesson || dojoDue >= 5) {
+  if (brushDay(date, { beginner, dojoDue })) {
+    const due = store.brushDue().length;
+    blocks.push({
+      id: 'dojo', mode: 'brush', mins: 5, title: 'Reading · Kana Brush',
+      desc: `Hear ${BRUSH_TODAY} kana and draw them from memory${due ? ` (${Math.min(due, BRUSH_TODAY)} due)` : ''}. The next Dojo lesson waits a day.`,
+      ctx: { n: BRUSH_TODAY },
+    });
+  } else if (nextLesson || dojoDue >= 5) {
     const review = !nextLesson || dojoDue >= 8;
     const track = nextLesson && TRACKS.find((t) => t.id === nextLesson.track);
     blocks.push({

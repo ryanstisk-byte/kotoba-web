@@ -365,6 +365,8 @@ export function gardenStage(level) {
 export const MODES = [
   { id: 'dojo', title: 'Reading Dojo', jp: '読み道場', group: 'Read', icon: '🔤', mic: false,
     body: 'Start here if you can\'t read Japanese yet: hiragana, then katakana, then your first kanji, a few at a time.' },
+  { id: 'brush', title: 'Kana Brush', jp: '書き道場', group: 'Read', icon: '✍', mic: false,
+    body: 'Hear a kana and draw it from memory with your finger or the mouse. A guide helps at first; a miss shows the strokes in order.' },
   { id: 'kata', title: 'Katakana Rush', jp: 'カタカナラッシュ', group: 'Read', icon: '⚡', mic: false,
     body: 'Read loanwords like コーヒー and テレビ against a gentle clock. Romaji help until you know katakana; time running out just shows the answer.' },
   { id: 'garden', title: 'Garden', jp: '庭', group: 'Review', icon: '🌱', mic: false,

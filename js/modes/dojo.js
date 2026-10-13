@@ -4,6 +4,7 @@ import { store } from '../store.js';
 import { speaker } from '../audio.js';
 import { LESSONS, KANJI_LESSONS, ALL_LESSONS, LESSON_BY_ID, TRACKS, READ_WORDS } from '../dojo-data.js';
 import { romaji } from '../romaji.js';
+import { BRUSH_KANA, BRUSH_BY_KANA } from '../brush-data.js';
 import { esc, shuffle, delegate } from '../ui.js';
 import * as fx from '../fx.js';
 
@@ -139,6 +140,7 @@ export function mount(el, ctx) {
         <div class="hero-jp accent-c" lang="ja" data-noruby>読</div>
         <p class="dim">Learn to read Japanese from zero: hiragana first, then katakana, then your first kanji. Each lesson is a few characters and a short practice. Until you know them, every game shows romaji over the Japanese (Settings › Reading help).</p>
         ${due.length ? `<button class="btn primary wide" data-act="review">🔁 Review ${Math.min(due.length, 15)} learned character${due.length === 1 ? '' : 's'}</button>` : ''}
+        ${brushHTML()}
         ${next ? `<button class="btn ${due.length ? '' : 'primary'} wide" data-act="lesson" data-id="${next.id}">▶ Next lesson: ${esc(trackTitle(next.track))} · ${esc(next.title)}</button>`
           : '<div class="panel note">🎉 Every lesson is cleared. Keep reviewing here, and the games will now show furigana only over kanji.</div>'}
         <div class="row2"><button class="btn" data-act="chart" data-track="hiragana">あ Hiragana chart</button><button class="btn" data-act="chart" data-track="katakana">ア Katakana chart</button></div>
@@ -157,6 +159,14 @@ export function mount(el, ctx) {
           </section>`;
         }).join('')}
       </div>`;
+  }
+
+  /** Kana Brush: draw the kana met here from memory. Its drawing reviews are listed with the reading ones. */
+  function brushHTML() {
+    const met = BRUSH_KANA.filter((x) => store.item('kana:' + x.k)).length;
+    if (!met) return '';
+    const due = store.brushDue().filter((k) => BRUSH_BY_KANA[k]).length;
+    return `<a class="btn wide" href="#/play/brush">✍ ${due ? `Draw ${due} kana that ${due === 1 ? 'is' : 'are'} due` : 'Kana Brush: draw them from memory'}</a>`;
   }
 
   const trackTitle = (id) => TRACKS.find((t) => t.id === id)?.title || id;

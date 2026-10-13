@@ -193,6 +193,25 @@ test.describe('mergeProgress (pure merge in store.js)', () => {
     expect(await merge(page, m, pc)).toEqual(m);
   });
 
+  test('Kana Brush drawing cards: the newest drawing review on either device wins, reading reviews merge on their own', async ({ page }) => {
+    const card = (lr, extra = {}) => ({ due: lr + 24 * H, s: 1.5, d: 5, lr, r: 2, pl: T0 - 90 * H, ...extra });
+    const phone = { v: 9, items: {
+      'kana:あ': item(T0 - 20 * H, { dirs: { draw: card(T0 + 4 * H, { r: 3 }) } }),   // drawn on the phone after the split
+      'kana:い': item(T0 + 2 * H),                                                     // read on the phone, never drawn
+    } };
+    const pc = { v: 10, items: {
+      'kana:あ': item(T0 + 1 * H, { r: 7 }),                                           // read on the PC, drawing older
+      'kana:い': item(T0 - 30 * H, { dirs: { draw: card(T0 + 3 * H, { lapses: 1 }) } }),
+    } };
+    const m = await merge(page, phone, pc);
+    expect(m.v).toBe(await page.evaluate(async () => (await import('./js/store.js')).STATE_VERSION));
+    expect(m.items['kana:あ'].r).toBe(7);                                 // PC's newer reading review
+    expect(m.items['kana:あ'].dirs.draw).toEqual(phone.items['kana:あ'].dirs.draw);
+    expect(m.items['kana:い'].lr).toBe(T0 + 2 * H);                      // phone's newer reading review
+    expect(m.items['kana:い'].dirs.draw).toEqual(pc.items['kana:い'].dirs.draw);
+    expect(await merge(page, pc, phone)).toMatchObject({ items: m.items });   // same either way round
+  });
+
   test('lines mined on both devices under the same number are both kept, and both devices agree on ids', async ({ page }) => {
     const line = (id, jp, at) => ({ id, jp, reading: '', en: jp + ' (en)', parts: [], at });
     const phone = { v: 5, items: { 'mine:1': item(T0 + H, { level: 1 }) }, saga: { mined: [line('mine:1', '腹へった', T0)], seq: 1 } };
