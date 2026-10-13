@@ -1018,3 +1018,8 @@ p:has(> .jr), .small:has(> .jr), .lead:has(> .jr), .strong:has(> .jr), span:has(
 .rush-card { border: 2px solid var(--ink); }
 .rush-word { font-family: var(--font-jp); font-size: clamp(2.6rem, 13vw, 4.2rem); font-weight: 900; line-height: 1.2; word-break: break-word; }
 .rush-romaji { font-size: var(--fs-lg); min-height: 1.5em; }
+
+/* Sentence Builder: "A new word appears!" break before a sentence with an unlearned word */
+.challenger { border: 2px solid var(--accent); animation: challenger-in 0.45s ease-out; }
+.challenger-head { font-size: 1.35rem; font-weight: 800; font-style: italic; color: var(--accent); letter-spacing: 0.02em; }
+@keyframes challenger-in { 0% { opacity: 0; transform: translateX(-24px) skewX(-6deg); } 70% { transform: translateX(4px); } 100% { opacity: 1; transform: none; } }

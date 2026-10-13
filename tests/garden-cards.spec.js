@@ -143,6 +143,11 @@ test.describe('Listen and Say it cards', () => {
     await open(page, { items: { 'n5:猫': p }, days: { '2026-10-10': { ok: 0, tot: 0, rev: 0, newc: 5, studied: true, blocks: {} } } });
     const v = view(page);
     await v.getByRole('button', { name: /Water 1 plant/ }).click();
+    // The mic waits for a tap: nothing listens until 🎤 is pressed.
+    await expect(v.getByRole('button', { name: /Tap to answer out loud/ })).toBeVisible();
+    await page.waitForTimeout(300);
+    await expect(v.getByText(/Heard it/)).toHaveCount(0);
+    await v.getByRole('button', { name: /Tap to answer out loud/ }).click();
     await expect(v.getByText(/Heard it/)).toBeVisible();
     await v.getByRole('button', { name: 'Next', exact: true }).click();
     const say = (await saved(page)).items['n5:猫'].dirs.say;

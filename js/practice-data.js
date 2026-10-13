@@ -357,7 +357,58 @@ export function conjWhy(word, form) {
 
 // ---------- Sentence Builder ----------
 
-const SCENES = ['🍜', '🎓', '🏃', '🥋', '🗣️', '📕', '💪', '💧', '⏰', '🏆', '⚔️', '🗾'];
+// Which catalog words a sentence's tiles use, so Sentence Builder can teach a new one first (see build.js).
+const PARTICLE_TILES = new Set(['は', 'が', 'を', 'に', 'で', 'へ', 'と', 'の', 'も', 'から', 'だ', 'ですか', 'ください', 'ことも']);
+const PICK = new Set(['優しい', '箸', '雨']);
+const NAMES = new Set(Object.values(CAST).map((c) => c.jpName));
+const GODAN = { き: 'く', ぎ: 'ぐ', し: 'す', ち: 'つ', に: 'ぬ', び: 'ぶ', み: 'む', り: 'る', い: 'う' };
+const BY_FORM = new Map();
+for (const it of Object.values(GARDEN_CATALOG)) {
+  for (const f of new Set([it.jp, it.reading].filter(Boolean))) {
+    if (!BY_FORM.has(f)) BY_FORM.set(f, []);
+    BY_FORM.get(f).push(it);
+  }
+}
+/** Dictionary forms a tile could be: the tile itself, without です, and ～ます verbs turned back into ～る/～う. */
+function forms(tile) {
+  const t = tile.replace(/[。、！？!?]/g, '');
+  const out = [t];
+  const bare = t.replace(/(ですか|です|だ)$/, '');
+  if (bare !== t && bare) out.push(bare);
+  const m = /^(.+?)(ませんか|ましたか|ました|ません|ますか|ます|ましょう)$/.exec(t);
+  if (m) {
+    const stem = m[1];
+    if (stem === 'し' || stem.endsWith('し') && stem.length > 2) out.push(stem.slice(0, -1) + 'する');
+    if (stem === 'き') out.push('くる', '来る');
+    if (stem.length > 2 && stem.endsWith('し')) out.push(stem.slice(0, -1));   // しょうぶします: the noun しょうぶ + する
+    out.push(stem + 'る');
+    const last = stem.slice(-1);
+    if (GODAN[last]) out.push(stem.slice(0, -1) + GODAN[last]);
+  }
+  const te = /^(.+?)(っています|んでいます|いています|ています)$/.exec(t);
+  if (te) out.push(te[1] + 'る', te[1] + 'う', te[1] + 'つ');
+  const nai = /^(.+)ない$/.exec(t);
+  if (nai) out.push(nai[1] + 'る');
+  if (/^.+い$/.test(bare)) out.push(bare);
+  return out;
+}
+/** The catalog words in a sentence: [{ tile, ids, jp, reading, en, say }] (say: the text that has a voice clip). Particles, names and unknown tiles are left out. */
+export function wordsInTiles(tiles) {
+  const out = [];
+  for (const tile of tiles) {
+    if (PARTICLE_TILES.has(tile) || NAMES.has(tile)) continue;
+    const hit = forms(tile).map((f) => BY_FORM.get(f)).find(Boolean);
+    if (!hit) continue;
+    // Same sound, different word: pick the meaning these sentences use.
+    const main = hit.find((it) => PICK.has(it.jp)) || hit[0];
+    out.push({ tile, ids: hit.map((it) => it.id), jp: main.jp, reading: main.reading || main.jp, en: main.en, say: main.say || main.reading || main.jp });
+  }
+  return out;
+}
+
+const SCENES = ['🍜', '🎓', '🏃', '🥋', '🗣️', '📕', '💪', '💧', '⏰', '🏆', '⚔️', '🗾',
+  '🐱', '☀️', '👩‍🏫', '📛', '☂️', '👟', '📚', '📺', '🍞', '🛝', '🥢', '📖', '🏫', '🏠', '🥋', '🕒', '🛏️', '🎬', '🍳',
+  '🎓', '🐶', '🐱', '❓', '🌧️', '🗣️'];
 /** Other word orders that are just as natural (the learner gets credit for these too). */
 const TRAIN_ALTS = { 2: ['町で毎日はしります'], 10: ['カイトとレンはしょうぶします'], 11: ['ともだちに日本であいます'] };
 const bare = (s) => s.replace(/[\s。、！？!?]/g, '');
