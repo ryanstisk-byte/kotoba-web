@@ -195,10 +195,13 @@ test.describe('readiness meter', () => {
   });
 });
 
-/** Ends every part from the answer sheet without answering (confirming the unanswered warning). */
-async function finishAll(page) {
+/**
+ * Ends `parts` parts (default: all) from the answer sheet without answering, confirming the unanswered warning. The
+ * full mock's listening part has no finish button (the tape sets the pace), so only the mini mock finishes it here.
+ */
+async function finishAll(page, parts = 3) {
   const v = view(page);
-  for (let k = 0; k < 6; k++) {
+  for (let k = 0; k < parts; k++) {
     const begin = v.locator('[data-act=begin]');
     if (await begin.count()) await begin.click();
     if (!(await v.locator('[data-act=sheet]').count())) return;
@@ -292,7 +295,7 @@ test.describe('mock exam', () => {
     expect(r[2]).toMatch(/毎日 <ruby>料理<rt>りょうり<\/rt><\/ruby>/);
     const v = view(page);
     await v.getByRole('button', { name: 'Start the full mock' }).click();
-    await finishAll(page);   // vocabulary
+    await finishAll(page, 1);   // vocabulary
     await v.locator('[data-act=begin]').click();
     // Grammar: the context sentence has no English translation in the full mock.
     await expect(v.locator('.exam-mondai')).toContainText('（　）に 何を 入れますか');
@@ -310,7 +313,7 @@ test.describe('mock exam', () => {
     const v = view(page);
     await fakeVoice(page);
     await v.getByRole('button', { name: 'Start the full mock' }).click();
-    await finishAll(page);   // vocabulary
+    await finishAll(page, 1);   // vocabulary
     await v.locator('[data-act=begin]').click();
     await v.locator('[data-act=sheet]').click();
     await v.locator('[data-act=finishpart]').click();
@@ -327,18 +330,22 @@ test.describe('mock exam', () => {
       const { store } = await import('./js/store.js');
       return store.exam.seen;
     });
-    // 24 listening items: each one's lines said once (課題/ポイント: the question, the talk, the question again).
+    // 24 listening items, each played once: every line is said exactly as often as the items in this mock contain it
+    // (課題/ポイント: the question twice, before and after the talk; a sentence can also appear in two items).
     const { TASK, UTTER } = LISTEN2;
     const { POINT, QUICK } = LISTEN1;
     const ids = mock.filter((id) => /^(task|point|utter|quick):/.test(id));
     expect(ids.length).toBe(24);
+    const want = {};
     for (const id of ids) {
       const [type, key] = id.split(':');
       const it = { task: TASK, point: POINT, utter: UTTER, quick: QUICK }[type].find((x) => x.id === key);
-      const lead = (it.question || it.line).jp;
-      const times = said.filter((x) => x === lead).length;
-      expect(times, id).toBe(type === 'task' || type === 'point' ? 2 : 1);
+      const lines = type === 'task' || type === 'point' ? [it.question, ...it.lines, it.question] : [it.question || it.line, ...it.replies];
+      for (const l of lines) want[l.jp] = (want[l.jp] || 0) + 1;
     }
+    const got = {};
+    for (const t of said) if (t in want) got[t] = (got[t] || 0) + 1;
+    expect(got).toEqual(want);
   });
 
   test('a full mock is timed per part, pauses, and moves on when time is up', async ({ page }) => {
