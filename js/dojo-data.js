@@ -1,5 +1,7 @@
-// Reading Dojo content: hiragana, katakana and starter kanji, in small lessons.
+// Reading Dojo content: hiragana, katakana and starter kanji, in small lessons, then the N4 kanji (js/n4-kanji.js).
 // Mnemonics are short picture hooks; they fade once the shapes are familiar.
+import { N4_KANJI_LESSONS as N4_LESSONS } from './n4-kanji.js';
+import { tagLevel } from './level-tag.js';
 
 const C = (k, r, m = '') => ({ k, r, m });
 
@@ -235,14 +237,21 @@ export const KANJI_LESSONS = [
   ] },
 ];
 
-/** Every lesson in order. Kanji lessons come after both kana tracks. */
-export const ALL_LESSONS = [...LESSONS, ...KANJI_LESSONS];
+tagLevel(LESSONS, 'N5');
+tagLevel(KANJI_LESSONS, 'N5');
+/** The N4 kanji (175), in lessons of 5-7: a track of their own once N4 is unlocked. */
+export const N4_KANJI_LESSONS = tagLevel(N4_LESSONS.map((l) => ({ ...l, track: 'kanji4' })), 'N4');
+
+/** Every lesson in order. Kanji lessons come after both kana tracks, and the N4 kanji after the starter kanji. */
+export const ALL_LESSONS = [...LESSONS, ...KANJI_LESSONS, ...N4_KANJI_LESSONS];
 export const LESSON_BY_ID = Object.fromEntries(ALL_LESSONS.map((l) => [l.id, l]));
 export const TRACKS = [
   { id: 'hiragana', title: 'Hiragana', jp: 'ひらがな', body: 'The basic alphabet. Every word can be written in it.' },
   { id: 'katakana', title: 'Katakana', jp: 'カタカナ', body: 'Same sounds, sharper shapes: foreign words, names, effects.' },
   { id: 'kanji', title: 'Starter kanji', jp: '漢字', body: '42 everyday kanji: numbers, days, people, verbs.' },
+  { id: 'kanji4', title: 'N4 kanji', jp: '漢字 N4', level: 'N4', body: `${N4_KANJI_LESSONS.reduce((n, l) => n + l.kanji.length, 0)} more kanji for N4: family, seasons, travel, work, feelings.` },
 ];
+tagLevel(TRACKS, 'N5');
 
 /** Words to read once their kana are learned, so practice is real reading, not just letters. */
 const V = (w, en) => ({ w, en });

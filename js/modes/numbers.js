@@ -2,7 +2,7 @@
 // Listen, pick the number. Replay, slow and a text button help; a miss shows the answer and the rule behind it.
 import { store } from '../store.js';
 import { speaker } from '../audio.js';
-import { NUMBER_SCENES } from '../practice-data.js';
+import { content, mixed, levelBar } from '../levels.js';
 import { esc, shuffle, delegate } from '../ui.js';
 import { choiceButtons, shuffled, sayAt } from '../practice-ui.js';
 import * as fx from '../fx.js';
@@ -22,7 +22,9 @@ export function mount(el, ctx) {
 
   function newRound() {
     // A mix of every kind: shuffle within each kind, then deal them out in turn.
-    const byKind = Object.keys(KIND).map((k) => shuffle(NUMBER_SCENES.filter((s) => s.kind === k)));
+    // Each kind in level-mixed order (about 70% from the newest unlocked level, js/levels.js).
+    const scenes = content('numbers');
+    const byKind = Object.keys(KIND).map((k) => mixed(scenes.filter((s) => s.kind === k)));
     const dealt = [];
     for (let r = 0; dealt.length < ROUND; r++) for (const list of shuffle(byKind)) if (list[r] && dealt.length < ROUND) dealt.push(list[r]);
     qs = dealt.map((s) => ({ s, ...shuffled(s.options) }));
@@ -56,6 +58,7 @@ export function mount(el, ctx) {
     const done = picked >= 0;
     el.innerHTML = `
       <div class="stack practice numbers" data-qid="${esc(s.id)}">
+        ${levelBar('numbers')}
         <div class="row-between"><span class="strong mono">${right}/${answered} right</span><span class="small dim mono">${i + 1}/${qs.length}</span></div>
         <div class="panel listen-stage">
           <span class="listen-scene" aria-hidden="true">${s.scene}</span>

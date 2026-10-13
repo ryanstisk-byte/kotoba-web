@@ -2,11 +2,13 @@
 // (stroke count, rough order, shape; js/brush-check.js) against KanjiVG's strokes. A miss draws the right strokes in
 // order and lets you try again; nothing is lost. Only kana met in the Reading Dojo come up, and each one's drawing card
 // is reviewed on the Dojo's schedule (store.recordBrush). A guide outline shows at first and fades as a kana gets
-// stronger.
+// stronger. At N4 (js/levels.js), whole words join the round: hear an N4 word and write it kana by kana, about 70% of
+// a round's entries once N4 is open (each kana still trains its own drawing card).
 import { store } from '../store.js';
 import { speaker } from '../audio.js';
 import { STROKES } from '../kana-strokes.js';
 import { BRUSH_KANA, BRUSH_BY_KANA } from '../brush-data.js';
+import { content, mixed, levelBar } from '../levels.js';
 import { checkDrawing } from '../brush-check.js';
 import { esc, shuffle, delegate } from '../ui.js';
 import * as fx from '../fx.js';
@@ -52,6 +54,26 @@ export function pickRound(n = ROUND) {
   return shuffle(picked);
 }
 
+/** Words in reach: N4 words (when unlocked) whose every kana has been met in the Reading Dojo. */
+export function brushWords() {
+  const met = new Set(brushPool().map((x) => x.k));
+  return content('brush').filter((x) => x.kana && [...x.kana].every((k) => met.has(k)));
+}
+
+/** Most whole words in one round (each is several drawings). */
+const WORDS_PER_ROUND = 3;
+
+/**
+ * A round's drawings: { k } for a single kana, { k, word, pos } for each kana of a word. Kana come from pickRound;
+ * with N4 open, words and kana are mixed about 70/30 (js/levels.js), at most WORDS_PER_ROUND words.
+ */
+export function pickPlan(n = ROUND) {
+  const kana = pickRound(n).map((k) => ({ kind: 'kana', k, level: 'N5' }));
+  const words = brushWords().slice().sort(() => Math.random() - 0.5).slice(0, WORDS_PER_ROUND).map((w) => ({ kind: 'word', w, level: w.level }));
+  const entries = words.length ? mixed([...kana, ...words], Math.min(n, kana.length + words.length)) : kana;
+  return entries.flatMap((e) => (e.kind === 'kana' ? [{ k: e.k }] : [...e.w.kana].map((k, pos) => ({ k, word: e.w, pos }))));
+}
+
 export function mount(el, ctx) {
   let screen = 'intro';   // intro | draw | result
   let round = [];
@@ -86,7 +108,9 @@ export function mount(el, ctx) {
         </div>`;
       return;
     }
+    const words = brushWords().length;
     el.innerHTML = `<div class="stack practice">
+        ${levelBar('brush')}
         <div class="hero-jp accent-c center-text" lang="ja" data-noruby>書</div>
         <p class="lead strong">Hear a kana, then draw it from memory with your finger or the mouse.</p>
         <p class="dim">A guide outline helps at first and fades as each kana gets stronger. A miss shows the strokes in order, then you try again: nothing is lost. Drawn kana come back for review like the rest of the Dojo.</p>
@@ -95,6 +119,7 @@ export function mount(el, ctx) {
           <div class="tile"><span class="tile-v mono">${due}</span><span class="small dim">due to draw</span></div>
           <div class="tile"><span class="tile-v mono">${fresh}</span><span class="small dim">not drawn yet</span></div>
         </div>
+        ${words ? `<p class="small dim">N4: rounds also bring whole words (${words} in reach) to write kana by kana from hearing them.</p>` : ''}
         <button class="btn primary wide" data-act="start">✍ Start a round of ${Math.min(ROUND, pool.length)}</button>
         <section class="stack-sm" aria-label="Your kana">
           <h2 class="section-label">YOUR KANA</h2>
@@ -109,7 +134,7 @@ export function mount(el, ctx) {
 
   // ---------- drawing ----------
   function start() {
-    round = pickRound(ctx.today && ctx.n ? ctx.n : ROUND);
+    round = pickPlan(ctx.today && ctx.n ? ctx.n : ROUND);
     i = 0;
     results = [];
     if (!round.length) { screen = 'intro'; render(); if (ctx.today) ctx.today.done('No kana to draw yet.'); return; }
@@ -117,15 +142,18 @@ export function mount(el, ctx) {
   }
 
   function ask() {
-    const k = round[i];
+    const { k, word = null, pos = 0 } = round[i];
     const info = BRUSH_BY_KANA[k];
     const guide = guideLevel(store.brushCard(k));
-    cur = { k, info, guide, attempt: 1, firstOk: null, state: 'draw', showRomaji: false };
+    cur = { k, word, pos, info, guide, attempt: 1, firstOk: null, state: 'draw', showRomaji: false };
     screen = 'draw';
     render();
     if (ctx.today) ctx.today.report(`${i + 1}/${round.length}`);
-    later(() => say(k), 200);
+    // A word is heard once, at its first kana (and again on request); a single kana every time.
+    if (!word || pos === 0) later(() => say(word ? word.kana : k), 200);
   }
+  /** What "Play again" plays: the whole word while writing one, else the kana. */
+  const sayCur = () => cur && say(cur.word ? cur.word.kana : cur.k);
 
   function renderDraw() {
     const { info, guide } = cur;
@@ -140,7 +168,9 @@ export function mount(el, ctx) {
           <button class="btn brush-listen" data-act="hear-cur">🔊 Play again</button>
           <p class="small dim brush-romaji">${cur.showRomaji ? `Sound: <span class="mono strong">${esc(info.r)}</span>` : '<button class="linkbtn" data-act="romaji">Can\'t play sound? Show it in letters</button>'}</p>
         </div>
-        <p class="small dim">Draw the ${script.toLowerCase()} for this sound.</p>
+        ${cur.word ? `<div class="panel brush-word stack-xs"><p class="small dim">Write the word you heard (${esc(cur.word.en)}), one kana at a time: kana ${cur.pos + 1} of ${cur.word.kana.length}.</p>
+          <p class="brush-word-row" lang="ja" aria-label="Written so far: ${esc(cur.word.kana.slice(0, cur.pos))}">${[...cur.word.kana].map((c, j) => `<span class="brush-slot ${j < cur.pos ? 'done' : j === cur.pos ? 'now' : ''}">${j < cur.pos ? esc(c) : j === cur.pos ? '?' : ''}</span>`).join('')}</p></div>`
+          : `<p class="small dim">Draw the ${script.toLowerCase()} for this sound.</p>`}
         ${showMnemonic ? `<p class="small panel note brush-hint">💡 ${esc(info.m)}</p>` : ''}
         <div class="brush-pad"></div>
         <div class="brush-feedback" aria-live="polite"></div>
@@ -267,7 +297,7 @@ export function mount(el, ctx) {
   const off = delegate(el, {
     start,
     hear: (b) => say(b.dataset.k),
-    'hear-cur': () => cur && say(cur.k),
+    'hear-cur': sayCur,
     romaji: () => { cur.showRomaji = true; el.querySelector('.brush-romaji').innerHTML = `Sound: <span class="mono strong">${esc(cur.info.r)}</span>`; },
     undo: () => pad?.undo(),
     clear: () => pad?.clear(),

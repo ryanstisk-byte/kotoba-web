@@ -6,6 +6,7 @@ import { CLIPS } from './clips.js';
 import { median } from './modes/rhythm.js';
 import * as fx from './fx.js';
 import * as sync from './sync.js';
+import { unlockedLevels, lockedLevels, lockLine } from './levels.js';
 
 export function mount(el, ctx) {
   let calib = null;        // { beats: [perfMs], taps: [perfMs], timers, result }
@@ -98,6 +99,12 @@ export function mount(el, ctx) {
           <a class="btn wide" href="#/check">🔧 Sound &amp; mic check</a>
         </section>
 
+        <section class="panel stack-sm">
+          <h2 class="section-title">JLPT levels</h2>
+          <p class="small">Open now: ${unlockedLevels().join(', ')}. ${lockedLevels().length ? esc(lockLine(lockedLevels()[0])) : 'Every level is open.'}</p>
+          <label class="switch-row"><span><span class="strong">Show every level</span><br><span class="small dim">Opens every level's content in every mode now, to look ahead (or to test). Turning it off again takes nothing away: what you've already started keeps coming back for review.</span></span>
+            <input type="checkbox" role="switch" data-act="alllevels" ${st.showAllLevels ? 'checked' : ''}></label>
+        </section>
         <section class="panel stack-sm">
           <h2 class="section-title">Microphone</h2>
           <p class="small">Speech recognition: <span class="${recognitionSupported ? 'good-c' : 'miss-c'}">${recognitionSupported ? 'available (Japanese, needs internet in Chrome)' : 'not available here: speaking modes use self-grading'}</span></p>
@@ -385,6 +392,7 @@ export function mount(el, ctx) {
     if (t.matches('[data-act=sfx]')) { store.setSetting('sfx', t.checked); if (t.checked) fx.sound('hit'); }
     if (t.matches('[data-act=pron]')) store.setSetting('pronCheck', t.checked);
     if (t.matches('[data-act=automic]')) store.setSetting('autoMic', t.checked);
+    if (t.matches('[data-act=alllevels]')) { store.setSetting('showAllLevels', t.checked); render(); }
     if (t.matches('[data-act=haptics]')) { store.setSetting('haptics', t.checked); if (t.checked) fx.buzz(20); }
     if (t.matches('[data-act=latrange]')) { setLatency(+t.value); }
     if (t.matches('[data-act-change=file]') && t.files && t.files[0]) {

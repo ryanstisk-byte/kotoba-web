@@ -1,5 +1,6 @@
 // App shell: router with a real back stack, tab bar, home ("Today" plan), modes, progress, today banner,
 // end-of-day reward, theme and text size, service worker.
+import { warmLevels } from './levels.js';
 import { store, dateKey } from './store.js';
 import { speaker } from './audio.js';
 import { MODES, MODE_BY_ID } from './data.js';
@@ -136,6 +137,7 @@ let lastPath = null;
 let inSession = false;   // on a screen outside the tabs (a mode, a lesson): leaving it ends the session
 
 function route() {
+  warmLevels();   // an unlocked level's voice clips are cached in the background (js/levels.js)
   closePron();   // a pronunciation check never outlives its screen
   closeCoach();  // nor does the Pitch Coach
   if (cleanup) { try { cleanup(); } catch (e) { console.warn(e); } cleanup = null; }
@@ -551,6 +553,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) showUpdateReady(); });
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').then((reg) => {
+      navigator.serviceWorker.ready.then(() => setTimeout(warmLevels, 3000)).catch(() => {});
       document.addEventListener('visibilitychange', () => { if (!document.hidden && reg) reg.update().catch(() => {}); });
     }).catch((e) => console.warn('SW registration failed', e));
   });

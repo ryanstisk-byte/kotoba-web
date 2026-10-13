@@ -2,7 +2,8 @@
 // the story. A right answer moves straight on; a miss shows the answer with a short "why" and comes back later.
 import { store } from '../store.js';
 import { speaker } from '../audio.js';
-import { CONJ_WORDS, VERB_FORMS, ADJ_FORMS, FORM_LABEL, conjugate, conjPrompt, conjDistractors, conjWhy } from '../practice-data.js';
+import { VERB_FORMS, ADJ_FORMS, VERB_FORMS_N4, ADJ_FORMS_N4, FORM_LABEL, formsFor, conjugate, conjPrompt, conjDistractors, conjWhy } from '../practice-data.js';
+import { content, isUnlocked, mixed, levelOf, levelBar } from '../levels.js';
 import { esc, shuffle, pick, delegate } from '../ui.js';
 import { choiceButtons, shuffled } from '../practice-ui.js';
 import * as fx from '../fx.js';
@@ -17,16 +18,31 @@ function makeQuestion(word, form) {
   return { word, form, answer, prompt: conjPrompt(word, form), ...shuffled([answer.jp, ...wrong]) };
 }
 
+/**
+ * Every (word, form) pair open now, each with a level: N5 words in the N5 forms; once N4 is unlocked, N4 words in
+ * every form and N5 words in the N4 forms (potential, volitional, passive, causative, ば).
+ */
+export function conjPairs() {
+  const out = [];
+  const n4 = isUnlocked('N4');
+  for (const word of content('conj')) {
+    const n5Forms = word.type === 'verb' ? VERB_FORMS : ADJ_FORMS;
+    const n4Forms = word.type === 'verb' ? VERB_FORMS_N4 : ADJ_FORMS_N4;
+    if (levelOf(word) === 'N5') for (const form of n5Forms) out.push({ word, form, level: 'N5' });
+    if (n4) for (const form of formsFor(word, levelOf(word) === 'N4' ? [...n5Forms, ...n4Forms] : n4Forms)) out.push({ word, form, level: 'N4' });
+  }
+  return out;
+}
+
 function newRound() {
-  // Mostly verbs, some adjectives; never the same word twice in a row.
+  // About 70% from the newest unlocked level (js/levels.js), mostly verbs, never the same word twice in a row.
   const qs = [];
   let lastWord = null;
-  while (qs.length < ROUND) {
-    const wantVerb = Math.random() < 0.7;
-    const word = pick(CONJ_WORDS.filter((w) => (w.type === 'verb') === wantVerb && w !== lastWord));
-    const form = pick(word.type === 'verb' ? VERB_FORMS : ADJ_FORMS);
-    qs.push(makeQuestion(word, form));
-    lastWord = word;
+  for (const p of mixed(conjPairs())) {
+    if (qs.length >= ROUND) break;
+    if (p.word === lastWord || (p.word.type === 'adj' && Math.random() < 0.5)) continue;
+    qs.push(makeQuestion(p.word, p.form));
+    lastWord = p.word;
   }
   return qs;
 }
@@ -52,6 +68,7 @@ export function mount(el, ctx) {
     const isAdj = cur.word.type === 'adj';
     el.innerHTML = `
       <div class="stack practice conj" data-qid="${esc(cur.word.jp)}|${cur.form}">
+        ${levelBar('conj')}
         <div class="row-between"><span class="strong mono">${right}/${answered} · ${Math.min(i + 1, qs.length)} of ${qs.length}</span>
           <span class="accent-c strong">${combo > 1 ? '×' + combo : ''}</span></div>
         <div class="bar"><span style="width:${(i / qs.length) * 100}%"></span></div>

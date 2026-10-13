@@ -9,7 +9,8 @@
 // look-alikes) until it's right twice in a row. The plant's growth stage only ever follows the Meaning card.
 import { store, DAILY_REVIEW_CAP } from '../store.js';
 import { speaker, Recognizer, recognitionSupported, normalizeJa } from '../audio.js';
-import { gardenStage, accentMorae, accentName, toMorae, N5_WORDS, GARDEN_CATALOG } from '../data.js';
+import { gardenStage, accentMorae, accentName, toMorae, N5_WORDS, N4_WORDS, GARDEN_CATALOG } from '../data.js';
+import { isUnlocked, lockLine, levelBar } from '../levels.js';
 import { mountRecap, listenQuestion, meaningQuestion, withReading, optionCount } from '../recap.js';
 import { cardQuestion, cardName } from '../grammar-cards.js';
 import { mnemonicFor, confusablesFor, exampleFor } from '../word-help.js';
@@ -164,6 +165,9 @@ export function mount(el, ctx) {
           ? "Your garden is empty. Words you meet in Rhythm, Story and Kanji Forge get planted here. Watering also introduces up to 5 new words a day: starter phrases first, then the N5 deck."
           : `${planted.length} plants. ${thirsty.length} need water. Plants grow each time you remember them, and they never die if you're away.`}</p>
         ${planted.length ? `<p class="small dim">N5 deck: ${planted.filter((p) => p.item.deck === 'n5').length} of ${N5_WORDS.length} words planted, up to 5 new a day.</p>` : ''}
+        ${planted.length ? (isUnlocked('N4')
+          ? `<p class="small dim">N4 deck: ${planted.filter((p) => p.item.deck === 'n4').length} of ${N4_WORDS.length} words planted. They come in after the N5 deck.</p>`
+          : `<p class="small dim">🔒 N4 deck (${N4_WORDS.length} words), after the N5 deck. ${esc(lockLine('N4'))}</p>`) : ''}
         ${grammarCount ? `<p class="small dim">${grammarCount} grammar card${grammarCount === 1 ? '' : 's'} come up in the watering too, up to 2 new a day.</p>` : ''}
         ${daily.waiting ? `<p class="small dim">Big backlog? Only ${cap} a day, most overdue first. The other ${daily.waiting} wait patiently.</p>` : ''}
         ${action}
@@ -381,7 +385,7 @@ export function mount(el, ctx) {
     const planted = store.planted().map((p) => p.item);
     const pool = (key, self, deck) => [
       ...shuffle(planted.filter((x) => !words.includes(x)).map((x) => x[key])),
-      ...shuffle(Object.values(GARDEN_CATALOG).filter((x) => !!x.deck === !!deck).map((x) => x[key])),
+      ...shuffle(Object.values(GARDEN_CATALOG).filter((x) => (deck ? x.deck === deck : !x.deck)).map((x) => x[key])),
     ].filter((v) => v && v !== self);
     // Lines mined from shows have no voice clip, so they're only asked by meaning.
     const listenQ = (w) => (w.mined ? meaning(w) : listenQuestion({ jp: w.jp, en: w.en, say: sayOf(w), pool: pool('en', w.en, w.deck), skill: 'vocab', gradeId: w.id, garden: [w.id], why: `${withReading(w.jp, w.reading)} means "${w.en}".`, what: 'the word' }));

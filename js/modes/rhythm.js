@@ -5,6 +5,7 @@ import { rhythmSpeed } from '../tuning.js';
 import { speaker, PitchTracker, semitones, micSupported, micHelp, audioContext, click } from '../audio.js';
 import { esc, delegate } from '../ui.js';
 import { PHRASE_BY_ID } from '../data.js';
+import { levelOf, levelBar } from '../levels.js';
 import * as fx from '../fx.js';
 import { romajiIfWanted } from '../furigana.js';
 import { openCoach, phraseTarget, coachAvailable } from '../pitch-coach.js';
@@ -93,7 +94,9 @@ export function mount(el, ctx) {
   const phrase = () => queue[index % queue.length];
   const level = () => store.level(phrase());
   const tempo = rhythmSpeed(store.engine);   // difficulty targeting: a little slower while speaking is hard
-  const mps = () => Math.max(1.6, Math.min(2.0 + 0.8 * level(), 7.0) * tempo);
+  // N4 lines are longer and start a little faster (natural speed for set phrases), then speed up the same way.
+  const levelBoost = () => (levelOf(phrase()) === 'N4' ? 0.6 : 0);
+  const mps = () => Math.max(1.6, Math.min(2.0 + levelBoost() + 0.8 * level(), 7.0) * tempo);
   const beat = () => 1 / mps();
   const latency = () => (store.settings.latencyMs || 0) / 1000;
   // Count-in: four clicks at the line's own beat (doubled up when the beat is very fast), so you hear the tempo
@@ -115,6 +118,7 @@ export function mount(el, ctx) {
     const busy = phase === 'countdown' || phase === 'playing';
     el.innerHTML = `
       <div class="stack">
+        ${ctx.phraseIds?.length ? '' : levelBar('rhythm')}
         ${ctx.quiet ? '<div class="panel note">🤫 Quiet mode: Rhythm needs your voice, so the mic is off. Listen, mouth along, and grade yourself.</div>' : ''}
         <div class="row-between">
           <span class="badge ${p.isBoss ? 'boss' : ''}">${p.isBoss ? 'BOSS · pitch pair' : 'Level ' + level()}</span>

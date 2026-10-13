@@ -1,7 +1,7 @@
 // Pitch Duel (PitchDuelView.swift): listen (a different voice each time) and pick the melody, or the word, you heard.
 import { store } from '../store.js';
 import { speaker } from '../audio.js';
-import { PHRASES } from '../data.js';
+import { content, pickMixed, levelBar } from '../levels.js';
 import { esc, shuffle, pick, delegate, melodySVG } from '../ui.js';
 import * as fx from '../fx.js';
 import { openCoach, phraseTarget, coachAvailable } from '../pitch-coach.js';
@@ -34,14 +34,16 @@ export function mount(el, ctx) {
 
   function nextQuestion() {
     chosen = null;
-    const bosses = PHRASES.filter((p) => p.isBoss);
+    // The unlocked levels' words, about 70% from the newest level (js/levels.js).
+    const open = content('duel');
+    const bosses = open.filter((p) => p.isBoss);
     // Half the time a true minimal pair (same sounds, different pitch), otherwise a melody choice.
     if (Math.random() < 0.5) {
-      const answer = pick(bosses);
+      const answer = pickMixed(bosses);
       const partners = bosses.filter((p) => p.kana === answer.kana);
       question = { answer, isPair: true, options: shuffle(partners).map((p) => ({ label: p.prompt, morae: p.morae, correct: p.id === answer.id })) };
     } else {
-      const answer = pick(PHRASES.filter((p) => !p.isBoss));
+      const answer = pickMixed(open.filter((p) => !p.isBoss));
       const opts = shuffle([{ morae: answer.morae, correct: true }, { morae: distractor(answer.morae), correct: false }]);
       question = { answer, isPair: false, options: opts.map((o, i) => ({ ...o, label: i === 0 ? 'A' : 'B' })) };
     }
@@ -68,6 +70,7 @@ export function mount(el, ctx) {
     const ok = chosen !== null && q.options[chosen].correct;
     el.innerHTML = `
       <div class="stack">
+        ${levelBar('duel')}
         <div class="row-between"><span class="strong mono">${right}/${asked} correct</span>
           <span class="small dim duel-voice">${speaker.currentVoiceName ? 'Voice: ' + esc(speaker.currentVoiceName) : ''}</span></div>
         <p class="lead strong">${q.isPair ? 'Which one did you hear?' : 'Which melody did you hear?'}</p>

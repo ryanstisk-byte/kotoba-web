@@ -8,13 +8,15 @@
 //   Vocabulary (20 min)          漢字読み 7, 表記 5, 文脈規定 6, 言い換え類義 3
 //   Grammar and reading (40 min) 文法形式の判断 9, 文の組み立て 4, 文章の文法 4, 内容理解(短文) 2, 内容理解(中文) 2, 情報検索 1
 //   Listening (30 min)           課題理解 7, ポイント理解 6, 発話表現 5, 即時応答 6
-import { N5_WORDS } from './data.js';
+import { N5_WORDS, N4_WORDS } from './data.js';
 import { BUILD_SENTENCES } from './practice-data.js';
 import { STUDY_UNITS } from './course-data.js';
 import { unitCardKeys, cardQuestion } from './grammar-cards.js';
 import { PARAPHRASE, TEXT_GRAMMAR, SHORT, MID, INFO } from './exam-bank-reading.js';
 import { POINT, QUICK } from './exam-bank-listen1.js';
 import { TASK, UTTER } from './exam-bank-listen2.js';
+import { N4_PARAPHRASE, N4_USAGE, N4_TEXT_GRAMMAR, N4_SHORT, N4_MID, N4_INFO } from './exam-bank-n4-reading.js';
+import { N4_TASK, N4_POINT, N4_UTTER, N4_QUICK } from './exam-bank-n4-listen.js';
 
 /**
  * The kanji an N5 learner is expected to know (the commonly used N5 list, about 100). The vocabulary part shows no
@@ -22,9 +24,14 @@ import { TASK, UTTER } from './exam-bank-listen2.js';
  */
 export const N5_KANJI = new Set([...'一二三四五六七八九十百千万円年月日時分半午前後今週毎何上下左右中外東西南北名山川天気雨電車駅道店社会学校生先友父母子女男人口目耳手足見聞読書話言語食飲行来出入休買立高安長新古大小白花空魚金土木水火国本間少多']);
 
-/** The levels the app knows about, easiest first. Only N5 has a mock so far. */
+/** The N4 kanji (the commonly used N4 list, about 170 beyond N5). In an N4 mock, kanji beyond N5 + N4 get furigana. */
+export const N4_KANJI = new Set([...N5_KANJI, ...'同事自民発者地合市業方回場員開力問代動京通理田主題首意不作用度強持野都以思家世区県進正院心界産教文元重近考画海売知集別物引使所品計死特私始朝村運終台広住真有料工建急止送切説転研究楽起着乗病声質待試族銀早映親験働英頭低医仕去味門写字答夜音注帰歌光悪図室太歩風紙黒春赤青館屋色走秋夏顔短薬習便洋旅軽池服遠夕借曜弱肉貸堂暗鳥飯勉冬昼茶弟洗牛兄犬菜暑妹寒姉漢']);
+/** Kanji a level's test expects (no furigana over these). */
+export const LEVEL_KANJI = { N5: N5_KANJI, N4: N4_KANJI };
+
+/** The levels the app knows about, easiest first, and the ones with a mock. */
 export const LEVELS = ['N5', 'N4', 'N3', 'N2', 'N1'];
-export const MOCK_LEVELS = ['N5'];
+export const MOCK_LEVELS = ['N5', 'N4'];
 
 /**
  * The real N5's score: two scored sections, a pass line and a minimum for each section. The real test scales its
@@ -32,6 +39,7 @@ export const MOCK_LEVELS = ['N5'];
  */
 export const SCORING = {
   N5: { lk: { max: 120, min: 38 }, li: { max: 60, min: 19 }, total: 180, pass: 80 },
+  N4: { lk: { max: 120, min: 38 }, li: { max: 60, min: 19 }, total: 180, pass: 90 },
 };
 
 /** Parts of a mock. `group` is the scored section: lk = language knowledge and reading, li = listening. */
@@ -60,6 +68,9 @@ export const TYPES = {
   para: { part: 'vocab', mondai: 'もんだい4', weight: 1,
     ja: '＿＿の ぶんと だいたい おなじ いみの ぶんが あります。1・2・3・4から いちばん いい ものを ひとつ えらんで ください。',
     en: 'Which sentence means about the same as the underlined one?' },
+  usage: { part: 'vocab', mondai: 'もんだい5', weight: 1,
+    ja: 'つぎの ことばの つかいかたで いちばん いい ものを 1・2・3・4から 一つ えらんで ください。',
+    en: 'Which sentence uses the word correctly?' },
   grammar: { part: 'grammar', mondai: 'もんだい1', weight: 1,
     ja: '（　）に 何を 入れますか。1・2・3・4から いちばん いい ものを 一つ えらんで ください。',
     en: 'What goes in the blank? Choose the best answer.' },
@@ -115,6 +126,34 @@ export const FORMATS = {
     ],
   },
 };
+
+/**
+ * The real N4's layout (same parts as N5, a few more of each, plus 用法 "usage"):
+ *   Vocabulary (25 min)          漢字読み 7, 表記 5, 文脈規定 8, 言い換え類義 4, 用法 4
+ *   Grammar and reading (55 min) 文法形式の判断 13, 文の組み立て 4, 文章の文法 4, 内容理解(短文) 3, 内容理解(中文) 3, 情報検索 2
+ *   Listening (35 min)           課題理解 8, ポイント理解 7, 発話表現 5, 即時応答 8
+ */
+export const FORMATS_N4 = {
+  full: {
+    title: 'Full mock', timed: true, practice: false,
+    sections: [
+      { id: 'vocab', title: 'Vocabulary', ja: 'げんごちしき（もじ・ごい）', minutes: 25, parts: [['read', 7], ['spell', 5], ['context', 8], ['para', 4], ['usage', 4]] },
+      { id: 'grammar', title: 'Grammar and reading', ja: 'げんごちしき（ぶんぽう）・どっかい', minutes: 55, parts: [['grammar', 13], ['star', 4], ['textgram', 4], ['short', 3], ['mid', 3], ['info', 2]] },
+      { id: 'listening', title: 'Listening', ja: 'ちょうかい', minutes: 35, parts: [['task', 8], ['point', 7], ['utter', 5], ['quick', 8]] },
+    ],
+  },
+  mini: {
+    title: 'Mini mock', timed: false, practice: true, minutes: 15,
+    sections: [
+      { id: 'vocab', title: 'Vocabulary', ja: 'げんごちしき（もじ・ごい）', parts: [['read', 2], ['spell', 1], ['context', 1], ['para', 1], ['usage', 1]] },
+      { id: 'grammar', title: 'Grammar and reading', ja: 'げんごちしき（ぶんぽう）・どっかい', parts: [['grammar', 2], ['star', 1], ['textgram', 5], ['short', 1], ['info', 2]] },
+      { id: 'listening', title: 'Listening', ja: 'ちょうかい', parts: [['task', 2], ['point', 1], ['utter', 1], ['quick', 2]] },
+    ],
+  },
+};
+/** Each level's formats. */
+export const LEVEL_FORMATS = { N5: FORMATS, N4: FORMATS_N4 };
+export const formatsFor = (level) => LEVEL_FORMATS[level] || FORMATS;
 
 const KANJI_RE = /[一-鿿々]/;
 const HIRA_RE = /^[ぁ-ゖー]+$/;
@@ -204,19 +243,32 @@ const around = (sentence, word, shown = word) => {
 
 // ---------- the question bank (built once) ----------
 
-const DECK = N5_WORDS.filter((w) => w.ex && w.exEn);
-
-/** Kanji reading: a word in its example sentence, underlined; pick how it's read. */
-const READ = DECK.filter((w) => KANJI_RE.test(w.jp) && w.jp.length <= 3 && HIRA_RE.test(w.reading) && w.ex.includes(w.jp) && nearMisses(w.reading).size >= 3);
-
-/** Which spelling: the word's reading underlined in its sentence; pick how it's written. */
-const SPELL = DECK.filter((w) => KANJI_RE.test(w.jp) && HIRA_RE.test(w.reading) && w.ex.includes(w.jp));
-
-/** Word in context: the word blanked in its example; pick the word that fits (the English is shown). */
-const CONTEXT = DECK.filter((w) => w.ex.includes(w.jp) && w.jp.length < w.ex.length - 2 && !VAGUE.test(w.en));
+/** A deck's question lists: words with example sentences, and the ones fit for each vocabulary question type. */
+function deckBank(words) {
+  const deck = words.filter((w) => w.ex && w.exEn);
+  return {
+    DECK: deck,
+    /** Kanji reading: a word in its example sentence, underlined; pick how it's read. */
+    READ: deck.filter((w) => KANJI_RE.test(w.jp) && w.jp.length <= 3 && HIRA_RE.test(w.reading) && w.ex.includes(w.jp) && nearMisses(w.reading).size >= 3),
+    /** Which spelling: the word's reading underlined in its sentence; pick how it's written. */
+    SPELL: deck.filter((w) => KANJI_RE.test(w.jp) && HIRA_RE.test(w.reading) && w.ex.includes(w.jp)),
+    /** Word in context: the word blanked in its example; pick the word that fits (the English is shown). */
+    CONTEXT: deck.filter((w) => w.ex.includes(w.jp) && w.jp.length < w.ex.length - 2 && !VAGUE.test(w.en)),
+  };
+}
+const N5B = deckBank(N5_WORDS);
+/** N4 questions ask N4 words; their wrong options may come from both decks. */
+const N4B = (() => {
+  const own = deckBank(N4_WORDS);
+  const both = deckBank([...N5_WORDS, ...N4_WORDS]);
+  return { ...own, POOL_DECK: both.DECK, POOL_SPELL: both.SPELL };
+})();
+const { DECK, READ, SPELL, CONTEXT } = N5B;
 
 /** The N5 course's grammar cards (re-entry and N5 core units). */
 export const N5_GRAMMAR_KEYS = STUDY_UNITS.filter((u) => u.phase === 'p0' || u.phase === 'p1').flatMap((u) => unitCardKeys(u.id));
+/** The N4 course's grammar cards (the Phase 2 "N4 bridge" units). */
+export const N4_GRAMMAR_KEYS = STUDY_UNITS.filter((u) => u.phase === 'p2').flatMap((u) => unitCardKeys(u.id));
 
 /** Particles that let a phrase move: with two of them among the four slots, more than one order can be right. */
 const FREE = new Set(['は', 'が', 'を', 'に', 'で', 'へ', 'と', 'も', 'から', 'まで']);
@@ -229,7 +281,9 @@ const starts = (s) => {
   return out;
 };
 /** Sentence Builder sentences with one right order, no repeated tiles and somewhere to put four unambiguous slots. */
-const STAR = BUILD_SENTENCES.filter((s) => s.tiles.length >= 4 && !(s.alts || []).length && new Set(s.tiles).size === s.tiles.length && starts(s).length);
+const starOk = (s) => s.tiles.length >= 4 && !(s.alts || []).length && new Set(s.tiles).size === s.tiles.length && starts(s).length;
+const STAR = BUILD_SENTENCES.filter((s) => (s.level || 'N5') === 'N5' && starOk(s));
+const STAR_N4 = BUILD_SENTENCES.filter((s) => s.level === 'N4' && starOk(s));
 
 // ---------- question builders ----------
 
@@ -247,7 +301,8 @@ function readQuestion(w, rand) {
   };
 }
 
-function spellQuestion(w, rand) {
+function spellQuestion(w, rand, b = N5B) {
+  const SPELL = b.POOL_SPELL || b.SPELL;
   const chars = new Set([...w.jp].filter((c) => KANJI_RE.test(c)));
   const others = SPELL.filter((x) => x.jp !== w.jp && x.reading !== w.reading && x.jp.length === w.jp.length);
   const sharing = others.filter((x) => [...x.jp].some((c) => chars.has(c)));
@@ -261,7 +316,8 @@ function spellQuestion(w, rand) {
   };
 }
 
-function contextQuestion(w, rand) {
+function contextQuestion(w, rand, b = N5B) {
+  const DECK = b.POOL_DECK || b.DECK;
   const kind = kindOf(w);
   const fits = (x) => x.jp !== w.jp && x.reading !== w.reading && !sharesWord(x.en, w.en) && !w.ex.includes(x.jp);
   const same = DECK.filter((x) => kindOf(x) === kind && fits(x));
@@ -306,6 +362,14 @@ function paraQuestion(p) {
   return {
     id: 'para:' + p.id, part: 'vocab', type: 'para', sentence: p.sentence, noruby: true,
     options: p.options.slice(), ja: true, answer: p.options[0], why: p.why,
+  };
+}
+
+/** 用法 (N4): which sentence uses the word correctly. The word is shown above four sentences. */
+function usageQuestion(u) {
+  return {
+    id: 'use:' + u.id, part: 'vocab', type: 'usage', word: u.word, wordReading: u.reading, en: u.en,
+    options: u.options.slice(), ja: true, answer: u.options[0], why: u.why,
   };
 }
 
@@ -368,6 +432,26 @@ const POOLS = {
 };
 POOLS.grammar.list = N5_GRAMMAR_KEYS;
 
+/** The N4 mock's pools: the N4 deck, the N4 course grammar, N4 Sentence Builder lines and the N4 banks. */
+const POOLS_N4 = {
+  read: { list: N4B.READ, id: (w) => 'read:' + w.id, make: (w, rand) => [readQuestion(w, rand)], word: true },
+  spell: { list: N4B.SPELL, id: (w) => 'spell:' + w.id, make: (w, rand) => [spellQuestion(w, rand, N4B)], word: true },
+  context: { list: N4B.CONTEXT, id: (w) => 'ctx:' + w.id, make: (w, rand) => [contextQuestion(w, rand, N4B)], word: true },
+  para: { list: N4_PARAPHRASE, id: (p) => 'para:' + p.id, make: (p) => [paraQuestion(p)] },
+  usage: { list: N4_USAGE, id: (u) => 'use:' + u.id, make: (u) => [usageQuestion(u)] },
+  grammar: { list: N4_GRAMMAR_KEYS, id: (k) => 'gram:' + k, make: POOLS.grammar.make },
+  star: { list: STAR_N4, id: (x) => 'star:' + x.id, make: (x, rand) => [starQuestion(x, rand)] },
+  textgram: { list: N4_TEXT_GRAMMAR, id: (t) => 'tg:' + t.id, make: (t) => textgramQuestions(t) },
+  short: { list: N4_SHORT, id: (t) => 'short:' + t.id, make: (t) => readingQuestions('short', t) },
+  mid: { list: N4_MID, id: (t) => 'mid:' + t.id, make: (t) => readingQuestions('mid', t) },
+  info: { list: N4_INFO, id: (t) => 'info:' + t.id, make: (t) => readingQuestions('info', t) },
+  task: { list: N4_TASK, id: (t) => 'task:' + t.id, make: (t) => [listenQuestion('task', t)] },
+  point: { list: N4_POINT, id: (t) => 'point:' + t.id, make: (t) => [listenQuestion('point', t)] },
+  utter: { list: N4_UTTER, id: (t) => 'utter:' + t.id, make: (t) => [listenQuestion('utter', t)] },
+  quick: { list: N4_QUICK, id: (t) => 'quick:' + t.id, make: (t) => [listenQuestion('quick', t)] },
+};
+const LEVEL_POOLS = { N5: POOLS, N4: POOLS_N4 };
+
 // ---------- a whole mock ----------
 
 /**
@@ -376,7 +460,9 @@ POOLS.grammar.list = N5_GRAMMAR_KEYS;
  * mocks in a row share few questions. `rand` is for tests.
  */
 export function buildMock({ level = 'N5', format = 'mini', seen = [], rand = Math.random } = {}) {
-  const f = FORMATS[format] || FORMATS.mini;
+  const formats = formatsFor(level);
+  const f = formats[format] || formats.mini;
+  const POOLS = LEVEL_POOLS[level] || LEVEL_POOLS.N5;
   const s = new Set(seen);
   const usedWords = new Set();   // a deck word is asked once per mock, whichever vocabulary type picks it
   const sections = f.sections.map((sec) => {
@@ -437,3 +523,5 @@ export function scoreMock(mock, answers) {
 
 /** Sizes of the bank (items per question type), for the tests and the intro screen. */
 export const BANK = Object.fromEntries(Object.entries(POOLS).map(([k, p]) => [k, p.list.length]));
+/** Bank sizes per level. */
+export const BANKS = Object.fromEntries(Object.entries(LEVEL_POOLS).map(([lv, pools]) => [lv, Object.fromEntries(Object.entries(pools).map(([k, p]) => [k, p.list.length]))]));

@@ -10,6 +10,7 @@ import { esc, delegate, shuffle } from '../ui.js';
 import * as fx from '../fx.js';
 import { romaji } from '../romaji.js';
 import { mountMine } from './story-mine.js';
+import { content, itemOpen, lockLine, levelOf, levelBar } from '../levels.js';
 import { pronButton, pronAvailable, wordTarget } from '../pron.js';
 
 const HAS_JP = /[ぁ-ゖァ-ヺ一-鿿]/;
@@ -46,12 +47,14 @@ export function mount(el, ctx) {
   // ---------- chapter map ----------
   function renderList() {
     const cleared = store.clearedChapters;
-    const nextId = CHAPTERS.find((c) => !cleared.has(c.id))?.id;
-    const done = CHAPTERS.filter((c) => cleared.has(c.id)).length;
+    // Chapters of locked levels show (locked, with one line saying how they open) but don't count yet.
+    const open = content('story');
+    const nextId = open.find((c) => !cleared.has(c.id))?.id;
+    const done = open.filter((c) => cleared.has(c.id)).length;
     const mined = store.mined.length;
     const node = (ch) => {
       const isCleared = cleared.has(ch.id);
-      const unlocked = ch.number === 1 || cleared.has('ch' + (ch.number - 1));
+      const unlocked = itemOpen(ch) && (ch.number === 1 || cleared.has('ch' + (ch.number - 1)));
       const state = isCleared ? 'cleared' : ch.id === nextId && unlocked ? 'next' : unlocked ? 'open' : 'locked';
       const head = `<span class="ch-num ${state === 'locked' ? 'locked' : ''}">${ch.number}</span>
         <span class="grow"><span class="strong big" lang="ja">${esc(ch.title)}</span><br><span class="small dim">${esc(ch.en)}</span></span>`;
@@ -81,14 +84,16 @@ export function mount(el, ctx) {
       <div class="stack saga">
         <h2 class="title-jp">言葉の道場</h2>
         <p class="dim">Kotoba Dojo: Ren wants to get stronger. Each line uses words you know plus about one new one, and every word you meet is planted in your garden. Questions after each chapter check what you understood.</p>
-        <div class="saga-progress"><div class="bar" role="img" aria-label="${done} of ${CHAPTERS.length} chapters cleared"><span style="width:${(done / CHAPTERS.length) * 100}%"></span></div>
-          <span class="small mono dim">${done}/${CHAPTERS.length}</span></div>
+        ${levelBar('story')}
+        <div class="saga-progress"><div class="bar" role="img" aria-label="${done} of ${open.length} chapters cleared"><span style="width:${(done / open.length) * 100}%"></span></div>
+          <span class="small mono dim">${done}/${open.length}</span></div>
         <button class="panel link-panel saga-mine" data-act="mine">
           <span class="grow"><span class="strong">✍️ Paste a line</span><br><span class="small dim">Heard a great line in a show? Turn it into a Garden card.${mined ? ` ${mined} mined so far.` : ''}</span></span>
           <span class="dim chev" aria-hidden="true">›</span></button>
         ${ARCS.map((arc) => `
           <section class="stack-sm" aria-label="${esc(arc.en)}">
-            <h3 class="section-label"><span lang="ja">${esc(arc.title)}</span> ${esc(arc.en.toUpperCase())} · ${esc(arc.level)}</h3>
+            <h3 class="section-label"><span lang="ja">${esc(arc.title)}</span> ${esc(arc.en.toUpperCase())} · ${esc(arc.label || arc.level)}</h3>
+            ${itemOpen(arc) ? '' : `<p class="small dim">🔒 ${esc(lockLine(levelOf(arc)))}</p>`}
             <ol class="saga-path">${arc.chapters.map((id) => node(byId(id))).join('')}</ol>
           </section>`).join('')}
         <p class="small dim">Cleared chapters: replay them, or take the no-furigana challenge to read them from memory.</p>
@@ -378,7 +383,7 @@ export function mount(el, ctx) {
     const words = chapter.beats.flatMap((b) => b.words);
     const n = quiz ? quiz.qs.length : 0;
     const ok = quiz ? quiz.ok : 0;
-    const next = CHAPTERS.find((c) => c.number === chapter.number + 1);
+    const next = CHAPTERS.find((c) => c.number === chapter.number + 1 && itemOpen(c));
     const verdict = !n ? '' : ok === n ? 'Every question right. You understood it all.'
       : ok >= n - 1 ? 'Nearly all right: that is right where learning happens.'
         : 'The answers you saw will stick next time. Replay it whenever you like.';

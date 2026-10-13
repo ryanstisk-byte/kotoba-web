@@ -1,6 +1,7 @@
 // Progress store: spaced review with no streaks. Missing days never wipes anything out.
 // Port of ProgressStore.swift plus the daily-plan bookkeeping for the "Today" screen.
-import { PHRASES, PHRASE_BY_ID, GARDEN_CATALOG, CHAPTERS, N5_WORDS } from './data.js';
+import { PHRASES, PHRASE_BY_ID, GARDEN_CATALOG, CHAPTERS, N5_WORDS, N4_WORDS } from './data.js';
+import { itemOpen } from './levels.js';
 import { ALL_LESSONS, LESSON_BY_ID } from './dojo-data.js';
 import * as srs from './srs.js';
 import { blankEngine, normalizeEngine, recordGrade, dayNumber, prune } from './skills.js';
@@ -32,7 +33,7 @@ export const HELP_CLEAR = 2;
 export const SKILLS = ['kana', 'kanji', 'vocab', 'grammar', 'listening', 'pitch', 'speaking', 'counters'];
 
 /** Version of the saved progress shape. Bump it and add a step to MIGRATIONS whenever the shape changes. */
-export const STATE_VERSION = 11;
+export const STATE_VERSION = 12;
 
 function blank() {
   return {
@@ -52,6 +53,7 @@ function blank() {
       pronCheck: true,                            // added in v7: show the 🎤 pronunciation check buttons
       autoMic: false,                             // the mic starts on its own in Say it cards and Sentence Builder
       voice: null,                                // added in v8: { mid (Hz), lo, hi (semitones), n } learned by the Pitch Coach
+      showAllLevels: false,                       // added in v12: open every JLPT level (js/levels.js), not just the ones reached
     },
     engine: blankEngine(),   // added in v3: the skill model, placement and weekly check-in (see skills.js)
     days: {},           // 'YYYY-MM-DD' -> { ok, tot, rev, newc, studied, blocks: { id: 'done'|'skipped' }, newd?, newg? (v6) }
@@ -223,6 +225,10 @@ const MIGRATIONS = {
   // v10 -> v11: Ren's Messages. An empty thread (the first message arrives the next time the app opens). Nothing
   // else changes.
   10: (raw) => ({ ...raw, messages: raw.messages && typeof raw.messages === 'object' ? raw.messages : blankMessages() }),
+  // v11 -> v12: JLPT levels (js/levels.js). The "Show every level" setting, off: N4 opens the usual way, once N5 is
+  // done (a full mock passed, or the real N5 marked as passed). A per-device setting, so sync never changes it.
+  // Everything already learned stays exactly as it was.
+  11: (raw) => ({ ...raw, settings: { showAllLevels: false, ...(raw.settings || {}) } }),
 };
 
 /** Adds the guided-course field with defaults. Self-contained: it touches nothing else in the blob. */
@@ -290,6 +296,7 @@ function normalize(input) {
     s.settings.pronCheck = st.pronCheck !== false;
     s.settings.autoMic = st.autoMic === true;
     s.settings.voice = normalizeVoice(st.voice);
+    s.settings.showAllLevels = st.showAllLevels === true;
   }
   s.engine = normalizeEngine(raw.engine, SKILLS);
   if (raw.days && typeof raw.days === 'object') {
@@ -886,8 +893,10 @@ class Store {
   /** Due phrases first (oldest due first), boss levels only after the basics have been seen. */
   queue() {
     const now = Date.now();
-    const seenBasics = PHRASES.filter((p) => !p.isBoss && this.s.items[p.id]).length;
-    const pool = PHRASES.filter((p) => !p.isBoss || seenBasics >= 6);
+    // Only phrases of unlocked levels (an N4 phrase already planted keeps its review, though: nothing is taken away).
+    const open = PHRASES.filter((p) => itemOpen(p) || this.s.items[p.id]);
+    const seenBasics = open.filter((p) => !p.isBoss && this.s.items[p.id]).length;
+    const pool = open.filter((p) => !p.isBoss || seenBasics >= 6);
     const byDue = (a, b) => this.progress(a.id).due - this.progress(b.id).due;
     const due = pool.filter((p) => this.isDue(p, now)).sort(byDue);
     return due.length ? due : pool.slice().sort(byDue);
@@ -930,7 +939,7 @@ class Store {
 
   thirsty(now = Date.now()) { return this.planted().filter((p) => p.prog.due <= now).map((p) => p.item); }
 
-  /** New words not yet planted that today's watering would introduce, in order (starter phrases, then the N5 deck). */
+  /** New words not yet planted that today's watering would introduce, in order (starter phrases, the N5 deck, then the N4 deck once unlocked). */
   freshWords(limit) {
     const plants = this.planted();
     const fresh = plants.filter((p) => !p.prog.r && p.prog.due <= Date.now())
@@ -940,13 +949,14 @@ class Store {
     if (fresh.length < limit) {
       for (const ph of PHRASES) {
         if (fresh.length >= limit) break;
-        if (!ph.isBoss && !this.s.items[ph.id]) fresh.push(GARDEN_CATALOG[ph.id]);
+        if (!ph.isBoss && ph.level === 'N5' && !this.s.items[ph.id]) fresh.push(GARDEN_CATALOG[ph.id]);
       }
     }
     if (fresh.length < limit) {
       // Skip N5 words already growing under another id (met in Story, Kanji Forge or the starter phrases).
       const known = new Set(plants.map((p) => p.item.jp).concat(fresh.map((f) => f.jp)));
-      for (const w of N5_WORDS) {
+      // Then the N4 deck, once N4 is unlocked (js/levels.js).
+      for (const w of [...N5_WORDS, ...N4_WORDS.filter(itemOpen)]) {
         if (fresh.length >= limit) break;
         if (!this.s.items[w.id] && !known.has(w.jp)) { fresh.push(GARDEN_CATALOG[w.id]); known.add(w.jp); }
       }
@@ -1147,10 +1157,10 @@ class Store {
     const cleared = this.clearedLessons;
     return ALL_LESSONS.filter((l) => l.track === track).every((l) => cleared.has(l.id));
   }
-  /** First lesson not yet cleared, in course order (hiragana, katakana, kanji). */
+  /** First lesson not yet cleared, in course order (hiragana, katakana, kanji, then N4 kanji once unlocked). */
   nextLesson() {
     const cleared = this.clearedLessons;
-    return ALL_LESSONS.find((l) => !cleared.has(l.id)) || null;
+    return ALL_LESSONS.find((l) => !cleared.has(l.id) && itemOpen(l)) || null;
   }
 
   /** Dojo review: same scheduler as the garden, but kept out of the garden's daily cap. */
@@ -1207,10 +1217,11 @@ class Store {
   // ----- story plan -----
   nextChapter() {
     const cleared = this.clearedChapters;
-    const next = CHAPTERS.find((c) => !cleared.has(c.id));
+    const open = CHAPTERS.filter(itemOpen);
+    const next = open.find((c) => !cleared.has(c.id));
     if (next) return { chapter: next, replay: false };
     // All cleared: replay the one revisited longest ago (rotating), furigana off.
-    const sorted = CHAPTERS.slice().sort((a, b) => (this.s.storyReplays[a.id] || 0) - (this.s.storyReplays[b.id] || 0));
+    const sorted = open.filter((c) => cleared.has(c.id)).sort((a, b) => (this.s.storyReplays[a.id] || 0) - (this.s.storyReplays[b.id] || 0));
     return { chapter: sorted[0], replay: true };
   }
 

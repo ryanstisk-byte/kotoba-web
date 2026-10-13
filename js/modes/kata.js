@@ -3,7 +3,7 @@
 // (never ends the round), and a pace that adapts to keep you around 85% right.
 import { store } from '../store.js';
 import { speaker } from '../audio.js';
-import { KATA_WORDS } from '../practice-data.js';
+import { content, mixed, levelBar } from '../levels.js';
 import { romaji } from '../romaji.js';
 import { esc, shuffle, delegate } from '../ui.js';
 import { choiceButtons } from '../practice-ui.js';
@@ -33,13 +33,14 @@ export function mount(el, ctx) {
   let timer = 0;
 
   function makeQ(w) {
-    const others = shuffle(KATA_WORDS.filter((o) => o.en !== w.en)).slice(0, 3);
+    const others = shuffle(content('kata').filter((o) => o.en !== w.en)).slice(0, 3);
     const opts = shuffle([w, ...others]);
     return { w, options: opts.map((o) => o.en), right: opts.indexOf(w) };
   }
 
   function newRound() {
-    qs = shuffle(KATA_WORDS).slice(0, ROUND).map(makeQ);
+    // About 70% from the newest unlocked level (js/levels.js).
+    qs = mixed(content('kata'), ROUND).map(makeQ);
     i = 0; picked = -1; score = 0; combo = 0; right = 0; answered = 0; retried = new Set(); missed = [];
     screen = 'play';
     begin();
@@ -95,6 +96,7 @@ export function mount(el, ctx) {
     const showRomaji = wheels || hinted || done;
     el.innerHTML = `
       <div class="stack practice rush" data-qid="${esc(cur.w.w)}">
+        ${levelBar('kata')}
         <div class="row-between"><span class="score mono">${score}</span><span class="accent-c strong">${combo > 1 ? '×' + combo : ''}</span>
           <span class="small dim mono">${Math.min(i + 1, qs.length)}/${qs.length}</span></div>
         <div class="rush-bar" aria-hidden="true"><span style="width:${done ? 0 : left * 100}%"></span></div>

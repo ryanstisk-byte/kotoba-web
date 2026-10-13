@@ -7,6 +7,7 @@ import { store } from '../store.js';
 import { speaker, Recognizer, recognitionSupported, normalizeJa } from '../audio.js';
 import { RIVALS, RIVAL_BY_ID, FINISHERS, REN_VOICE, MONTAGE_LINE } from '../rival-data.js';
 import { attackPool, planFight, nextAttack, optionsFor, unlockedRivals, MIN_ITEMS } from '../rival-items.js';
+import { levelBar, itemOpen, lockLine, levelOf } from '../levels.js';
 
 export { unlockedRivals };
 import { esc, pick, delegate } from '../ui.js';
@@ -52,7 +53,7 @@ export function mount(el, ctx) {
     const pool = attackPool();
     return {
       hp: rival.hp, combo: 0, best: 0, ok: 0, tot: 0, missRow: 0, turn: 0,
-      queue: planFight(pool, MAX_TURNS), comebacks: [], missed: [], seen: new Set(),
+      queue: planFight(pool, MAX_TURNS, rival.level), comebacks: [], missed: [], seen: new Set(),
       cur: null, opts: null, picked: -1, done: false, heard: '', listening: false,
       bubble: pick(rival.intro), finisher: null, montage: null, end: null,
     };
@@ -72,6 +73,7 @@ export function mount(el, ctx) {
     const enough = pool.length >= MIN_ITEMS;
     el.innerHTML = `
       <div class="stack practice rival">
+        ${levelBar('rival')}
         <div class="hero-jp accent-c center-text" lang="ja" data-noruby>戦</div>
         <p class="lead strong">A rival challenges you. Every attack is something you've already learned.</p>
         <p class="dim">Answer by tapping${speech ? ', or say it out loud with the mic' : ''}. Answers in a row build a combo and a finisher. A miss costs nothing: the rival says the answer and it comes back later. You can't lose.</p>
@@ -83,7 +85,7 @@ export function mount(el, ctx) {
             return `<button class="panel rival-card ${rival === r ? 'on' : ''}" data-act="choose" data-id="${r.id}" ${on ? '' : 'disabled'} aria-pressed="${rival === r}" style="--rival:${r.color}">
               <span class="rival-face" lang="ja" data-noruby aria-hidden="true">${esc(r.jpName.slice(0, 1))}</span>
               <span class="grow left-text"><span class="strong">${esc(r.name)}</span> <span class="small dim" lang="ja" data-noruby>${esc(r.jpName)}</span><br>
-                <span class="small dim">${on ? esc(r.blurb) : `🔒 Challenges you after story chapter ${esc(r.after.slice(2))}.`}</span></span>
+                <span class="small dim">${on ? esc(r.blurb) : !itemOpen(r) ? `🔒 ${levelOf(r)}. ${esc(lockLine(levelOf(r)))}` : `🔒 Challenges you after story chapter ${esc(r.after.slice(2))}.`}</span></span>
             </button>`;
           }).join('')}
         </div>

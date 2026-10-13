@@ -9,7 +9,8 @@
 // scores), each part with where to practise it, and every miss with its answer and why. Each miss goes to the Garden.
 import { store } from './store.js';
 import { speaker } from './audio.js';
-import { buildMock, scoreMock, mockIds, FORMATS, PARTS, SCORING, MOCK_LEVELS, TYPES, N5_KANJI } from './exam-data.js';
+import { buildMock, scoreMock, mockIds, formatsFor, PARTS, SCORING, MOCK_LEVELS, TYPES, LEVEL_KANJI } from './exam-data.js';
+import { isUnlocked, lockLine } from './levels.js';
 import { pictureSVG, sceneSVG } from './exam-art.js';
 import { readingOf } from './furigana.js';
 import { readiness, mockLine } from './readiness.js';
@@ -25,11 +26,14 @@ const fmtTime = (ms) => {
 };
 
 const KANJI_RUN = /([一-鿿々]+)/;
-/** Japanese text with furigana like the real test: only over kanji runs that hold a kanji beyond N5. */
-export function furi(text) {
+/** The level whose kanji go without furigana (the mock on screen). */
+let furiLevel = 'N5';
+/** Japanese text with furigana like the real test: only over kanji runs that hold a kanji beyond the test's level. */
+export function furi(text, level = furiLevel) {
+  const known = LEVEL_KANJI[level] || LEVEL_KANJI.N5;
   return String(text).split(KANJI_RUN).map((part, i) => {
     if (i % 2 === 0) return esc(part);
-    if ([...part].every((c) => N5_KANJI.has(c))) return esc(part);
+    if ([...part].every((c) => known.has(c))) return esc(part);
     const r = readingOf(part);
     return r ? `<ruby>${esc(part)}<rt>${esc(r)}</rt></ruby>` : esc(part);
   }).join('');
@@ -46,8 +50,17 @@ function playLines(lines, isLive) {
   });
 }
 
+/** The mock to offer first: the first level not done yet that's open (else the newest open one). */
+export function defaultMockLevel() {
+  const open = MOCK_LEVELS.filter((lv) => isUnlocked(lv));
+  const done = store.examDone();
+  return open.find((lv) => !done.has(lv)) || open[open.length - 1] || MOCK_LEVELS[0];
+}
+
 export function mount(el, ctx = {}) {
-  const level = MOCK_LEVELS[0];
+  let level = ctx.level && MOCK_LEVELS.includes(ctx.level) && isUnlocked(ctx.level) ? ctx.level : defaultMockLevel();
+  furiLevel = level;
+  const FORMATS_OF = () => formatsFor(level);
   const quiet = !!ctx.quiet;
   let phase = 'intro';     // intro | section | question | sheet | confirm | paused | result
   let mock = null;
@@ -206,10 +219,15 @@ export function mount(el, ctx = {}) {
   function renderIntro() {
     const r = readiness();
     const sc = SCORING[level];
+    const FORMATS = FORMATS_OF();
     const full = FORMATS.full;
     const n = (f) => f.sections.reduce((a, s) => a + s.parts.reduce((b, [, c]) => b + c, 0), 0);
     const hist = store.exam.history.filter((h) => h.level === level).slice(-3).reverse();
     el.innerHTML = `<div class="stack exam">
+      <div class="seg" role="radiogroup" aria-label="Level">
+        ${MOCK_LEVELS.map((lv) => `<button class="seg-btn ${lv === level ? 'on' : ''}" data-act="level" data-lv="${lv}" role="radio" aria-checked="${lv === level}" ${isUnlocked(lv) ? '' : 'disabled'}>${isUnlocked(lv) ? '' : '🔒 '}Mock ${lv}</button>`).join('')}
+      </div>
+      ${MOCK_LEVELS.filter((lv) => !isUnlocked(lv)).map((lv) => `<p class="small dim">${lv}: ${esc(lockLine(lv))}</p>`).join('')}
       <h2 class="section-title">Mock JLPT ${level}</h2>
       <p>Practice in the real test's format, with original questions and the app's own voices. It's optional and nothing is locked by it. About once a month is plenty.</p>
       ${r && r.level === level ? `<p class="small ${r.ready ? 'good-c strong' : 'dim'}">${r.ready ? `You look ready: ${Math.round(r.overall * 100)}% of the way on your road to ${level}.`
@@ -247,7 +265,7 @@ export function mount(el, ctx = {}) {
     const n = sec.questions.length;
     const listening = sec.id === 'listening';
     el.innerHTML = `<div class="stack exam">
-      <p class="small dim">${esc(FORMATS[mock.format].title)} ${level} · part ${si + 1} of ${mock.sections.length}</p>
+      <p class="small dim">${esc(FORMATS_OF()[mock.format].title)} ${level} · part ${si + 1} of ${mock.sections.length}</p>
       ${timeUp ? '<p class="note-c small" role="status">Time\'s up for that part. In the real test you\'d move on now, so this one does too.</p>' : ''}
       <h2 class="section-title"><span lang="ja" data-noruby>${esc(sec.ja)}</span></h2>
       <p class="strong">${esc(sec.title)}</p>
@@ -298,6 +316,9 @@ export function mount(el, ctx = {}) {
   /** The part of a question above its options. */
   function body(q, { review = false } = {}) {
     const hints = practice() || review;
+    if (q.type === 'usage') {
+      return `<p class="exam-jp exam-word" lang="ja"><strong>${esc(q.word)}</strong></p>${hints ? `<p class="small dim">${esc(q.wordReading)}: "${esc(q.en)}"</p>` : ''}`;
+    }
     if (q.sentence) {
       const s = q.sentence;
       return `<p class="exam-jp" lang="ja">${esc(s.before)}<u class="exam-mark">${esc(s.mark)}</u>${esc(s.after)}</p>`;
@@ -336,7 +357,7 @@ export function mount(el, ctx = {}) {
       const showText = practice() || quiet;
       return `<div class="exam-opts exam-heard">${q.shown.map((o, i) => btn(o, i, `<span class="exam-num">${i + 1}</span>${showText ? ` <span class="small">${furi(o)}</span>` : ''}`)).join('')}</div>`;
     }
-    return `<div class="choice-grid exam-opts">${q.shown.map((o, i) => btn(o, i, `<span class="exam-num">${i + 1}</span> ${q.part === 'vocab' ? esc(o) : furi(o)}`)).join('')}</div>`;
+    return `<div class="choice-grid exam-opts${q.type === 'usage' ? ' exam-long' : ''}">${q.shown.map((o, i) => btn(o, i, `<span class="exam-num">${i + 1}</span> ${q.part === 'vocab' ? esc(o) : furi(o)}`)).join('')}</div>`;
   }
 
   function sheetGrid() {
@@ -419,7 +440,7 @@ export function mount(el, ctx = {}) {
     const label = (q) => `${TYPES[q.type].mondai} · ${PARTS[q.part].title}`;
     const shown = (q, v) => (q.pictures ? pictureSVG(v, { cls: 'inline', label: v }) : furi(v));
     el.innerHTML = `<div class="stack exam exam-result" data-noruby>
-      <p class="small dim">${esc(FORMATS[r.format].title)} ${level}</p>
+      <p class="small dim">${esc(FORMATS_OF()[r.format].title)} ${level}</p>
       <h2 class="section-title">${r.pass ? 'Pass!' : 'Not yet, and that\'s useful to know.'}</h2>
       <p><span class="score-huge mono">${r.total}</span><span class="dim"> / ${sc.total}</span> <span class="small dim">(estimate)</span></p>
       <div class="exam-meter" role="img" aria-label="${r.total} out of ${sc.total}; the pass line is ${sc.pass}">
@@ -453,6 +474,7 @@ export function mount(el, ctx = {}) {
 
   const off = delegate(el, {
     start: (b) => start(b.dataset.v),
+    level: (b) => { if (isUnlocked(b.dataset.lv)) { level = b.dataset.lv; furiLevel = level; render(); } },
     begin: beginSection,
     pick: (b) => pick(flat[qi].q.shown[+b.dataset.i]),
     prev: () => { const idx = secIdx(); go(idx[idx.indexOf(qi) - 1]); },

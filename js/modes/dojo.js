@@ -2,7 +2,8 @@
 // No lives and no locks: wrong answers just come back once more, and learned characters return for review.
 import { store } from '../store.js';
 import { speaker } from '../audio.js';
-import { LESSONS, KANJI_LESSONS, ALL_LESSONS, LESSON_BY_ID, TRACKS, READ_WORDS } from '../dojo-data.js';
+import { LESSONS, ALL_LESSONS, LESSON_BY_ID, TRACKS, READ_WORDS } from '../dojo-data.js';
+import { itemOpen, lockLine, levelOf, levelBar } from '../levels.js';
 import { romaji } from '../romaji.js';
 import { BRUSH_KANA, BRUSH_BY_KANA } from '../brush-data.js';
 import { esc, shuffle, delegate } from '../ui.js';
@@ -11,8 +12,10 @@ import * as fx from '../fx.js';
 // ---------- lookups ----------
 const KANA = {};      // 'kana:あ' -> { id, k, r, m, track, lesson }
 for (const l of LESSONS) for (const c of l.chars) KANA['kana:' + c.k] = { ...c, id: 'kana:' + c.k, track: l.track, lesson: l.id };
-const KANJI = {};     // 'kj:一' -> { id, k, meaning, m, word, reading, wordEn, lesson }
-for (const l of KANJI_LESSONS) for (const j of l.kanji) KANJI['kj:' + j.k] = { ...j, id: 'kj:' + j.k, track: 'kanji', lesson: l.id };
+// Kanji tracks: the starter kanji ('kanji', N5) and the N4 kanji ('kanji4').
+const isKanji = (track) => track === 'kanji' || track === 'kanji4';
+const KANJI = {};     // 'kj:一' -> { id, k, meaning, m, word, reading, wordEn, track, lesson, level }
+for (const l of ALL_LESSONS) if (isKanji(l.track)) for (const j of l.kanji) KANJI['kj:' + j.k] = { ...j, id: 'kj:' + j.k, track: l.track, lesson: l.id, level: l.level };
 const ITEM = { ...KANA, ...KANJI };
 
 const SMALL = new Set([...'ゃゅょャュョっッーァィゥェォぁぃぅぇぉ']);
@@ -66,8 +69,8 @@ function kanjiQuestion(j, type, pool) {
 }
 
 function buildLessonQuiz(lesson) {
-  if (lesson.track === 'kanji') {
-    const pool = Object.values(KANJI);
+  if (isKanji(lesson.track)) {
+    const pool = Object.values(KANJI).filter((j) => j.track === lesson.track);
     const mine = lesson.kanji.map((j) => KANJI['kj:' + j.k]);
     const near = pool.filter((p) => p.lesson === lesson.id);
     const qs = [];
@@ -105,7 +108,7 @@ function buildReviewQuiz(ids) {
   ids.slice(0, 15).forEach((id, i) => {
     const it = ITEM[id];
     if (!it) return;
-    if (it.track === 'kanji') qs.push(kanjiQuestion(it, i % 2 ? 'm2j' : 'j2m', Object.values(KANJI)));
+    if (isKanji(it.track)) qs.push(kanjiQuestion(it, i % 2 ? 'm2j' : 'j2m', Object.values(KANJI).filter((j) => j.track === it.track)));
     else {
       const pool = sameTrack(it.track).filter((c) => known.has(c.k));
       qs.push(kanaQuestion(it, i % 3 === 2 ? 's2k' : 'k2r', pool.length >= 4 ? pool : sameTrack(it.track)));
@@ -147,11 +150,14 @@ export function mount(el, ctx) {
         ${TRACKS.map((t) => {
           const lessons = ALL_LESSONS.filter((l) => l.track === t.id);
           const done = lessons.filter((l) => cleared.has(l.id)).length;
+          // A locked level's track shows, locked, with the one line saying how it opens.
+          const open = itemOpen(t);
           return `<section class="stack-sm" aria-label="${esc(t.title)}">
-            <div class="row-between"><h2 class="section-title"><span lang="ja" data-noruby>${esc(t.jp)}</span> ${esc(t.title)}</h2><span class="small dim mono">${done}/${lessons.length}</span></div>
+            <div class="row-between"><h2 class="section-title"><span lang="ja" data-noruby>${esc(t.jp)}</span> ${esc(t.title)}</h2><span class="small dim mono">${open ? `${done}/${lessons.length}` : '🔒 ' + levelOf(t)}</span></div>
             <p class="small dim">${esc(t.body)}</p>
+            ${open ? '' : `<p class="small dim">${esc(lockLine(levelOf(t)))}</p>`}
             <div class="lesson-list">${lessons.map((l, i) => `
-              <button class="panel lesson-row ${cleared.has(l.id) ? 'cleared' : ''} ${next && next.id === l.id ? 'next' : ''}" data-act="lesson" data-id="${l.id}">
+              <button class="panel lesson-row ${cleared.has(l.id) ? 'cleared' : ''} ${next && next.id === l.id ? 'next' : ''}" data-act="lesson" data-id="${l.id}" ${open ? '' : 'disabled'}>
                 <span class="ch-num">${cleared.has(l.id) ? '✓' : i + 1}</span>
                 <span class="grow"><span class="strong">${esc(l.title)}</span><br><span class="lesson-preview" lang="ja" data-noruby>${esc(preview(l))}</span></span>
                 <span class="dim chev" aria-hidden="true">›</span>
@@ -170,7 +176,7 @@ export function mount(el, ctx) {
   }
 
   const trackTitle = (id) => TRACKS.find((t) => t.id === id)?.title || id;
-  const preview = (l) => (l.track === 'kanji' ? l.kanji.map((j) => j.k) : l.chars.map((c) => c.k)).join(' ');
+  const preview = (l) => (isKanji(l.track) ? l.kanji.map((j) => j.k) : l.chars.map((c) => c.k)).join(' ');
 
   function renderChart() {
     const known = learnedKana();
@@ -189,7 +195,7 @@ export function mount(el, ctx) {
 
   function renderLearn() {
     const l = lesson;
-    const kanji = l.track === 'kanji';
+    const kanji = isKanji(l.track);
     el.innerHTML = `
       <div class="stack">
         <p class="small dim">${esc(trackTitle(l.track))} · Lesson ${ALL_LESSONS.filter((x) => x.track === l.track).indexOf(l) + 1}</p>
@@ -273,7 +279,7 @@ export function mount(el, ctx) {
     const it = cur.item;
     let detail = '';
     if (cur.type === 'w2r') detail = `<span lang="ja">${esc(it.w)}</span> = <span class="mono">${esc(romaji(it.w))}</span>: ${esc(it.en)}`;
-    else if (it.track === 'kanji') detail = `<span lang="ja">${esc(it.k)}</span> = ${esc(it.meaning)} · <span lang="ja">${esc(it.word)}</span> (${esc(it.reading)}, <span class="mono">${esc(romaji(it.reading))}</span>) ${esc(it.wordEn)}`;
+    else if (isKanji(it.track)) detail = `<span lang="ja">${esc(it.k)}</span> = ${esc(it.meaning)} · <span lang="ja">${esc(it.word)}</span> (${esc(it.reading)}, <span class="mono">${esc(romaji(it.reading))}</span>) ${esc(it.wordEn)}`;
     else detail = `<span lang="ja">${esc(it.k)}</span> = <span class="mono">${esc(it.r)}</span>${it.m ? ` · <span class="dim">${esc(it.m)}</span>` : ''}`;
     return `<div class="panel ${right ? 'good-panel' : 'note'} stack-sm">
         <p class="strong ${right ? 'good-c' : 'miss-c'}">${right ? '✓ Right!' : "Not quite. It'll come back once more."}</p>
@@ -285,7 +291,7 @@ export function mount(el, ctx) {
   function soundOf(cur) {
     const it = cur.item;
     if (cur.type === 'w2r') return it.w;
-    if (it.track === 'kanji') return it.reading;
+    if (isKanji(it.track)) return it.reading;
     return it.k;
   }
 
@@ -296,7 +302,7 @@ export function mount(el, ctx) {
     quiz.answered = true;
     quiz.picked = o;
     const ok = o === cur.answer;
-    store.grade({ skill: cur.item.track === 'kanji' ? 'kanji' : cur.type === 'w2r' ? 'vocab' : 'kana', id: cur.id, ok, firstTry: !quiz.retried.has(cur.id + cur.type) });
+    store.grade({ skill: isKanji(cur.item.track) ? 'kanji' : cur.type === 'w2r' ? 'vocab' : 'kana', id: cur.id, ok, firstTry: !quiz.retried.has(cur.id + cur.type) });
     if (!quiz.firstTry.has(cur.id)) quiz.firstTry.set(cur.id, ok);
     else if (!ok) quiz.firstTry.set(cur.id, false);
     if (!ok && !quiz.retried.has(cur.id + cur.type)) {
@@ -352,7 +358,7 @@ export function mount(el, ctx) {
         <div class="score-huge accent-c mono">${Math.round(rate * 100)}%</div>
         <p class="lead strong">${quiz.isReview ? 'Review done.' : `${esc(lesson.title)} cleared!`} ${right}/${vals.length} on the first try.</p>
         <p class="dim">${rate >= 0.85 ? 'Great. These will come back for a quick review in a day or two.' : 'No problem: the ones you missed come back for review soon. Practicing this lesson again now also helps.'}</p>
-        ${missed.length ? `<div class="panel left-text"><p class="section-label">PRACTICE THESE</p><div class="chips">${missed.map((it) => `<button class="chip" data-act="hear" data-t="${esc(it.track === 'kanji' ? it.reading : it.k)}"><span lang="ja" data-noruby>${esc(it.k)}</span> <span class="mono small">${esc(it.r || it.meaning)}</span></button>`).join('')}</div></div>` : ''}
+        ${missed.length ? `<div class="panel left-text"><p class="section-label">PRACTICE THESE</p><div class="chips">${missed.map((it) => `<button class="chip" data-act="hear" data-t="${esc(isKanji(it.track) ? it.reading : it.k)}"><span lang="ja" data-noruby>${esc(it.k)}</span> <span class="mono small">${esc(it.r || it.meaning)}</span></button>`).join('')}</div></div>` : ''}
         ${ctx.today ? '' : `
           ${next ? `<button class="btn primary wide" data-act="lesson" data-id="${next.id}">▶ Next: ${esc(trackTitle(next.track))} · ${esc(next.title)}</button>` : ''}
           ${!quiz.isReview ? `<button class="btn wide" data-act="practice">↻ Practice this lesson again</button>` : ''}
