@@ -43,6 +43,16 @@ test.describe("Ren's Messages", () => {
     await expectNoHorizontalScroll(page);
   });
 
+  test('a long preview on the Today card never widens a phone screen', async ({ page }) => {
+    await page.clock.setFixedTime(T('2026-10-13'));
+    // The Master's longest note, at the top of the thread.
+    const thread = [{ id: 'm3', day: '2026-10-13', at: T('2026-10-13').getTime(), reply: null, ok: null }];
+    await seed(page, await learner(page, { thread, words: 700, dojo: HIRAGANA, chapters: ['ch1', 'ch2', 'ch3', 'ch4', 'ch5', 'ch6'] }));
+    await page.goto('./#/');
+    await expect(view(page).locator('a.msg-card')).toContainText('Master');
+    await expectNoHorizontalScroll(page);
+  });
+
   test('the inbox: hear it, a "what did Ren mean?" tap (a miss reveals the answer), then a reply', async ({ page }) => {
     await page.clock.setFixedTime(T('2026-10-13'));
     await seed(page, await learner(page));

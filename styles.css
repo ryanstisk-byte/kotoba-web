@@ -1069,10 +1069,11 @@ body.has-tabs #update-ready { bottom: calc(var(--tabbar-h) + var(--sp-3) + env(s
 .linkbtn.inline { min-height: 0; padding: 0; }
 
 /* ---------- Ren's Messages ---------- */
-.msg-card { --who: var(--accent); align-items: center; }
+.msg-card { --who: var(--accent); display: flex; align-items: center; gap: var(--sp-3); min-width: 0; max-width: 100%; overflow: hidden; contain: inline-size; }
 .msg-face { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--who, var(--accent));
   color: var(--accent-ink); font-family: var(--font-jp); font-weight: 800; font-size: 1.1rem; border: 2px solid var(--edge); }
-.msg-card .msg-face { margin-right: var(--sp-3); }
+.msg-card .msg-face { flex: none; }
+.msg-card .grow { flex: 1; min-width: 0; }   /* lets the one-line preview shorten with an ellipsis instead of widening the page */
 .msg-preview { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .msg-thread { display: grid; gap: var(--sp-3); }
 .msg-row { display: flex; gap: var(--sp-2); align-items: flex-start; min-width: 0; }

@@ -112,7 +112,7 @@ export function inboxCard() {
   return `<a class="panel link-panel msg-card" href="#/messages" style="--who:${s.color}">
       <span class="msg-face" lang="ja" data-noruby aria-hidden="true">${esc(s.jpName.slice(0, 1))}</span>
       <span class="grow"><span class="strong">💬 ${n ? `${n} new message${n === 1 ? '' : 's'}` : 'Messages'}</span> <span class="small dim">from ${esc(s.name)}</span><br>
-      <span class="small msg-preview" lang="ja">${esc(shownText(m))}</span></span>
+      <span class="small msg-preview" lang="ja" data-noruby>${esc(shownText(m))}</span></span>
       <span class="dim chev" aria-hidden="true">›</span></a>`;
 }
 
