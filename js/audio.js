@@ -462,7 +462,7 @@ export class PitchTracker {
     let sum = 0;
     for (let i = 0; i < frames.length; i++) sum += frames[i] * frames[i];
     const rms = Math.sqrt(sum / frames.length);
-    const voiced = rms > Math.max(this.noiseFloor * 2.2, 0.004);
+    const voiced = rms > Math.max(this.noiseFloor * 2.2, 0.0015);   // low enough for a quiet laptop mic with no auto gain
     const hz = voiced ? detectPitch(frames, this.ctx.sampleRate) : null;
     const t = (performance.now() - this.startTime) / 1000;
     this.liveLevel = rms;
@@ -525,9 +525,14 @@ export function detectPitch(raw, sampleRate) {
     running += diff[tau];
     cmnd[tau] = running > 0 ? (diff[tau] * tau) / running : 1;
   }
+  // YIN: take the first dip under the threshold. A real room (fan, raw laptop mic, a breathy voice) often keeps every
+  // dip a little above it, so fall back to the deepest dip when it is still clearly periodic.
+  let best = minLag;
+  for (let t = minLag; t <= maxLag; t++) if (cmnd[t] < cmnd[best]) best = t;
+  const threshold = cmnd[best] < 0.2 ? 0.2 : cmnd[best] < 0.35 ? cmnd[best] + 1e-6 : -1;
   let tau = minLag;
   while (tau <= maxLag) {
-    if (cmnd[tau] < 0.15) {
+    if (cmnd[tau] < threshold) {
       while (tau + 1 <= maxLag && cmnd[tau + 1] < cmnd[tau]) tau++;
       // Parabolic interpolation for a smoother estimate.
       let better = tau;

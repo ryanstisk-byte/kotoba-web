@@ -508,6 +508,10 @@ body.has-tabs #toast { bottom: calc(var(--tabbar-h) + var(--sp-3) + env(safe-are
 .word-list { display: flex; flex-direction: column; gap: var(--sp-2); }
 .word-row { display: flex; gap: var(--sp-3); align-items: baseline; flex-wrap: wrap; }
 .w110 { width: 110px; }
+.review-sound { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.review-row { align-items: center; }
+.review-row .w110 { width: 110px; }
+.review-sound .melody { width: auto; max-width: 140px; }
 
 /* ======================================================================
    Particle Train
