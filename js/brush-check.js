@@ -159,6 +159,30 @@ function rivalOf(drawn, mean, others, self) {
   return best ? best.k : null;
 }
 
+/** A reversed stroke must match this much better than as drawn to count as "drawn backwards" (dots match both ways). */
+const FLIP = 0.6;
+/** Model strokes shorter than this (dots, ticks) are never called backwards. */
+const MIN_FLIP = 20;
+
+/**
+ * Strokes drawn end to start: flips each stroke that clearly matches its model stroke better reversed, and if that
+ * makes the whole drawing match, returns { strokes (1-based numbers of the flipped ones), mean }. Else null.
+ */
+function backwards(drawn, model) {
+  const fitted = fitTo(drawn, model);
+  const strokes = [];
+  const fixed = drawn.map((s, i) => {
+    if (length(model[i]) < MIN_FLIP) return s;   // a dot or tick reads the same both ways
+    const as = Math.min(strokeCost(s, model[i]), strokeCost(fitted[i], model[i]));
+    const rev = Math.min(strokeCost(s.slice().reverse(), model[i]), strokeCost(fitted[i].slice().reverse(), model[i]));
+    if (rev < as * FLIP) { strokes.push(i + 1); return s.slice().reverse(); }
+    return s;
+  });
+  if (!strokes.length) return null;
+  const t = bestScore(fixed, model);
+  return t.ok ? { strokes, mean: t.mean } : null;
+}
+
 /** Whether the pen could plausibly have stayed down between two strokes (one ends near where the next starts). */
 const near = (a, b) => dist(a[a.length - 1], b[0]) <= JOIN_GAP;
 const JOIN_GAP = 60;
@@ -168,10 +192,11 @@ const JOIN_GAP = 60;
  * - Size and position are forgiven (the drawing is also compared lined up with the model).
  * - Joining two neighbouring strokes that nearly touch, or splitting one in two, counts as "close".
  * - The right strokes in a different order count as "close", and the order is shown.
+ * - So do the right strokes with one or more drawn backwards (end to start), and the direction is shown.
  * - But a drawing that clearly looks more like another kana in `others` (kana -> paths) is a miss.
- * Returns { verdict: 'great' | 'close' | 'miss', why: 'ok' | 'order' | 'joined' | 'split' | 'empty' | 'count' |
- *   'shape' | 'like', like (the other kana, for 'like'), stroke (1-based, the stroke most off, for 'shape'), drawn,
- *   expected, mean }.
+ * Returns { verdict: 'great' | 'close' | 'miss', why: 'ok' | 'order' | 'backwards' | 'joined' | 'split' | 'empty' |
+ *   'count' | 'shape' | 'like', like (the other kana, for 'like'), stroke (1-based, the stroke most off, for 'shape'),
+ *   strokes (1-based, the ones drawn backwards, for 'backwards'), drawn, expected, mean }.
  */
 export function checkDrawing(drawnRaw, modelPaths, { others = null, self = null } = {}) {
   const model = modelPoints(modelPaths);
@@ -186,7 +211,9 @@ export function checkDrawing(drawnRaw, modelPaths, { others = null, self = null 
 
   if (drawn.length === expected) {
     const s = bestScore(drawn, model);
-    if (s.ok) return pass('great', 'ok', s.mean);
+    // A match can still have a stroke drawn the other way round: it passes, and the direction is shown.
+    const flipped = backwards(drawn, model);
+    if (s.ok) return flipped ? pass('close', 'backwards', s.mean, { strokes: flipped.strokes }) : pass('great', 'ok', s.mean);
     // The same strokes in a different order?
     if (expected > 1 && expected <= 6) {
       let best = null;
@@ -197,6 +224,8 @@ export function checkDrawing(drawnRaw, modelPaths, { others = null, self = null 
       }
       if (best) return pass('close', 'order', best.mean, { order: best.perm });
     }
+    // The right strokes, but one or more drawn the other way round (end to start)?
+    if (flipped) return pass('close', 'backwards', flipped.mean, { strokes: flipped.strokes });
     const like = rivalOf(drawn, s.mean, others, self);
     if (like) return { ...base, verdict: 'miss', why: 'like', like, mean: s.mean };
     return { ...base, verdict: 'miss', why: 'shape', stroke: s.costs.indexOf(s.worst) + 1, mean: s.mean };
