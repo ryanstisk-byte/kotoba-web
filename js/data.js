@@ -1,8 +1,19 @@
-// All study content, ported verbatim from the Kotoba Beat SwiftUI prototype (plus the N5 deck in n5.js).
+// All study content, ported verbatim from the Kotoba Beat SwiftUI prototype (plus the N5 deck in n5.js), and the N4
+// level's content (the N4 deck in n4.js and the js/n4-*.js and js/story-n4.js files). Every list here holds every level,
+// each item tagged with its JLPT level (tagLevel); modes pick from them through js/levels.js, which keeps to the
+// levels the learner has unlocked. Lookups by id (GARDEN_CATALOG, PHRASE_BY_ID…) cover every level.
 import { N5 } from './n5.js';
-import { sagaChapters, SAGA_CAST, ARCS, QUIZZES } from './story-data.js';
+import { N4 } from './n4.js';
+import { sagaChapters, SAGA_CAST, ARCS as N5_ARCS, QUIZZES as N5_QUIZZES } from './story-data.js';
+import { n4Chapters, N4_ARC, N4_QUIZZES } from './story-n4.js';
+import { N4_PHRASES, N4_BOSS_PAIRS, N4_COUNTERS, N4_STOCK, N4_CUSTOMERS, N4_SHOP_GREETINGS, N4_SHOP_THANKS, N4_SHOP_KEIGO } from './n4-speaking.js';
+import { N4_FORGE, N4_PART_NAMES } from './n4-kanji.js';
+import { N4_TRAINS } from './n4-practice.js';
+import { tagLevel } from './level-tag.js';
 
-export { ARCS, QUIZZES };
+/** The story's arcs, easiest first (the N4 arc comes after the N5 ones). */
+export const ARCS = [...tagLevel(N5_ARCS, 'N5'), ...tagLevel([N4_ARC], 'N4')];
+export const QUIZZES = { ...N5_QUIZZES, ...N4_QUIZZES };
 
 // ---------- Phrases (Phrases.swift) ----------
 
@@ -44,6 +55,14 @@ export const PHRASES = [
   P('hana_flower', '花が', '花が', 'flower (+ が)', '🌸', m('は|な|が', 'LHL'), ['はな', '花', '鼻'], true),
   P('hana_nose', '鼻が', '鼻が', 'nose (+ が)', '👃', m('は|な|が', 'LHH'), ['はな', '花', '鼻'], true),
 ];
+
+tagLevel(PHRASES, 'N5');
+
+/** A phrase from its kana and an H/L pitch pattern (one letter per mora). */
+const PK = (x) => P(x.id, x.display, x.speak || x.display, x.meaning, x.prompt, m(toMorae(x.kana).join('|'), x.pattern), x.accept, !!x.boss);
+// N4: longer set phrases for Rhythm and Speak Slice, and more pitch pairs for Pitch Duel (js/n4-speaking.js). Their
+// pitch patterns come from the standard Tokyo accent (filled in from Open JTalk's dictionary and checked by hand).
+PHRASES.push(...tagLevel([...N4_PHRASES.map(PK), ...N4_BOSS_PAIRS.map((x) => PK({ ...x, speak: x.display, prompt: x.prompt || x.meaning, boss: true }))], 'N4'));
 
 export const PHRASE_BY_ID = Object.fromEntries(PHRASES.map((p) => [p.id, p]));
 
@@ -152,10 +171,22 @@ export const CHAPTERS = [
   // Chapters 5-12 (tournament and final arcs) live in js/story-data.js.
   ...sagaChapters(CAST, N5),
 ];
+tagLevel(CHAPTERS, 'N5');
+
+/** The Garden id for a word met in the story: its N5 or N4 deck card when it has one, else its own story card. */
+const DECK_IDS = new Map();
+for (const [jp] of N5) if (!DECK_IDS.has(jp)) DECK_IDS.set(jp, 'n5:' + jp);
+for (const [jp] of N4) if (!DECK_IDS.has(jp)) DECK_IDS.set(jp, 'n4:' + jp);
+export const deckIdFor = (jp) => DECK_IDS.get(jp) || null;
+// Chapters 13-17 (the N4 Journey arc) live in js/story-n4.js; their words get their Garden ids here.
+CHAPTERS.push(...tagLevel(n4Chapters(CAST).map((ch) => ({
+  ...ch, beats: ch.beats.map((b) => ({ ...b, words: b.words.map((w) => ({ ...w, gardenID: w.gardenID || deckIdFor(w.jp) || 'w:' + w.jp })) })),
+})), 'N4'));
 
 export const STORY_WORDS = (() => {
   const seen = new Set();
-  return CHAPTERS.flatMap((c) => c.beats.flatMap((b) => b.words)).filter((w) => !seen.has(w.jp) && seen.add(w.jp));
+  return CHAPTERS.flatMap((c) => c.beats.flatMap((b) => b.words.map((w) => ({ ...w, level: c.level }))))
+    .filter((w) => !seen.has(w.jp) && seen.add(w.jp));
 })();
 
 // ---------- Particle Train (ParticleTrainView.swift) ----------
@@ -221,6 +252,11 @@ export const TRAINS = [
   { cars: ['カイト', 'ししょう', 'はなしました'], gaps: [G(['は'], WHY.topic), G(['と'], WHY.with)], en: 'Kaito talked with the master.' },
 ];
 
+tagLevel(TRAINS, 'N5');
+// N4 trains (js/n4-practice.js) come after, so the N5 trains keep their indexes. Each has its own `palette` of
+// choices (N4 connectors like ので, のに, ながら, ば) and the course `unit` it belongs to.
+TRAINS.push(...tagLevel(N4_TRAINS.map((t) => ({ ...t })), 'N4'));
+
 /** The particles a train teaches: the first correct answer for each gap. */
 export const trainParticles = (t) => t.gaps.filter(Boolean).map((g) => g.correct[0]);
 
@@ -236,6 +272,7 @@ export function assembleTrain(t, filled) {
 // ---------- Kanji Forge (KanjiForgeView.swift) ----------
 
 export const PART_NAMES = {
+  ...N4_PART_NAMES,
   '亻': 'person', '木': 'tree', '日': 'sun', '月': 'moon', '田': 'rice field', '力': 'power',
   '女': 'woman', '子': 'child', '本': 'origin', '門': 'gate', '耳': 'ear', '言': 'say',
   '舌': 'tongue', '山': 'mountain', '石': 'stone', '丁': 'block',
@@ -258,6 +295,10 @@ export const KANJI = [
   K('聞', ['門', '耳'], 'hear', 'An ear pressed to the gate to hear.', '聞く', 'きく', 'to listen, to hear'),
   K('話', ['言', '舌'], 'talk', 'Words plus a tongue: talking.', '話す', 'はなす', 'to speak'),
 ];
+tagLevel(KANJI, 'N5');
+// N4 kanji to forge (js/n4-kanji.js), after the N5 ones.
+KANJI.push(...tagLevel(N4_FORGE.map((k) => ({ ...k, gardenID: 'k:' + k.kanji })), 'N4'));
+
 
 // ---------- Shopkeeper (ShopkeeperView.swift) ----------
 
@@ -309,6 +350,18 @@ export const CUSTOMERS = {
 export const SHOP_GREETINGS = ['いらっしゃいませ！', 'おかえりなさい！', 'いただきます！'];
 export const SHOP_THANKS = ['ありがとうございました！', 'じゃあね！', 'どういたしまして。'];
 
+tagLevel(Object.values(COUNTERS), 'N5');
+tagLevel(SHOP_STOCK, 'N5');
+tagLevel(Object.values(CUSTOMERS), 'N5');
+// N4 Shopkeeper (js/n4-speaking.js): more counters and goods, customers who speak keigo, and the shopkeeper's own
+// polite and humble replies (N4_SHOP_KEIGO).
+for (const [k, c] of Object.entries(N4_COUNTERS)) COUNTERS[k] = { ...c, level: 'N4' };
+SHOP_STOCK.push(...tagLevel(N4_STOCK.map((x) => ({ ...x })), 'N4'));
+for (const [k, c] of Object.entries(N4_CUSTOMERS)) CUSTOMERS['n4' + k[0].toUpperCase() + k.slice(1)] = { ...c, level: 'N4' };
+export const SHOP_GREETINGS_N4 = N4_SHOP_GREETINGS;
+export const SHOP_THANKS_N4 = N4_SHOP_THANKS;
+export const SHOP_KEIGO = tagLevel(N4_SHOP_KEIGO.map((x) => ({ ...x })), 'N4');
+
 // ---------- Garden catalog (GardenView.swift) ----------
 
 /** Every item the app knows how to show, keyed by its progress id. */
@@ -343,12 +396,29 @@ export const N5_WORDS = N5.map(([jp, kana, en, accent, ex, exReading, exEn, say]
   return { id: 'n5:' + jp + (dup ? '|' + kana : ''), jp, reading: kana, en, accent, ex, exReading, exEn, say: say || (dup ? kana : jp) };
 });
 
+tagLevel(N5_WORDS, 'N5');
+
+// ---------- N4 vocabulary deck (generated js/n4.js, source tools/n4.tsv) ----------
+/** The N4 deck, introduced in the Garden after the N5 deck once N4 is unlocked. Ids are 'n4:' + the written form. */
+export const N4_WORDS = (() => {
+  const seen = new Set();
+  return tagLevel(N4.map(([jp, kana, en, accent, ex, exReading, exEn, say]) => {
+    const dup = seen.has(jp);
+    seen.add(jp);
+    return { id: 'n4:' + jp + (dup ? '|' + kana : ''), jp, reading: kana, en, accent, ex, exReading, exEn, say: say || (dup ? kana : jp) };
+  }), 'N4');
+})();
+
+/** Every Garden card's item, by id, each with the level it belongs to. */
 export const GARDEN_CATALOG = (() => {
   const out = {};
-  for (const p of PHRASES) out[p.id] = { id: p.id, jp: p.display, reading: p.kana, en: p.meaning };
-  for (const w of STORY_WORDS) out[w.gardenID] = { id: w.gardenID, jp: w.jp, reading: w.reading, en: w.en };
-  for (const r of KANJI) out[r.gardenID] = { id: r.gardenID, jp: r.word, reading: r.reading, en: r.wordEn };
+  for (const p of PHRASES) out[p.id] = { id: p.id, jp: p.display, reading: p.kana, en: p.meaning, level: p.level };
+  for (const ch of CHAPTERS) {
+    for (const b of ch.beats) for (const w of b.words) if (!out[w.gardenID]) out[w.gardenID] = { id: w.gardenID, jp: w.jp, reading: w.reading, en: w.en, level: ch.level };
+  }
+  for (const r of KANJI) out[r.gardenID] = { id: r.gardenID, jp: r.word, reading: r.reading, en: r.wordEn, level: r.level };
   for (const w of N5_WORDS) out[w.id] = { ...w, deck: 'n5' };
+  for (const w of N4_WORDS) out[w.id] = { ...w, deck: 'n4' };
   return out;
 })();
 

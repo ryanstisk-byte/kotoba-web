@@ -90,10 +90,12 @@ test.describe('modes', () => {
     const v = view(page);
     const palette = v.locator('[data-act=place]');
     const n = await palette.count();
-    for (let i = 0; i < 60 && !(await v.getByText('出発進行', { exact: false }).isVisible()); i++) {
+    // Departed: the 出発進行！ line shows (with furigana now, so look for its Next train button).
+    const departed = v.getByRole('button', { name: /Next train/ });
+    for (let i = 0; i < 60 && !(await departed.isVisible()); i++) {
       await palette.nth(i % n).click();
     }
-    await expect(v.getByText('出発進行', { exact: false })).toBeVisible();
+    await expect(v.locator('.lead.good-c')).toContainText('出発');
     await v.getByRole('button', { name: /Next train/ }).click();
     await expect(v.locator('.coupling.active')).toHaveCount(1);
     const day = Object.values((await saved(page)).days)[0];

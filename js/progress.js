@@ -2,13 +2,14 @@
 // month (a calendar, never a streak) and the road to the next JLPT level (js/readiness.js) with mock results. Charts are plain SVG, coloured with the
 // design tokens (so they follow light and dark), each with a text alternative.
 import { store, dateKey, SKILLS } from './store.js';
-import { CHAPTERS, KANJI, N5_WORDS } from './data.js';
+import { CHAPTERS, KANJI, N5_WORDS, N4_WORDS } from './data.js';
+import { APP_LEVELS, isUnlocked, lockLine } from './levels.js';
 import { ALL_LESSONS, LESSONS, KANJI_LESSONS, TRACKS } from './dojo-data.js';
 import { SKILL_LABELS } from './skills.js';
 import { knobs } from './tuning.js';
 import { accuracyNote } from './today.js';
 import { esc, delegate } from './ui.js';
-import { readiness, mockLine, N5_TARGETS, READY_AVERAGE, READY_FLOOR } from './readiness.js';
+import { readiness, mockLine, N5_TARGETS, N4_TARGETS, READY_AVERAGE, READY_FLOOR } from './readiness.js';
 import { SCORING } from './exam-data.js';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -78,6 +79,7 @@ export function progressData(now = new Date()) {
   const wordsKnown = planted.filter((p) => p.prog.level >= 2);
   const knownJp = new Set(wordsKnown.map((p) => p.item.jp));
   const n5Known = N5_WORDS.filter((w) => knownJp.has(w.jp)).length;
+  const n4Known = N4_WORDS.filter((w) => knownJp.has(w.jp)).length;
 
   const kanaIn = (track) => LESSONS.filter((l) => l.track === track).flatMap((l) => l.chars.map((c) => c.k));
   const learned = (id) => items[id] && items[id].level >= 1;
@@ -97,7 +99,7 @@ export function progressData(now = new Date()) {
   const bySkill = store.skillDays(dateKey(at(27)), dateKey(today));
 
   return {
-    planted: planted.length, wordsKnown: wordsKnown.length, n5Known, n5Total: N5_WORDS.length,
+    planted: planted.length, wordsKnown: wordsKnown.length, n5Known, n5Total: N5_WORDS.length, n4Known, n4Total: N4_WORDS.length,
     hira: { n: hira.filter((k) => learned('kana:' + k)).length, of: hira.length },
     kata: { n: kata.filter((k) => learned('kana:' + k)).length, of: kata.length },
     starter: { n: starter.filter((k) => learned('kj:' + k)).length, of: starter.length },
@@ -209,6 +211,9 @@ let offRoad = null;
 const realConfirm = (lv) => `<p class="small">Mark ${lv} as passed? Its meter makes way for the next level. You can undo this here.</p>
   <div class="row2"><button class="btn primary" data-act="real-yes" data-level="${lv}">Yes, I passed it</button><button class="btn ghost" data-act="real-no">Cancel</button></div>`;
 
+/** Which levels' content is open in the games, and how a locked one opens. */
+const levelsLine = () => `<p class="small dim levels-line">Levels in the games: ${APP_LEVELS.map((lv) => (isUnlocked(lv) ? `${lv} open` : `🔒 ${lv} (${esc(lockLine(lv))})`)).join(' · ')}${store.settings.showAllLevels ? ' · every level shown (Settings)' : ''}</p>`;
+
 /** The road to the next JLPT level: readiness by area, mock results, and levels already done. */
 function roadSection(road, d) {
   const hist = store.exam.history;
@@ -221,7 +226,7 @@ function roadSection(road, d) {
   const recent = hist.slice(-5).reverse();
   if (!road) {
     return `<section class="panel stack-sm" aria-labelledby="road-h"><h2 class="section-title" id="road-h">JLPT</h2>
-      <ul class="small">${doneLines}</ul></section>`;
+      <ul class="small">${doneLines}</ul>${levelsLine()}</section>`;
   }
   const rows = road.areas.map((a) => ({ label: a.label, value: a.value, text: a.text, title: a.title }));
   const sc = SCORING[road.level];
@@ -230,13 +235,14 @@ function roadSection(road, d) {
       <p><span class="stat-v mono">${pct(road.overall)}</span> <span class="small dim">of the way to ${road.mock ? `a mock ${road.level}` : road.level}</span></p>
       ${barChart(rows, { label: `Readiness for ${road.level}: ${rows.map((r) => `${r.label} ${r.text}`).join(', ')}.` })}
       ${road.mock ? `<p class="small">${road.ready ? `<span class="strong good-c">Ready for a mock ${road.level}.</span> ` : ''}Each bar fills toward a target, and "ready" comes when they average ${pct(READY_AVERAGE)} with none under ${pct(READY_FLOOR)}.</p>
-      <p class="small dim">Targets: ${pct(N5_TARGETS.vocab)} of the ${d.n5Total}-word N5 deck known (Seedling or later); ${pct(N5_TARGETS.kanji)} of the kanji the app teaches; ${pct(N5_TARGETS.grammar)} of the N5 grammar points remembered for a week; ${pct(N5_TARGETS.listening)} right in listening over ${N5_TARGETS.listeningAnswers}+ answers; the kana and ${N5_TARGETS.chapters} Story chapters. The real ${road.level} also uses about ${N5_KANJI_ESTIMATE} kanji, more than the app teaches yet, so its kanji questions come from words you know.</p>`
+      ${road.level === 'N4' ? `<p class="small dim">Targets: ${pct(N4_TARGETS.vocab)} of the ${d.n4Total}-word N4 deck known (Seedling or later); ${pct(N4_TARGETS.kanji)} of the N4 kanji the app teaches; ${pct(N4_TARGETS.grammar)} of the N4 grammar points remembered for a week; ${pct(N4_TARGETS.listening)} right in listening over ${N4_TARGETS.listeningAnswers}+ answers; the ${N4_TARGETS.chapters} chapters of the N4 Story arc and the N4 kanji lessons.</p>` : `<p class="small dim">Targets: ${pct(N5_TARGETS.vocab)} of the ${d.n5Total}-word N5 deck known (Seedling or later); ${pct(N5_TARGETS.kanji)} of the kanji the app teaches; ${pct(N5_TARGETS.grammar)} of the N5 grammar points remembered for a week; ${pct(N5_TARGETS.listening)} right in listening over ${N5_TARGETS.listeningAnswers}+ answers; the kana and ${N5_TARGETS.chapters} Story chapters. The real ${road.level} also uses about ${N5_KANJI_ESTIMATE} kanji, more than the app teaches yet, so its kanji questions come from words you know.</p>`}`
         : `<p class="small dim">${road.level} lessons and a mock ${road.level} are still to come. Until then this shows the ground they build on.</p>`}
       ${road.mock ? `<div class="row2"><a class="btn ${road.ready ? 'primary' : ''}" href="#/exam">Mock ${road.level}</a>
         <span class="real-pass"><button class="btn ghost wide" data-act="real-ask" data-level="${road.level}">I passed the real ${road.level}</button></span></div>` : ''}
       ${sc && recent.length ? `<h3 class="small strong">Mock results</h3><ul class="small mock-list">${recent.map((h) => `<li>${esc(mockLine(h))}</li>`).join('')}</ul>
         <p class="tiny dim">The pass line is ${sc.pass}/${sc.total}. Only a full mock counts toward finishing a level.</p>` : ''}
       ${doneLines ? `<ul class="small">${doneLines}</ul>` : ''}
+      ${levelsLine()}
     </section>`;
 }
 

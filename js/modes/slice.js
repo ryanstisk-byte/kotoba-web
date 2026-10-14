@@ -4,7 +4,8 @@
 import { store } from '../store.js';
 import { sliceSpawn } from '../tuning.js';
 import { speaker, Recognizer, recognitionSupported, normalizeJa } from '../audio.js';
-import { PHRASES, PHRASE_BY_ID } from '../data.js';
+import { PHRASE_BY_ID } from '../data.js';
+import { content, levelOf, NEW_SHARE, newestLevel, levelBar } from '../levels.js';
 import { esc, shuffle, pick, rand, delegate, melodySVG } from '../ui.js';
 import * as fx from '../fx.js';
 
@@ -30,6 +31,7 @@ export function mount(el, ctx) {
   function renderIntro() {
     el.innerHTML = `
       <div class="stack center-text">
+        ${levelBar('slice')}
         <div class="hero-jp accent-c" lang="ja">斬</div>
         <p class="lead strong">Things fly up. Say their Japanese name out loud to slice them.</p>
         <p class="dim">Stuck? Tap an object for its first kana (half points). If one falls, you'll see the answer. Nothing is lost.</p>
@@ -71,7 +73,7 @@ export function mount(el, ctx) {
     }
     // choose
     if (f && g.choiceFor !== f.id) {
-      const others = shuffle(PHRASES.filter((p) => p.kana !== f.phrase.kana)).slice(0, 3);
+      const others = shuffle(content('slice').filter((p) => p.kana !== f.phrase.kana)).slice(0, 3);
       g.choices = shuffle([f.phrase, ...others]);
       g.choiceFor = f.id;
     }
@@ -126,7 +128,7 @@ export function mount(el, ctx) {
         renderControls();
         updateStatus();
       };
-      recognizer.start(PHRASES.flatMap((p) => p.accept));
+      recognizer.start(content('slice').flatMap((p) => p.accept));
     }
     updateStatus();
     cancelAnimationFrame(raf);
@@ -182,9 +184,14 @@ export function mount(el, ctx) {
 
   function spawn() {
     const onScreen = new Set(g.flyers.filter((f) => !f.slicedAt).map((f) => f.phrase.id));
-    const candidates = PHRASES.filter((p) => !onScreen.has(p.id));
-    // Words that are due for review show up more often.
-    const weighted = candidates.flatMap((p) => (store.isDue(p) ? [p, p, p] : [p]));
+    const candidates = content('slice').filter((p) => !onScreen.has(p.id));
+    // Words that are due for review show up more often, and the newest unlocked level about 70% of the time
+    // (js/levels.js): its words get weight 7 for every 3 of the levels below (in proportion to how many there are).
+    const top = newestLevel();
+    const nTop = candidates.filter((p) => levelOf(p) === top).length;
+    const nRest = candidates.length - nTop;
+    const share = nTop && nRest ? { top: Math.round((NEW_SHARE * nRest) / ((1 - NEW_SHARE) * nTop) * 10) || 1, rest: 10 } : { top: 1, rest: 1 };
+    const weighted = candidates.flatMap((p) => Array((store.isDue(p) ? 3 : 1) * (levelOf(p) === top ? share.top : share.rest)).fill(p));
     if (!weighted.length) return;
     const phrase = pick(weighted);
     const apex = rand(0.62, 0.82);

@@ -8,6 +8,7 @@ import { romaji } from '../romaji.js';
 import { readingOf } from '../furigana.js';
 import { esc, shuffle, delegate } from '../ui.js';
 import * as fx from '../fx.js';
+import { content, mixed, levelBar } from '../levels.js';
 
 const GOAL = 5;
 const WORDS = BUILD_SENTENCES.map((x) => wordsInTiles(x.tiles));
@@ -17,8 +18,8 @@ const spaced = (tiles) => tiles.reduce((acc, t) => (acc.length && JOINS.has(t) ?
 /** A word counts as known once it has been planted in the Garden (taught somewhere, or met here). */
 const isKnown = (w) => w.ids.some((id) => store.item(id));
 const newWords = (i) => WORDS[i].filter((w) => !isKnown(w));
-/** Sentences with the fewest new words first, shuffled among equals. */
-const byKnown = () => shuffle(BUILD_SENTENCES.map((_, i) => i)).sort((a, b) => Math.min(newWords(a).length, 3) - Math.min(newWords(b).length, 3));
+/** The unlocked levels' sentences (about 70% from the newest level, js/levels.js), fewest new words first. */
+const byKnown = () => mixed(content('build')).map((x) => BUILD_SENTENCES.indexOf(x)).sort((a, b) => Math.min(newWords(a).length, 3) - Math.min(newWords(b).length, 3));
 
 /** How alike two strings are (shared character pairs), 0..1. Generous on purpose: recognition is imperfect. */
 function likeness(a, b) {
@@ -80,6 +81,7 @@ export function mount(el, ctx) {
     const ahead = knownAhead();
     el.innerHTML = `
       <div class="stack practice build" data-qid="${esc(s.id)}">
+        ${levelBar('build')}
         <div class="panel challenger stack-sm">
           <p class="challenger-head">⚡ ${meet.length > 1 ? 'New words appear!' : 'A new word appears!'}</p>
           <p class="small dim">The next sentence uses ${meet.length > 1 ? 'words' : 'a word'} you haven't learned yet. Learn ${meet.length > 1 ? 'them' : 'it'} first, or skip to a sentence you know.</p>
@@ -99,6 +101,7 @@ export function mount(el, ctx) {
     if (step === 'meet') return renderMeet();
     el.innerHTML = `
       <div class="stack practice build" data-qid="${esc(s.id)}">
+        ${levelBar('build')}
         <div class="row-between"><span class="strong mono">${right}/${built} built right</span><span class="small dim">${Math.min(built, GOAL)}/${GOAL} today</span></div>
         ${note && step === 'build' && !built ? `<div class="panel note">${esc(note)}</div>` : ''}
         <div class="panel build-prompt">

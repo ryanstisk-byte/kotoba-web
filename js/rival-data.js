@@ -2,6 +2,9 @@
 // Original shōnen-style writing, each line in the character's own VOICEVOX voice (the same voices as the story).
 // Every line has a hiragana reading and an English line; tools/collect.mjs voices them all.
 
+import { N4_RIVALS } from './n4-extras.js';
+import { tagLevel } from './level-tag.js';
+
 /** L(jp, reading, en) */
 const L = (jp, reading, en) => ({ jp, reading, en });
 
@@ -71,6 +74,10 @@ export const RIVALS = [
     respect: L('がんばる 子は だいすきだよ。また おいで。', 'がんばる こは だいすきだよ。また おいで。', 'I love a kid who tries hard. Come again.'),
   },
 ];
+tagLevel(RIVALS, 'N5');
+// N4 rivals (js/n4-extras.js): the same faces at full power, unlocked by the N4 story chapters, with more hits to win
+// and attacks drawn mostly from N4 content.
+RIVALS.push(...tagLevel(N4_RIVALS.map((r) => ({ ...r })), 'N4'));
 export const RIVAL_BY_ID = Object.fromEntries(RIVALS.map((r) => [r.id, r]));
 
 /** Ren (the learner's side, voice 1) shouts one of these with each finisher. */
@@ -83,10 +90,10 @@ export const FINISHERS = [
 /** Ren's line when the fight turns into a training montage. */
 export const MONTAGE_LINE = L('もう いちど！ とっくんだ！', 'もう いちど！ とっくんだ！', 'One more time! Training!');
 
-/** Every voiced line with its voice, for tools/collect.mjs. */
+/** Every voiced line with its voice and level, for tools/collect.mjs. */
 export function rivalLines() {
   const out = [];
-  for (const r of RIVALS) for (const l of [...r.intro, ...r.counter, r.defeat, r.respect]) out.push([l, r.voice]);
+  for (const r of RIVALS) for (const l of [...r.intro, ...r.counter, r.defeat, r.respect]) out.push([l, r.voice, r.level]);
   for (const f of FINISHERS) out.push([f.line, REN_VOICE]);
   out.push([MONTAGE_LINE, REN_VOICE]);
   return out;

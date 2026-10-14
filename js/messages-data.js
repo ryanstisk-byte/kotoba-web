@@ -5,6 +5,10 @@
 // arrives), a "what did they mean?" question (right answer first), and 2-3 replies. A reply's `next` picks the next
 // message. Every message is voiced in its sender's VOICEVOX voice (tools/collect.mjs).
 
+import { N4_MESSAGES, N4_WELCOME_BACK } from './n4-extras.js';
+import { GARDEN_CATALOG, deckIdFor } from './data.js';
+import { tagLevel } from './level-tag.js';
+
 /** M(id, from, tier, jp, kana, en, words, meaning [right, wrong, wrong], replies, extra) */
 const M = (id, from, tier, jp, kana, en, words, meaning, replies, extra = {}) => ({ id, from, tier, jp, kana, en, words, meaning, replies, after: null, ...extra });
 /** R(reply text, English, next message id or null) */
@@ -223,6 +227,15 @@ export const WELCOME_BACK = [
     ['Ren waited for you and wants to keep going together.', 'Ren gave up waiting.', 'Ren is moving.'],
     [R('ただいま！', "I'm back!"), R('また よろしく！', 'Count on me again!')]),
 ];
+
+tagLevel(MESSAGES, 'N5');
+tagLevel(WELCOME_BACK, 'N5');
+
+// N4 (tier 4: plain, casual N4 speech, like real chat between friends) from js/n4-extras.js. Their words are written
+// forms; each becomes its Garden id (the N4 or N5 deck card), and words without a card are left out.
+const wordIds = (m) => ({ ...m, words: m.words.map((w) => (GARDEN_CATALOG[w] ? w : deckIdFor(w))).filter((id) => id && GARDEN_CATALOG[id]) });
+MESSAGES.push(...tagLevel(N4_MESSAGES.map(wordIds), 'N4'));
+WELCOME_BACK.push(...tagLevel([N4_WELCOME_BACK].map(wordIds), 'N4'));
 
 export const ALL_MESSAGES = [...MESSAGES, ...WELCOME_BACK];
 export const MESSAGE_BY_ID = Object.fromEntries(ALL_MESSAGES.map((m) => [m.id, m]));

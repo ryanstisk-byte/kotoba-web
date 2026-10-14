@@ -7,7 +7,8 @@
 import { store, dateKey } from './store.js';
 import { speaker } from './audio.js';
 import { GARDEN_CATALOG } from './data.js';
-import { MESSAGES, WELCOME_BACK, MESSAGE_BY_ID, SENDERS } from './messages-data.js';
+import { WELCOME_BACK, MESSAGE_BY_ID, SENDERS } from './messages-data.js';
+import { content, isUnlocked, itemOpen } from './levels.js';
 import { esc, shuffle, delegate, toast } from './ui.js';
 import * as fx from './fx.js';
 
@@ -20,7 +21,8 @@ const reviewedWords = () => store.planted().filter(({ prog }) => prog.r > 0).len
 
 /**
  * Which tier of message fits: 1 kana-only polite; 2 casual speech, once hiragana is done and the course is a few units
- * in (or 60 words are known); 3 N4 grammar, once the N5 core course is done (or 200 words are known).
+ * in (or 60 words are known); 3 N4 grammar, once the N5 core course is done (or 200 words are known); 4 N4 casual
+ * chat, once N4 is unlocked as well.
  */
 export function learnerTier() {
   const done = new Set(store.s.course.done);
@@ -28,6 +30,8 @@ export function learnerTier() {
   let t = 1;
   if (store.trackDone('hiragana') && (done.size >= 4 || words >= 60)) t = 2;
   if (t === 2 && (done.has('p1-10') || words >= 200)) t = 3;
+  // 4: N4 plain, casual speech between friends, once N4 is unlocked (js/levels.js).
+  if (t === 3 && isUnlocked('N4')) t = 4;
   return t;
 }
 
@@ -52,11 +56,11 @@ const senderOpen = (m) => { const s = SENDERS[m.from]; return !s.after || cleare
 
 /** Whether a message can arrive now: its sender and story moment are reached, its tier fits, at most one new word. */
 export function eligible(m, tier = learnerTier()) {
-  return senderOpen(m) && (!m.after || cleared().has(m.after)) && m.tier <= tier && newWords(m).length <= 1;
+  return itemOpen(m) && senderOpen(m) && (!m.after || cleared().has(m.after)) && m.tier <= tier && newWords(m).length <= 1;
 }
 
 /** Messages that are only meant to come as an answer to a reply (the middle of a short conversation). */
-const CHAINED = new Set(MESSAGES.flatMap((m) => m.replies.map((r) => r.next).filter(Boolean)));
+const CHAINED = new Set(Object.values(MESSAGE_BY_ID).flatMap((m) => m.replies.map((r) => r.next).filter(Boolean)));
 
 /**
  * The next message: the one the last reply asked for, if it fits; otherwise a fresh conversation, story moments
@@ -72,7 +76,7 @@ export function pickNext() {
     const m = want && MESSAGE_BY_ID[want];
     if (m && !had.has(m.id) && eligible(m, tier)) return m;
   }
-  const open = MESSAGES.filter((m) => !had.has(m.id) && eligible(m, tier));
+  const open = content('messages').filter((m) => !had.has(m.id) && eligible(m, tier));
   const starts = open.filter((m) => !CHAINED.has(m.id));
   const pool = starts.length ? starts : open;
   const chapterNo = (m) => (m.after ? Number(m.after.slice(2)) : 0);
@@ -81,7 +85,7 @@ export function pickNext() {
 
 /** A warm note for someone coming back after AWAY_DAYS or more: the closest one at or under their tier. */
 export function welcomeBack(tier = learnerTier()) {
-  return WELCOME_BACK.filter((m) => m.tier <= tier).slice(-1)[0];
+  return WELCOME_BACK.filter((m) => m.tier <= tier && itemOpen(m)).slice(-1)[0];
 }
 
 /**

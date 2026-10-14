@@ -3,6 +3,8 @@
 // The strokes themselves come from KanjiVG (js/kana-strokes.js).
 import { LESSONS } from './dojo-data.js';
 import { STROKES } from './kana-strokes.js';
+import { N4_BRUSH_WORDS } from './n4-extras.js';
+import { tagLevel } from './level-tag.js';
 
 /** Hiragana: a picture that walks through the strokes. */
 const HIRA = {
@@ -122,4 +124,12 @@ for (const l of LESSONS) {
     BRUSH_KANA.push({ k: c.k, r: c.r, track: l.track, lesson: l.id, m, base: base || null });
   }
 }
+tagLevel(BRUSH_KANA, 'N5');
 export const BRUSH_BY_KANA = Object.fromEntries(BRUSH_KANA.map((x) => [x.k, x]));
+
+/**
+ * N4: whole words drawn kana by kana from hearing them (js/n4-extras.js), so the hand learns words, not just letters.
+ * Only words whose every kana can be drawn.
+ */
+export const BRUSH_WORDS = tagLevel(N4_BRUSH_WORDS.filter((w) => [...w.kana].every((k) => BRUSH_BY_KANA[k]))
+  .map((w) => ({ ...w, id: 'bw:' + w.kana })), 'N4');

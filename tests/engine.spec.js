@@ -174,7 +174,7 @@ test.describe('migration to v3', () => {
     await page.goto('./');
     const out = await parse(page, fx);
     expect(out.v).toBeGreaterThanOrEqual(3);
-    const v3 = { ...fx, v: out.v, settings: { ...fx.settings, pronCheck: true, autoMic: false, voice: null } };   // v7 adds the pronunciation check setting
+    const v3 = { ...fx, v: out.v, settings: { ...fx.settings, pronCheck: true, autoMic: false, voice: null, showAllLevels: false } };   // v7 adds the pronunciation check setting
     expect(out).toEqual(expect.objectContaining(v3));
     expect(out.saga).toEqual({ mined: [], seq: 0, quiz: {}, challenge: {} });
     await page.goto('about:blank');

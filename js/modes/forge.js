@@ -2,20 +2,23 @@
 import { store } from '../store.js';
 import { earlyHint } from '../tuning.js';
 import { speaker } from '../audio.js';
-import { KANJI, PART_NAMES } from '../data.js';
+import { PART_NAMES } from '../data.js';
+import { content, pickMixed, levelBar } from '../levels.js';
 import { esc, shuffle, delegate, pick } from '../ui.js';
 import * as fx from '../fx.js';
 import { mountRecap, withDistractors, optionCount, withReading } from '../recap.js';
 
 export function mount(el, ctx) {
   const GOAL = 3;
+  // The unlocked levels' kanji: N5 first, then N4 once unlocked (js/levels.js).
+  const KANJI = content('forge');
   let target = null;
   let tray = [];
   let anvil = [];
   let message = null;
   let forged = false;
   let showStory = false;
-  let practice = false;   // all 12 forged: re-forge old ones for practice
+  let practice = false;   // all forged: re-forge old ones for practice
   let done = 0;
   let firstTry = true;
   let newForged = [];      // kanji forged for the first time this visit (recapped after each round of GOAL)
@@ -30,7 +33,8 @@ export function mount(el, ctx) {
     const have = store.forgedKanji;
     const remaining = KANJI.filter((k) => !have.has(k.kanji));
     practice = remaining.length === 0 && (practice || !!ctx.today);
-    target = remaining[0] || (practice ? pick(KANJI.filter((k) => k !== target)) : null);
+    // New kanji in order; once all are forged, practice mostly the newest level's (about 70%).
+    target = remaining[0] || (practice ? pickMixed(KANJI.filter((k) => k !== target)) : null);
     if (!target) return;
     const uniq = [...new Set(target.parts)];
     const others = shuffle(Object.keys(PART_NAMES).filter((p) => !target.parts.includes(p))).slice(0, 8 - uniq.length);
@@ -47,8 +51,9 @@ export function mount(el, ctx) {
     el.innerHTML = `
       <div class="stack">
         <div>
-          <p class="strong mono">Forged ${have.size} of ${KANJI.length}</p>
-          <div class="bar"><span style="width:${(have.size / KANJI.length) * 100}%"></span></div>
+          ${levelBar('forge')}
+          <p class="strong mono">Forged ${KANJI.filter((k) => have.has(k.kanji)).length} of ${KANJI.length}</p>
+          <div class="bar"><span style="width:${(KANJI.filter((k) => have.has(k.kanji)).length / KANJI.length) * 100}%"></span></div>
         </div>
         ${t ? `
           <div>

@@ -8,13 +8,15 @@
 //   Grammar     N5 course grammar points whose Garden card has held for a week or more
 //   Listening   first-try listening accuracy over the last 4 weeks, once there are enough answers
 //   Reading     kana learned, and Story chapters cleared
+// N4 readiness (once N5 is done) has the same five areas on the N4 content: the N4 deck, the N4 kanji, the N4 course
+// grammar, listening, and the N4 Story arc with the N4 kanji lessons (N4_TARGETS).
 // "Ready for a mock" comes when the areas average 90% of their targets and none is under 60%. A mock is optional
 // practice: the mini mock is open any time, and nothing is locked.
 import { store, dateKey } from './store.js';
-import { N5_WORDS, KANJI } from './data.js';
-import { LESSONS, KANJI_LESSONS } from './dojo-data.js';
+import { N5_WORDS, N4_WORDS, KANJI, CHAPTERS } from './data.js';
+import { LESSONS, KANJI_LESSONS, N4_KANJI_LESSONS } from './dojo-data.js';
 import { UNITS } from './course-data.js';
-import { LEVELS, MOCK_LEVELS, N5_GRAMMAR_KEYS, SCORING } from './exam-data.js';
+import { LEVELS, MOCK_LEVELS, N5_GRAMMAR_KEYS, N4_GRAMMAR_KEYS, SCORING } from './exam-data.js';
 import { esc } from './ui.js';
 
 export const N5_TARGETS = {
@@ -33,7 +35,20 @@ const pct = (x) => `${Math.round(x * 100)}%`;
 const clamp = (x) => Math.max(0, Math.min(1, x));
 
 /** The kanji the app teaches (Reading Dojo starter kanji and Kanji Forge). */
-export const TEACHABLE_KANJI = [...new Set([...KANJI_LESSONS.flatMap((l) => l.kanji.map((j) => j.k)), ...KANJI.map((k) => k.kanji)])];
+export const TEACHABLE_KANJI = [...new Set([...KANJI_LESSONS.flatMap((l) => l.kanji.map((j) => j.k)), ...KANJI.filter((k) => k.level === 'N5').map((k) => k.kanji)])];
+/** The N4 kanji the app teaches (N4 Reading Dojo lessons and N4 Kanji Forge). */
+export const TEACHABLE_KANJI_N4 = [...new Set([...N4_KANJI_LESSONS.flatMap((l) => l.kanji.map((j) => j.k)), ...KANJI.filter((k) => k.level === 'N4').map((k) => k.kanji)])];
+
+/** N4 targets, like N5's: the N4 deck, the N4 kanji, the N4 course grammar, listening and the N4 story arc. */
+export const N4_TARGETS = {
+  vocab: 0.75,          // share of the N4 deck known
+  kanji: 0.8,           // share of the N4 kanji the app teaches
+  grammar: 0.8,         // share of the N4 grammar points held
+  grammarDays: 7,
+  listening: 0.8,       // first-try listening accuracy (N4 scenes count toward it once open)
+  listeningAnswers: 60,
+  chapters: 5,          // N4 Story chapters cleared (the whole Journey arc)
+};
 
 function n5Areas(now) {
   const items = store.s.items;
@@ -80,20 +95,50 @@ function n5Areas(now) {
   ];
 }
 
-/** N4 has no lessons or mock yet: its meter shows the foundation it will build on and the N4 units done. */
-function n4Areas() {
-  const strong = new Set(store.planted().filter((p) => p.prog.level >= 4).map((p) => p.item.jp));
-  const strongN = N5_WORDS.filter((w) => strong.has(w.jp)).length;
-  const strongT = Math.round(N5_WORDS.length * 0.9);
-  const n4Units = UNITS.filter((u) => u.phase === 'p2');
-  const unitsN = n4Units.filter((u) => store.s.course.done.includes(u.id)).length;
+/** N4: the same five areas as N5, measured on the N4 content (the N4 deck, kanji, course units and story arc). */
+function n4Areas(now) {
+  const items = store.s.items;
+  const T = N4_TARGETS;
+  const known = new Set(store.planted().filter((p) => p.prog.level >= 2).map((p) => p.item.jp));
+  const vocabN = N4_WORDS.filter((w) => known.has(w.jp)).length;
+  const vocabT = Math.max(1, Math.round(N4_WORDS.length * T.vocab));
+
+  const learned = (id) => items[id] && items[id].level >= 1;
+  const kanjiN = TEACHABLE_KANJI_N4.filter((k) => learned('kj:' + k) || store.forgedKanji.has(k)).length;
+  const kanjiT = Math.max(1, Math.round(TEACHABLE_KANJI_N4.length * T.kanji));
+
+  const g = store.s.grammar;
+  const gramN = N4_GRAMMAR_KEYS.filter((k) => g[k] && g[k].r && g[k].s >= T.grammarDays && !g[k].help).length;
+  const gramT = Math.max(1, Math.round(N4_GRAMMAR_KEYS.length * T.grammar));
+
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const from = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 27);
+  const lis = store.skillDays(dateKey(from), dateKey(today)).listening;
+  const lisVal = lis.tot ? clamp(lis.tot / T.listeningAnswers) * clamp(lis.rate / T.listening) : 0;
+
+  const n4Chapters = CHAPTERS.filter((c) => c.level === 'N4');
+  const chN = n4Chapters.filter((c) => store.clearedChapters.has(c.id)).length;
+  const lessons = N4_KANJI_LESSONS.filter((l) => store.clearedLessons.has(l.id)).length;
+  const readVal = 0.6 * clamp(chN / T.chapters) + 0.4 * clamp(lessons / N4_KANJI_LESSONS.length);
+
   return [
-    { id: 'vocab', label: 'N5 words grown', value: clamp(strongN / strongT), text: `${strongN}/${strongT}`,
-      title: `${strongN} of ${strongT} N5 words grown to a tree (remembered for weeks)`,
-      tip: 'Keep watering the Garden; N4 builds on these.', href: '#/garden', go: 'Garden' },
-    { id: 'units', label: 'N4 lessons', value: unitsN / n4Units.length, text: `${unitsN}/${n4Units.length}`,
-      title: `${unitsN} of ${n4Units.length} N4 bridge units done`,
-      tip: 'The N4 bridge lessons are still being written.', href: '#/course', go: 'Course' },
+    { id: 'vocab', label: 'Vocabulary', value: clamp(vocabN / vocabT), text: `${vocabN}/${vocabT}`,
+      title: `Vocabulary: ${vocabN} of the ${vocabT} N4 words to aim for (${pct(T.vocab)} of the N4 deck)`,
+      tip: 'Water the Garden: N4 words come in after the N5 deck.', href: '#/garden', go: 'Garden' },
+    { id: 'kanji', label: 'Kanji', value: clamp(kanjiN / kanjiT), text: `${kanjiN}/${kanjiT}`,
+      title: `Kanji: ${kanjiN} of ${kanjiT} N4 kanji learned in the Reading Dojo or forged`,
+      tip: 'Learn the N4 kanji in the Reading Dojo, then forge them in Kanji Forge.', href: '#/play/dojo', go: 'Reading Dojo' },
+    { id: 'grammar', label: 'Grammar', value: clamp(gramN / gramT), text: `${gramN}/${gramT}`,
+      title: `Grammar: ${gramN} of ${gramT} N4 grammar points remembered for a week or more`,
+      tip: 'Work through the N4 bridge units in the course; their grammar cards come back in the Garden.', href: '#/course', go: 'Course' },
+    { id: 'listening', label: 'Listening', value: lisVal, text: lis.tot ? `${pct(lis.rate)} (${lis.tot})` : '–',
+      title: lis.tot ? `Listening: ${pct(lis.rate)} right on the first try from ${lis.tot} answers in the last 4 weeks (aim: ${pct(T.listening)} from ${T.listeningAnswers})`
+        : 'Listening: no answers in the last 4 weeks yet',
+      tip: 'Play Listening Lab or Numbers & Time: N4 scenes are in the mix now.', href: '#/play/listen', go: 'Listening Lab' },
+    { id: 'reading', label: 'Reading', value: readVal, text: `${pct(readVal)}`,
+      title: `Reading: ${chN} of ${T.chapters} N4 Story chapters cleared, ${lessons} of ${N4_KANJI_LESSONS.length} N4 kanji lessons done`,
+      tip: chN < T.chapters ? 'Read the next chapter of the Journey arc.' : 'Finish the N4 kanji lessons in the Reading Dojo.',
+      href: chN < T.chapters ? '#/play/story' : '#/play/dojo', go: chN < T.chapters ? 'Story' : 'Reading Dojo' },
   ];
 }
 
@@ -106,7 +151,7 @@ export function readiness(now = new Date()) {
   const level = LEVELS.find((lv) => !done.has(lv));
   if (!level) return null;
   const mock = MOCK_LEVELS.includes(level);
-  const areas = level === 'N5' ? n5Areas(now) : level === 'N4' ? n4Areas() : [];
+  const areas = level === 'N5' ? n5Areas(now) : level === 'N4' ? n4Areas(now) : [];
   const overall = areas.length ? areas.reduce((a, x) => a + x.value, 0) / areas.length : 0;
   const ready = mock && areas.length > 0 && overall >= READY_AVERAGE && Math.min(...areas.map((x) => x.value)) >= READY_FLOOR;
   const later = store.exam.later[level];

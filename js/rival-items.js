@@ -6,17 +6,21 @@
 // Each attack knows how to grade itself through the store, so reviews, accuracy and Progress update as usual.
 import { store } from './store.js';
 import { TRAINS, TRAIN_PALETTE, assembleTrain } from './data.js';
-import { CONJ_WORDS, NUMBER_SCENES, FORM_LABEL, conjugate, conjPrompt, conjDistractors, conjWhy } from './practice-data.js';
+import { CONJ_WORDS, NUMBER_SCENES, FORM_LABEL, FORM_LEVEL, conjugate, conjPrompt, conjDistractors, conjWhy } from './practice-data.js';
 import { LESSONS } from './dojo-data.js';
 import { conjKey } from './grammar-cards.js';
 import { recentRate } from './skills.js';
 import { shuffle } from './ui.js';
 import { RIVALS } from './rival-data.js';
+import { itemOpen, mixed, levelOf } from './levels.js';
 
-/** Rivals unlocked so far: Kaito from the start, the others once their story chapter is cleared. */
+/**
+ * Rivals unlocked so far: Kaito from the start, the others once their story chapter is cleared. The N4 rivals also
+ * need N4 unlocked (js/levels.js); their chapters are N4 chapters, so that comes first anyway.
+ */
 export function unlockedRivals() {
   const cleared = store.clearedChapters;
-  return RIVALS.filter((r) => !r.after || cleared.has(r.after));
+  return RIVALS.filter((r) => itemOpen(r) && (!r.after || cleared.has(r.after)));
 }
 
 /** Fewest attacks a fight needs; with less than this the rival waits until more has been learned. */
@@ -57,10 +61,10 @@ export function attackPool(now = Date.now()) {
     const easy = (prog.level || 0) >= 3;
     const say = item.say || item.reading;
     if (!flip(item.id)) {
-      out.push({ key: 'w:' + item.id, kind: 'word', skill: 'vocab', ask: 'What does it mean?', prompt: item.jp, promptJa: true,
+      out.push({ key: 'w:' + item.id, level: levelOf(item), kind: 'word', skill: 'vocab', ask: 'What does it mean?', prompt: item.jp, promptJa: true,
         answer: item.en, pool: meanings, optionsJa: false, say, sayable: say, targets: [item.jp, item.reading, say], detail: `${item.jp} (${item.reading}) = ${item.en}`, due, easy, grade });
     } else {
-      out.push({ key: 'w:' + item.id, kind: 'word', skill: 'vocab', ask: 'Say it or pick it in Japanese:', prompt: item.en, promptJa: false,
+      out.push({ key: 'w:' + item.id, level: levelOf(item), kind: 'word', skill: 'vocab', ask: 'Say it or pick it in Japanese:', prompt: item.en, promptJa: false,
         answer: item.jp, pool: japanese, optionsJa: true, say, sayable: say, targets: [item.jp, item.reading, say], detail: `${item.en} = ${item.jp} (${item.reading})`, due, easy, grade });
     }
   });
@@ -71,7 +75,7 @@ export function attackPool(now = Date.now()) {
   for (const [id, p] of kana) {
     const c = KANA[id.slice(5)];
     const due = p.due <= now;
-    out.push({ key: id, kind: 'kana', skill: 'kana', ask: 'How do you read it?', prompt: c.k, promptJa: true, noruby: true,
+    out.push({ key: id, level: 'N5', kind: 'kana', skill: 'kana', ask: 'How do you read it?', prompt: c.k, promptJa: true, noruby: true,
       answer: c.r, pool: romajiPool.filter((r) => r !== c.r), optionsJa: false, say: c.k, sayable: c.k, targets: [c.k], detail: `${c.k} = ${c.r}`,
       due, easy: (p.level || 0) >= 3,
       grade: (ok, firstTry) => {
@@ -91,7 +95,7 @@ export function attackPool(now = Date.now()) {
     const right = conj.jp;
     const card = store.s.grammar[conjKey(word.jp, form)];
     const due = !!(card && card.r && card.due <= now);
-    out.push({ key: `cj:${word.jp}|${form}`, kind: 'conj', skill: 'grammar', ask: `${FORM_LABEL[form]}?`, prompt: conjPrompt(word, form).jp, promptJa: true,
+    out.push({ key: `cj:${word.jp}|${form}`, level: levelOf(word) === 'N4' || FORM_LEVEL[form] === 'N4' ? 'N4' : 'N5', kind: 'conj', skill: 'grammar', ask: `${FORM_LABEL[form]}?`, prompt: conjPrompt(word, form).jp, promptJa: true,
       promptEn: word.en, answer: right, pool: conjDistractors(word, form), optionsJa: true, say: right, sayable: right, targets: [conj.jp, conj.kana],
       detail: conjWhy(word, form), due, easy: mastery(k) >= WELL,
       grade: (ok, firstTry) => {
@@ -111,8 +115,8 @@ export function attackPool(now = Date.now()) {
     const filled = Object.fromEntries(t.gaps.map((x, i) => [i, x ? x.correct[0] : null]));
     const full = assembleTrain(t, filled);
     const blanked = assembleTrain(t, { ...filled, [gi]: '（　）' });
-    out.push({ key: 'train:' + m[1], kind: 'particle', skill: 'grammar', ask: 'Which particle fits?', prompt: blanked, promptJa: true, promptEn: t.en,
-      answer: g.correct[0], pool: TRAIN_PALETTE.filter((p) => !g.correct.includes(p)), optionsJa: true, say: full, sayable: null,
+    out.push({ key: 'train:' + m[1], level: levelOf(t), kind: 'particle', skill: 'grammar', ask: t.palette ? 'Which piece fits?' : 'Which particle fits?', prompt: blanked, promptJa: true, promptEn: t.en,
+      answer: g.correct[0], pool: (t.palette || TRAIN_PALETTE).filter((p) => !g.correct.includes(p)), optionsJa: true, say: full, sayable: null,
       detail: g.why, due: false, easy: mastery(k) >= WELL,
       grade: (ok, firstTry) => { if (firstTry) { store.log(ok); store.grade({ skill: 'grammar', id: 'train:' + m[1], ok }); } } });
   }
@@ -121,7 +125,7 @@ export function attackPool(now = Date.now()) {
   for (const s of NUMBER_SCENES) {
     const k = 'counters|num:' + s.id;
     if (!store.engine.mastery[k]) continue;
-    out.push({ key: 'num:' + s.id, kind: 'number', skill: 'counters', ask: s.q, prompt: null, listen: { text: s.jp, voice: s.voice },
+    out.push({ key: 'num:' + s.id, level: levelOf(s), kind: 'number', skill: 'counters', ask: s.q, prompt: null, listen: { text: s.jp, voice: s.voice },
       answer: s.options[0], pool: s.options.slice(1), optionsJa: false, fixedPool: true, say: s.jp, sayVoice: s.voice, sayable: null,
       detail: s.why, due: false, easy: mastery(k) >= WELL,
       grade: (ok, firstTry) => {
@@ -147,11 +151,15 @@ export function optionsFor(a) {
 
 /**
  * Orders a fight: mixes kinds so no two neighbours share one when it can be helped, due items first within each
- * kind. Returns at most `n` attacks.
+ * kind. Returns at most `n` attacks. `level`: the rival's level.
  */
-export function planFight(pool, n = 16) {
+export function planFight(pool, n = 16, level = 'N5') {
+  // An N4 rival attacks mostly with N4 items (about 70%, js/levels.js), the rest review from N5. An N5 rival keeps
+  // to N5 items while there are enough of them.
+  const n5 = pool.filter((a) => levelOf(a) === 'N5');
+  const picked = level === 'N5' ? (n5.length >= MIN_ITEMS ? n5 : pool) : mixed(pool, n);
   const byKind = {};
-  for (const a of shuffle(pool)) (byKind[a.kind] || (byKind[a.kind] = [])).push(a);
+  for (const a of shuffle(picked)) (byKind[a.kind] || (byKind[a.kind] = [])).push(a);
   for (const list of Object.values(byKind)) list.sort((a, b) => Number(b.due) - Number(a.due));
   const out = [];
   let last = null;
