@@ -28,6 +28,7 @@ import * as soundcheck from './soundcheck.js';
 import * as placement from './placement.js';
 import * as exam from './exam.js';
 import { readinessCard } from './readiness.js';
+import { skillMini } from './skill-chart.js';
 import * as progress from './progress.js';
 import { checkinCard, checkinHandlers } from './checkin.js';
 import { initReadingHelp, clearReadingHelp, readingConfig } from './furigana.js';
@@ -435,6 +436,7 @@ function renderHome() {
       <aside class="stack home-side" aria-label="At a glance">
         ${course.courseCard()}
         ${readinessCard()}
+        ${skillMini()}
         ${!store.trackDone('hiragana') && !store.clearedLessons.size ? `<a class="panel hint link-panel" href="#/play/dojo"><span class="grow small">🔤 <span class="strong">New to reading Japanese?</span> Start in the Reading Dojo: hiragana, katakana, then kanji. Until then, every game shows romaji (tap ふa at the top to change it).</span><span class="dim chev" aria-hidden="true">›</span></a>` : ''}
         <section class="panel stack-sm" aria-label="Garden at a glance">
           <div class="tiles">

@@ -68,7 +68,7 @@ export const N3_TARGETS = {
 /** The N3 kanji the app teaches (N3 Reading Dojo lessons and N3 Kanji Forge). */
 export const TEACHABLE_KANJI_N3 = [...new Set([...N3_KANJI_LESSONS.flatMap((l) => l.kanji.map((j) => j.k)), ...KANJI.filter((k) => k.level === 'N3').map((k) => k.kanji)])];
 
-export function n5Areas(now) {
+export function n5Areas(now = new Date()) {
   const items = store.s.items;
   const known = new Set(store.planted().filter((p) => p.prog.level >= 2).map((p) => p.item.jp));
   const vocabN = N5_WORDS.filter((w) => known.has(w.jp)).length;
@@ -114,7 +114,7 @@ export function n5Areas(now) {
 }
 
 /** N4: the same five areas as N5, measured on the N4 content (the N4 deck, kanji, course units and story arc). */
-export function n4Areas(now) {
+export function n4Areas(now = new Date()) {
   const items = store.s.items;
   const T = N4_TARGETS;
   const known = new Set(store.planted().filter((p) => p.prog.level >= 2).map((p) => p.item.jp));
@@ -161,7 +161,7 @@ export function n4Areas(now) {
 }
 
 /** N3: the same five areas, measured on the N3 content (the N3 deck, kanji, Phase 3 units and the Rivals arc). */
-export function n3Areas(now) {
+export function n3Areas(now = new Date()) {
   const items = store.s.items;
   const T = N3_TARGETS;
   const known = new Set(store.planted().filter((p) => p.prog.level >= 2).map((p) => p.item.jp));
