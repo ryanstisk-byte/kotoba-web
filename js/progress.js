@@ -4,6 +4,7 @@
 import { store, dateKey, SKILLS } from './store.js';
 import { CHAPTERS, KANJI, N5_WORDS, N4_WORDS } from './data.js';
 import { APP_LEVELS, isUnlocked, lockLine } from './levels.js';
+import { mountSkillChart } from './skill-chart.js';
 import { ALL_LESSONS, LESSONS, KANJI_LESSONS, TRACKS } from './dojo-data.js';
 import { SKILL_LABELS } from './skills.js';
 import { knobs } from './tuning.js';
@@ -152,6 +153,7 @@ export function render(view) {
   const lessonsDone = (t) => ALL_LESSONS.filter((l) => l.track === t && cleared.has(l.id)).length;
 
   view.innerHTML = `<div class="stack progress-screen">
+    <div id="skill-chart"></div>
     <section class="stat-grid" aria-label="Totals">
       <div class="panel stat"><span class="stat-v mono">${d.wordsKnown}<span class="stat-of"> / ${d.planted}</span></span><span class="small dim">words known (of those in your garden)</span></div>
       <div class="panel stat"><span class="stat-v mono">${d.hira.n + d.kata.n}</span><span class="small dim">kana learned</span></div>
@@ -197,6 +199,9 @@ export function render(view) {
     </section>
     <a class="btn wide" href="#/settings">Move progress to another device (Settings)</a>
   </div>`;
+  // The skill chart at the top (js/skill-chart.js), with its own clicks.
+  if (offChart) offChart();
+  offChart = mountSkillChart(view.querySelector('#skill-chart'));
   if (offRoad) offRoad();
   offRoad = delegate(view, {
     'real-ask': (b) => { const box = view.querySelector('.real-pass'); if (box) box.innerHTML = realConfirm(b.dataset.level); box?.querySelector('button')?.focus(); },
@@ -204,9 +209,10 @@ export function render(view) {
     'real-no': () => render(view),
     'real-undo': (b) => { store.markRealPass(b.dataset.level, false); render(view); },
   });
-  return () => { if (offRoad) offRoad(); offRoad = null; };
+  return () => { if (offRoad) offRoad(); offRoad = null; if (offChart) offChart(); offChart = null; };
 }
 let offRoad = null;
+let offChart = null;
 
 const realConfirm = (lv) => `<p class="small">Mark ${lv} as passed? Its meter makes way for the next level. You can undo this here.</p>
   <div class="row2"><button class="btn primary" data-act="real-yes" data-level="${lv}">Yes, I passed it</button><button class="btn ghost" data-act="real-no">Cancel</button></div>`;

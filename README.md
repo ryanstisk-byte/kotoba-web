@@ -229,6 +229,26 @@ planted from Story or Kanji Forge. Each word is voiced with its listed pitch acc
 too (normal and slow). Readings were checked against JMdict (EDRDG, CC BY-SA 4.0). After editing the TSV, run the
 build below; it regenerates `js/n5.js`.
 
+## Skill chart
+
+The top of Progress (`js/skill-chart.js`) is a radar, like a character's stat screen, with one axis per skill area:
+kana, kanji, vocabulary, grammar, listening, reading, speaking, pitch and numbers. Each axis is scored 0-100% toward
+the level being worked toward (the next level not done, as in Exam readiness).
+
+- **Measures.** Kanji, vocabulary, grammar and reading use the readiness areas. Kana is the kana read (N5), then the
+  kana written from memory in Kana Brush (N4). Listening, speaking, pitch and numbers are half "items answered well"
+  (skill-model mastery 60+, toward `ITEM_TARGETS`) and half recent first-try accuracy (toward 80%). None of them uses
+  a calendar window, so nothing shrinks while you're away. Reviews waiting show as a calm "review waiting" tag.
+- **Levels.** Tabs per level. A done level shows where you finished it, the level before the current one stays as a
+  faint outline, and locked levels show the lock line.
+- **Game feel.** Rank titles per axis (入門 Newcomer, 見習い Apprentice, 弟子 Disciple, 師範 Master), the strongest and
+  weakest axis with a button to the best mode for the weakest, and a growth animation since the last visit (none with
+  reduced motion). The last visit's values stay on this device only (`kotobaBeat.chart` in localStorage), outside
+  saved progress and sync.
+- **Foundations.** Tapping an axis (or its row) opens what the skill is, the research principle the app builds it
+  with, the modes that train it, and its numbers. The list under the chart is the precise version; the SVG has a
+  text alternative. A small version sits on Today, next to the Road card.
+
 ## JLPT levels (N5, then N4)
 
 Every piece of content carries a JLPT level (`js/level-tag.js`; everything from before N4 is N5), and every mode draws
