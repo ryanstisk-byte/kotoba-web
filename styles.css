@@ -1217,3 +1217,4 @@ body.has-tabs #update-ready { bottom: calc(var(--tabbar-h) + var(--sp-3) + env(s
 .exam-word { font-size: var(--fs-jp-md); }
 .exam-opts.exam-long { grid-template-columns: 1fr; }
 .exam-opts.exam-long .btn { text-align: left; justify-content: flex-start; }
+.particle-grid.palette { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }

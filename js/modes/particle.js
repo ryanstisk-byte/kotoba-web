@@ -51,7 +51,7 @@ export function mount(el, ctx) {
         ${derail ? `<div class="panel miss-c">⚠️ ${esc(derail)}</div>` : ''}
         ${!departed ? `
           <p class="small dim">${activeGap === null ? `Tap a coupling (○) to choose its ${t.palette ? 'piece' : 'particle'}.` : `Pick the ${t.palette ? 'piece' : 'particle'} for the glowing coupling:`}</p>
-          <div class="particle-grid">
+          <div class="particle-grid${t.palette ? ' palette' : ''}">
             ${palette(t).map((p) => `<button class="btn particle" data-act="place" data-p="${p}" lang="ja" ${activeGap === null ? 'disabled' : ''}>${p}</button>`).join('')}
           </div>` : `
           <p class="lead good-c strong" lang="ja">出発進行！ ${esc(assembleTrain(t, filled))}</p>
