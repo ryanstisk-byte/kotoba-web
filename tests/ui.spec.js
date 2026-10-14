@@ -209,12 +209,14 @@ test.describe('readability', () => {
         const overlaps = await page.evaluate(() => {
           // Every reading (<rt>) box against every other line of text on screen.
           const rects = (node) => { const r = document.createRange(); r.selectNodeContents(node); return [...r.getClientRects()].filter((x) => x.width > 1 && x.height > 1); };
-          const rts = [...document.querySelectorAll('#view rt')].filter((rt) => rt.offsetParent);
+          // Text folded away in a closed <details> isn't on screen (Chromium still gives it boxes), so it's left out.
+          const shown = (el) => el.offsetParent && !el.closest('details:not([open]) > :not(summary)');
+          const rts = [...document.querySelectorAll('#view rt')].filter(shown);
           const texts = [];
           const walker = document.createTreeWalker(document.getElementById('view'), NodeFilter.SHOW_TEXT);
           while (walker.nextNode()) {
             const n = walker.currentNode;
-            if (!n.nodeValue.trim() || !n.parentElement.offsetParent) continue;
+            if (!n.nodeValue.trim() || !shown(n.parentElement)) continue;
             texts.push({ n, rt: n.parentElement.closest('rt'), ruby: n.parentElement.closest('ruby'), boxes: rects(n) });
           }
           const hit = (a, b) => a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 2 && b.top < a.bottom - 2;

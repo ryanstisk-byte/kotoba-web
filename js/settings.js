@@ -36,7 +36,7 @@ export function mount(el, ctx) {
               ${[['normal', 'Up to 5'], ['less', 'Up to 3']].map(([v, t]) => `<button class="seg-btn ${st.pace === v ? 'on' : ''}" data-act="pace" data-v="${v}" role="radio" aria-checked="${st.pace === v}">${t}</button>`).join('')}
             </div>
             <p class="small dim">The app also brings in fewer while your recent answers are below ~80%, so it stays near the 85% sweet spot.</p></div>
-          <a class="btn wide" href="#/placement">Placement check (skip what you already know)</a>
+          <div><a class="btn wide" href="#/placement">Placement check</a><p class="small dim">Skips the Reading Dojo lessons you already know.</p></div>
           <div><span class="strong">Theme</span>
             <div class="seg" role="radiogroup">
               ${['auto', 'light', 'dark'].map((t) => `<button class="seg-btn ${st.theme === t ? 'on' : ''}" data-act="theme" data-v="${t}" role="radio" aria-checked="${st.theme === t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}
@@ -124,6 +124,14 @@ export function mount(el, ctx) {
           <label class="small">Fine-tune <input type="range" min="-100" max="400" step="10" value="${st.latencyMs}" data-act="latrange" aria-label="Latency offset in milliseconds"></label>
         </section>
 
+        <section class="panel stack-sm">
+          <h2 class="section-title">Keep progress safe</h2>
+          <p class="small">On iPhone: Share › Add to Home Screen keeps your progress safe. Safari can clear website data after about 7 days without a visit, but not for Home Screen apps. Export now and then as a backup.</p>
+          <p class="small" id="offline-status">${offlineText}</p>
+          <p class="small dim" id="app-version">${esc(versionText)}</p>
+          ${store.saveOk ? '' : '<p class="miss-c small">Saving is blocked in this browser (private mode?). Progress will not persist.</p>'}
+        </section>
+
         <section class="panel stack-sm full" id="sync-panel" aria-labelledby="sync-h">${syncHTML()}</section>
 
         <section class="panel stack-sm full">
@@ -139,14 +147,11 @@ export function mount(el, ctx) {
             <div class="row2"><button class="btn primary" data-act="confirmimport">Replace</button><button class="btn" data-act="cancelimport">Cancel</button></div></div>` : ''}
         </section>
 
-        <section class="panel stack-sm">
-          <h2 class="section-title">Keep progress safe</h2>
-          <p class="small">On iPhone: Share › Add to Home Screen keeps your progress safe. Safari can clear website data after about 7 days without a visit, but not for Home Screen apps. Export now and then as a backup.</p>
-          <p class="small" id="offline-status">${offlineText}</p>
-          <p class="small dim" id="app-version">${esc(versionText)}</p>
-          ${store.saveOk ? '' : '<p class="miss-c small">Saving is blocked in this browser (private mode?). Progress will not persist.</p>'}
+        <section class="panel stack-sm full danger-zone" aria-labelledby="reset-h">
+          <h2 class="section-title" id="reset-h">Start over</h2>
+          <p class="small dim">Erases this device's progress. Your settings stay. It asks once more before erasing.</p>
           ${sync.status().connected ? '<p class="small dim">Sync is on: a reset only erases this device, and the next sync brings your progress back from GitHub. Disconnect sync first to start over everywhere.</p>' : ''}
-          <button class="btn ${resetArmed ? 'danger' : ''}" data-act="reset">${resetArmed ? 'Tap again to erase all progress' : 'Reset all progress'}</button>
+          <button class="btn danger-outline ${resetArmed ? 'danger' : ''}" data-act="reset">${resetArmed ? 'Tap again to erase all progress' : 'Reset all progress'}</button>
         </section>
         <div class="full stack-sm">
           <p class="tiny dim center-text">Kotoba Beat web · works offline once loaded</p>

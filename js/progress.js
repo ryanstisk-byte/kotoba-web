@@ -21,6 +21,7 @@ export const N5_KANJI_ESTIMATE = 100;
 const W = 340;   // chart width in viewBox units; the SVG scales to the panel
 
 const pct = (x) => `${Math.round(x * 100)}%`;
+const daysLine = (n) => `${n} ${n === 1 ? 'day' : 'days'} studied this month.`;
 
 /**
  * Horizontal bar rows: [{ label, value (0..1 or null), text, title }]. An optional dashed reference line (ref).
@@ -159,21 +160,18 @@ export function render(view) {
       <div class="panel stat"><span class="stat-v mono">${d.wordsKnown}<span class="stat-of"> / ${d.planted}</span></span><span class="small dim">words known (of those in your garden)</span></div>
       <div class="panel stat"><span class="stat-v mono">${d.hira.n + d.kata.n}</span><span class="small dim">kana learned</span></div>
       <div class="panel stat"><span class="stat-v mono">${d.kanjiKnown}</span><span class="small dim">kanji known</span></div>
-      <div class="panel stat"><span class="stat-v mono">${store.daysStudiedThisMonth()}</span><span class="small dim">days studied this month</span></div>
+      <div class="panel stat"><span class="stat-v mono">${store.daysStudiedThisMonth()}</span><span class="small dim">${store.daysStudiedThisMonth() === 1 ? 'day' : 'days'} studied this month</span></div>
     </section>
 
     <section class="panel stack-sm" aria-labelledby="skill-h">
-      <h2 class="section-title" id="skill-h">Accuracy by skill · last 4 weeks</h2>
-      ${answered ? barChart(skillRows, { label: `First-try accuracy by skill over the last 4 weeks. ${skillRows.map((r) => `${r.label} ${r.text}`).join(', ')}.`, ref: 0.85 })
-        : '<p class="small dim">Play any mode and your accuracy per skill shows up here.</p>'}
-      ${answered ? columnChart(weekCols, { label: `First-try accuracy per week: ${weekCols.map((c) => `${c.label} ${c.text}`).join(', ')}.`, ref: 0.85 }) : ''}
-      <p class="small dim">First tries only, with the number of answers in brackets. The dashed line is the ~85% sweet spot.</p>
-    </section>
-
-    <section class="panel stack-sm" aria-labelledby="acc-h">
-      <h2 class="section-title" id="acc-h">This week</h2>
-      <p><span class="stat-v mono">${acc.rate == null ? '–' : pct(acc.rate)}</span> <span class="small dim">right, from ${acc.tot} answers</span></p>
+      <h2 class="section-title" id="skill-h">Accuracy</h2>
+      ${answered ? `<p><span class="stat-v mono">${acc.rate == null ? '–' : pct(acc.rate)}</span> <span class="small dim">right this week, from ${acc.tot} answer${acc.tot === 1 ? '' : 's'}</span></p>
       <p class="small">${esc(accuracyNote(acc.rate, store.settings.length === 'short'))}</p>
+      <h3 class="section-label">BY SKILL · LAST 4 WEEKS</h3>
+      ${barChart(skillRows, { label: `First-try accuracy by skill over the last 4 weeks. ${skillRows.map((r) => `${r.label} ${r.text}`).join(', ')}.`, ref: 0.85 })}
+      ${columnChart(weekCols, { label: `First-try accuracy per week: ${weekCols.map((c) => `${c.label} ${c.text}`).join(', ')}.`, ref: 0.85 })}
+      <p class="small dim">First tries only, with the number of answers in brackets. The dashed line is the ~85% sweet spot.</p>`
+        : '<p class="small dim">Play any mode and your accuracy shows up here. About 85% right is the sweet spot.</p>'}
       <p class="small dim">Adjusting for you: up to ${k.newPerDay} new word${k.newPerDay === 1 ? '' : 's'} a day${k.rhythmSpeed !== 1 ? `, Rhythm at ${pct(k.rhythmSpeed)} speed` : ''}${k.forgeHint || k.storyHint ? ', hints shown earlier' : ''}.</p>
     </section>
 
@@ -185,6 +183,7 @@ export function render(view) {
 
     ${roadSection(road, d)}
 
+    <div class="progress-pair">
     <section class="panel stack-sm" aria-labelledby="garden-h">
       <h2 class="section-title" id="garden-h">Garden</h2>
       <div class="hbars">${stages.map((s, lv) => `<div class="hbar"><span class="small">${s}</span>
@@ -196,8 +195,9 @@ export function render(view) {
     <section class="panel stack-sm" aria-labelledby="cal-h">
       <h2 class="section-title" id="cal-h">${MONTHS[now.getMonth()]}</h2>
       <div class="cal">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((x) => `<span class="cal-h" aria-hidden="true">${x}</span>`).join('')}${cells.join('')}</div>
-      <p class="small dim">${store.daysStudiedThisMonth()} days studied this month. No streaks: come back whenever.</p>
+      <p class="small dim">${daysLine(store.daysStudiedThisMonth())} No streaks: come back whenever.</p>
     </section>
+    </div>
     <a class="btn wide" href="#/settings">Move progress to another device (Settings)</a>
   </div>`;
   // The skill chart at the top (js/skill-chart.js), with its own clicks.

@@ -83,7 +83,11 @@ test.describe('levels: the N4 gate', () => {
     // An N4 word already planted (say, from an earlier "Show every level") keeps being reviewed.
     await seed(page, base({ items: { 'n4:集める': { level: 2, due: 0, best: 0, r: 2, pl: 1, s: 3, d: 5, lr: 1 } } }));
     await page.goto('./#/play/story');
-    await expect(page.locator('.level-bar')).toContainText(line);
+    // The mode's chip row keeps the line in the locked chip (a tap shows it), not printed out on every screen.
+    const chip = page.locator('.level-bar .level-chip.locked').first();
+    await expect(chip).toHaveAttribute('data-lockline', line);
+    await chip.click();
+    await expect(page.locator('#toast')).toContainText(line);
     await expect(page.getByText('JOURNEY ARC', { exact: false })).toBeVisible();
     await expect(page.locator('.saga-node').filter({ hasText: '13' }).locator('button')).toBeDisabled();
     await expectNoHorizontalScroll(page);
@@ -101,7 +105,7 @@ test.describe('levels: the N4 gate', () => {
     await expect(page.getByRole('heading', { name: /N4 kanji/ })).toBeVisible();
     await expect(page.getByText(line).first()).toBeVisible();
     await page.goto('./#/course');
-    await expect(page.locator('.unit-row.locked').first()).toBeVisible();
+    await expect(page.locator('.unit-row.locked').first()).toBeAttached();   // in its folded phase
     await expect(page.getByText(line).first()).toBeVisible();
     await page.goto('./#/exam');
     await expect(page.getByRole('radio', { name: /Mock N4/ })).toBeDisabled();
@@ -237,7 +241,7 @@ test.describe('levels: the N3 gate', () => {
     await page.goto('./#/play/particle');
     await expect(page.locator('.level-bar .level-chip.on')).toHaveText(['N5', 'N4']);
     await expect(page.locator('.level-bar .level-chip.locked')).toHaveText([/N3/]);
-    await expect(page.locator('.level-bar')).toContainText('Unlocks when you pass a full mock N4');
+    await expect(page.locator('.level-bar .level-chip.locked')).toHaveAttribute('data-lockline', /Unlocks when you pass a full mock N4/);
   });
 
   test('a passed full mock N4 unlocks N3 in every mode', async ({ page }) => {

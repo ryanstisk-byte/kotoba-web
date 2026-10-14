@@ -125,8 +125,8 @@ export function pickMixed(list, rand = Math.random) {
 }
 
 /**
- * A small line of level chips for the top of a mode: which levels are in the mix, and locked ones with their
- * friendly line. Empty while the app has only one level open and nothing to look forward to.
+ * A small line of level chips for the top of a mode: which levels are in the mix, and the locked ones. A locked
+ * chip is a button: tapping it shows its friendly unlock line (js/app.js), so the line isn't printed on every screen.
  */
 export function levelBar(key = null) {
   const open = unlockedLevels();
@@ -135,12 +135,11 @@ export function levelBar(key = null) {
     if (!has) return '';
     return open.includes(lv)
       ? `<span class="level-chip on" title="${lv} content is in the mix">${lv}</span>`
-      : `<span class="level-chip locked" title="${lockLine(lv)}">🔒 ${lv}</span>`;
+      : `<button type="button" class="level-chip locked" data-lockline="${lockLine(lv)}" title="${lockLine(lv)}" aria-label="${lv} locked. ${lockLine(lv)}">🔒 ${lv}</button>`;
   }).join('');
-  // The mix (once two levels are open), then the next locked level's friendly line.
-  const locked = APP_LEVELS.find((lv) => !open.includes(lv));
+  // The mix, once two levels are open.
   const mix = open.length > 1 ? `Mostly ${open[open.length - 1]}, with some ${open.slice(0, -1).join(' and ')} review.` : '';
-  const note = [mix, locked ? lockLine(locked) : ''].filter(Boolean).map((t) => `<span class="small dim">${t}</span>`).join(' ');
+  const note = mix ? `<span class="small dim">${mix}</span>` : '';
   return `<div class="level-bar" data-levels="${open.join(' ')}">${chips}${note}</div>`;
 }
 

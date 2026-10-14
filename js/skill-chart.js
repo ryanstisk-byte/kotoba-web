@@ -296,8 +296,9 @@ export function skillMini() {
   const level = chartLevel();
   const axes = axesFor(level);
   const { strong, weak } = extremes(axes);
+  // Road to N5 sits right beside it on Today and already names what to grow next, with a tip; this names the strongest.
   return `<a class="panel link-panel skill-mini" href="#/progress" aria-label="Your skills toward ${level}: strongest ${esc(strong.label)}, next to grow ${esc(weak.label)}. Open Progress.">
     ${radarSVG(axes, { mini: true, label: chartLabel(level, axes) })}
-    <span class="grow small"><span class="strong">Your skills · ${level}</span><br>Strongest: ${esc(strong.label)} <span lang="ja">${esc(strong.rank.jp)}</span><br>Next to grow: ${esc(weak.label)}</span>
+    <span class="grow small"><span class="strong">Your skills · ${level}</span><br>Strongest: ${esc(strong.label)} <span lang="ja">${esc(strong.rank.jp)}</span></span>
     <span class="dim chev" aria-hidden="true">›</span></a>`;
 }

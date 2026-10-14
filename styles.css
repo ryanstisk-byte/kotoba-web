@@ -176,6 +176,8 @@ button { font: inherit; color: inherit; }
   background: var(--ink); color: var(--bg); padding: var(--sp-2) var(--sp-4); border-radius: var(--r-sm); font-weight: 800;
 }
 .skip-link:focus { top: var(--sp-2); }
+/* The screen itself takes focus after each move (for screen readers); it needs no ring, its controls keep theirs. */
+.view:focus { outline: none; }
 
 /* ======================================================================
    Shell: top bar, tab bar, view
@@ -323,6 +325,9 @@ body:not(.has-tabs) .tabbar { display: none; }
 .btn.primary:active { box-shadow: 0 0 0 var(--edge); transform: translate(3px, 3px); }
 .btn.good { background: var(--good-soft); border-color: var(--good); }
 .btn.danger { background: var(--miss); color: var(--surface); border-color: var(--edge); }
+.btn.danger-outline:not(.danger) { border-color: var(--miss); color: var(--miss); }
+.danger-zone { border: 2px dashed var(--miss); }
+.danger-zone .btn { justify-self: start; align-self: flex-start; }
 .btn.ghost { background: transparent; border-color: transparent; }
 .btn.ghost:hover { background: var(--surface-2); }
 .btn.wide { width: 100%; }
@@ -430,6 +435,7 @@ body.has-tabs #toast { bottom: calc(var(--tabbar-h) + var(--sp-3) + env(safe-are
 @media (min-width: 760px) { .mode-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (min-width: 1000px) { .mode-grid.wide { grid-template-columns: repeat(3, 1fr); } }
 .mode-card { display: flex; gap: var(--sp-3); align-items: flex-start; text-decoration: none; color: var(--ink); transition: transform var(--dur-fast), box-shadow var(--dur-fast), border-color var(--dur-fast); }
+.mode-card .strong.big + .small[lang="ja"] { white-space: nowrap; }   /* the Japanese name never breaks mid-word */
 .mode-card:hover { border-color: var(--ink); box-shadow: var(--shadow-hard); transform: translate(-1px, -1px); }
 .mode-icon {
   flex: none; width: 52px; height: 52px; display: grid; place-items: center;
@@ -457,6 +463,9 @@ body.has-tabs #toast { bottom: calc(var(--tabbar-h) + var(--sp-3) + env(safe-are
 .hbar .bar { margin: 0; }
 .hbar .bar > span { background: var(--good); }
 .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+/* Desktop: the Garden and the month sit side by side, so the calendar stays a compact square. */
+.progress-pair { display: grid; gap: var(--sp-4); }
+@media (min-width: 760px) { .progress-pair { grid-template-columns: 1fr 1fr; align-items: start; } }
 .cal-h { font-size: var(--fs-xs); color: var(--dim); text-align: center; font-weight: 800; }
 .cal-d { aspect-ratio: 1; border-radius: var(--r-sm); display: grid; place-items: center; font-size: var(--fs-xs); font-weight: 700; color: var(--dim); background: var(--surface-2); }
 .cal-d.on { background: var(--accent); color: var(--accent-ink); font-weight: 900; }
@@ -651,6 +660,15 @@ textarea {
 .filebtn:focus-within { outline: 3px solid var(--focus); outline-offset: 2px; }
 details summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
 details ul { padding-left: 18px; margin: var(--sp-1) 0 0; }
+/* A long list folded to one line (Reading Dojo tracks, Course phases, Story arcs); only the current one starts open. */
+.fold > summary { color: var(--electric); gap: var(--sp-2); list-style: none; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::before { content: "›"; display: inline-block; font-size: 1.25em; line-height: 1; transition: transform var(--dur-fast); }
+.fold[open] > summary::before { transform: rotate(90deg); }
+.fold[open] > summary { margin-bottom: var(--sp-2); }
+.how-to { text-align: left; }
+.how-to summary { color: var(--electric); }
+.center-text .how-to summary { justify-content: center; }
 input[type="range"] { width: 100%; accent-color: var(--accent); min-height: 44px; }
 .calib { display: flex; flex-direction: column; gap: var(--sp-3); align-items: center; }
 .calib-dot { width: 56px; height: 56px; border-radius: 50%; background: var(--surface-2); border: 3px solid var(--accent); transition: background 0.06s; }
@@ -664,7 +682,14 @@ input[type="range"] { width: 100%; accent-color: var(--accent); min-height: 44px
 .panel ul { margin: var(--sp-1) 0 0; padding-left: 20px; }
 .btn.primary rt, .seg-btn.on rt, .chip-toggle.on rt, .ch-num rt, .mode-icon rt { color: inherit; opacity: 0.85; }
 .slow-toggle { font-size: 1.25rem; filter: grayscale(1); opacity: 0.6; }
-.slow-toggle.on { filter: none; opacity: 1; border-color: var(--accent); background: var(--accent-soft); }
+/* On: an accent outline and icon, not a fill, so it doesn't outshout the screen title. */
+.slow-toggle.on { filter: none; opacity: 1; border-color: var(--accent); color: var(--accent); }
+/* Phones: the quiet badge is just its icon, so the screen title has room. */
+@media (max-width: 759px) {
+  .quiet-badge .quiet-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .quiet-badge { padding: 2px 6px; }
+  .quiet-badge .ico { margin-right: 0; }
+}
 
 /* ======================================================================
    Reading help (romaji / furigana). Readings get their own line space so they never overlap other text.
@@ -801,7 +826,9 @@ p:has(> .jr), .small:has(> .jr), .lead:has(> .jr), .strong:has(> .jr), span:has(
 .chart .ch-grid { stroke: var(--line); stroke-width: 1; }
 .chart .ch-ref { stroke: var(--ink); stroke-width: 1.5; stroke-dasharray: 4 3; opacity: 0.7; }
 .chart .ch-row:hover .ch-bar { opacity: 0.8; }
-.engine-card { display: flex; flex-direction: column; gap: var(--sp-2); border-left: 4px solid var(--electric); }
+.engine-card { display: flex; flex-direction: column; gap: var(--sp-2); }
+/* Only a weekly check-in with something to say gets a coloured edge; other cards stay plain so the next step stands out. */
+.checkin { border-left: 4px solid var(--electric); }
 .engine-card .hero-kicker { margin: 0; }
 .checkin.low { border-left-color: var(--miss); }
 .checkin.high { border-left-color: var(--good); }
@@ -1080,8 +1107,7 @@ body.has-tabs #update-ready { bottom: calc(var(--tabbar-h) + var(--sp-3) + env(s
 .brush-cell.g3 { border: 2px solid var(--good); background: color-mix(in srgb, var(--good) 28%, var(--surface)); color: var(--ink); }
 
 /* Exam readiness (js/readiness.js) and the mock JLPT (js/exam.js) */
-.road-card { border-left: 4px solid var(--electric); }
-.road-card.ready { border-left-color: var(--good); }
+.road-card.ready { border-left: 4px solid var(--good); }
 .road-card .section-title { font-size: var(--fs-lg); }
 .exam-formats { display: grid; grid-template-columns: 1fr; gap: var(--sp-3); }
 @media (min-width: 720px) { .exam-formats { grid-template-columns: 1fr 1fr; } }
@@ -1158,6 +1184,9 @@ body.has-tabs #update-ready { bottom: calc(var(--tabbar-h) + var(--sp-3) + env(s
 .msg-text { font-family: var(--font-jp); font-size: var(--fs-jp-md); line-height: var(--lh-ruby); overflow-wrap: anywhere; }
 .msg-reply { display: grid; gap: 2px; text-align: left; justify-items: start; }
 .msg-new { border-style: dashed; }
+/* "What did they mean?" answers are English sentences: one per row, at reading size, so none wraps a word per line. */
+.msg-opts { display: grid; gap: var(--sp-2); }
+.msg-opts .btn { min-height: 48px; font-weight: 600; }
 /* ---------- Rival Battle ---------- */
 .rival { --rival: var(--trace); }
 .rival-list { display: grid; gap: var(--sp-2); }
@@ -1202,7 +1231,7 @@ body.has-tabs #update-ready { bottom: calc(var(--tabbar-h) + var(--sp-3) + env(s
 .level-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px; font-family: var(--font-mono);
   font-size: var(--fs-sm); font-weight: 700; border: 1.5px solid var(--border-strong); }
 .level-chip.on { border-color: var(--accent); color: var(--accent); }
-.level-chip.locked { color: var(--dim); border-style: dashed; }
+.level-chip.locked { color: var(--dim); border-style: dashed; background: none; cursor: pointer; min-height: 32px; }
 .level-bar .small { flex: 1 1 14em; min-width: 0; }
 .unit-row.locked { opacity: .7; }
 .levels-line { overflow-wrap: anywhere; }

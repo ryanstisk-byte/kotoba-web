@@ -206,7 +206,7 @@ test.describe('reload persistence', () => {
     expect(after.settings.readingHelp).toBe('kana');
     await page.goto('./#/');
     await expect(view(page).locator('.block-row').nth(1)).toHaveClass(/skipped/);
-    await expect(view(page).locator('.tile-v').nth(1)).toHaveText('0');   // one plant, at level 1
+    expect(Object.values(after.items).filter((p) => p.level >= 2)).toHaveLength(0);   // one plant, at level 1
   });
 
   test('reset needs two taps and keeps settings', async ({ page }) => {

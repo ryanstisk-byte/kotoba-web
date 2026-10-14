@@ -6,7 +6,7 @@ import { sliceSpawn } from '../tuning.js';
 import { speaker, Recognizer, recognitionSupported, normalizeJa } from '../audio.js';
 import { PHRASE_BY_ID } from '../data.js';
 import { content, levelOf, NEW_SHARE, newestLevel, levelBar } from '../levels.js';
-import { esc, shuffle, pick, rand, delegate, melodySVG } from '../ui.js';
+import { esc, shuffle, pick, rand, delegate, melodySVG, howTo } from '../ui.js';
 import * as fx from '../fx.js';
 
 const ROUND = 60;
@@ -34,9 +34,9 @@ export function mount(el, ctx) {
         ${levelBar('slice')}
         <div class="hero-jp accent-c" lang="ja">斬</div>
         <p class="lead strong">Things fly up. Say their Japanese name out loud to slice them.</p>
-        <p class="dim">Stuck? Tap an object for its first kana (half points). If one falls, you'll see the answer. Nothing is lost.</p>
-        <p class="small dim">Some objects share a sound, like 雨 (rain) and 飴 (candy), both あめ. They're written with が, the subject
-        marker, because the pitch after the word is what tells them apart.</p>
+        ${howTo(`<p>Stuck? Tap an object for its first kana (half points). If one falls, you'll see the answer. Nothing is lost.</p>
+        <p>Some objects share a sound, like 雨 (rain) and 飴 (candy), both あめ. They're written with が, the subject
+        marker, because the pitch after the word is what tells them apart.</p>`)}
         ${fallbackNote ? `<div class="panel note">${esc(fallbackNote)}</div>` : ''}
         <button class="btn primary wide" data-act="start">🎤 Start a 60-second round</button>
       </div>`;

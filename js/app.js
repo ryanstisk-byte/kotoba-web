@@ -366,9 +366,6 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 function renderHome() {
   messages.deliver();   // opening the app can bring one new message a day (js/messages.js)
   const plan = todayPlan();
-  const items = Object.values(store.s.items);
-  const thirsty = store.thirsty().length;
-  const well = items.filter((p) => p.level >= 2).length;
   const quiet = store.settings.quiet;
   const showHint = !isStandalone() && !store.settings.hideIosHint;
   const required = plan.blocks.filter((b) => !b.optional);   // an optional block (weekend Rival Battle) never counts
@@ -383,11 +380,14 @@ function renderHome() {
       <span class="block-check" aria-label="${st === 'done' ? 'done' : st === 'skipped' ? 'skipped' : 'to do'}">${st === 'done' ? '✓' : st === 'skipped' ? '–' : b.n}</span>
       <span class="grow"><span class="strong">${esc(b.title)}</span> <span class="small dim">~${b.mins} min</span>${b.optional ? ' <span class="tag">optional</span>' : ''}<br><span class="small dim">${esc(b.desc)}</span></span>
       ${st === 'done' ? `<a class="btn small-btn" href="${href}">Again</a>`
-        : `<span class="block-actions"><a class="btn ${b === next ? 'primary' : ''} small-btn" href="${href}">${st === 'skipped' ? 'Do it' : 'Start'}</a>${st ? '' : `<button class="btn small-btn ghost" data-act="skip" data-id="${b.id}">Skip</button>`}</span>`}
+        : `<span class="block-actions"><a class="btn small-btn" href="${href}">${st === 'skipped' ? 'Do it' : 'Start'}</a>${st ? '' : `<button class="btn small-btn ghost" data-act="skip" data-id="${b.id}">Skip</button>`}</span>`}
     </div>`;
   };
 
   const acc = store.weekAccuracy();
+  // One beginner notice at a time: the quick check offer, else the Reading Dojo pointer.
+  const placementHTML = placementCardHTML();
+  const placementShown = !!placementHTML;
   view.innerHTML = `
     <div class="home">
       <div class="stack home-main">
@@ -405,7 +405,7 @@ function renderHome() {
             : `<p class="lead strong good-c">✓ Today's plan is done. Come back whenever.</p>`}
         </section>
 
-        ${messages.inboxCard()}${checkinCard()}${placementCardHTML()}
+        ${messages.inboxCard()}${checkinCard()}${placementHTML}
         <section class="panel today" aria-label="Today's plan">
           <div class="row-between wrap-gap">
             <h2 class="section-title">The plan</h2>
@@ -437,18 +437,9 @@ function renderHome() {
         ${course.courseCard()}
         ${readinessCard()}
         ${skillMini()}
-        ${!store.trackDone('hiragana') && !store.clearedLessons.size ? `<a class="panel hint link-panel" href="#/play/dojo"><span class="grow small">🔤 <span class="strong">New to reading Japanese?</span> Start in the Reading Dojo: hiragana, katakana, then kanji. Until then, every game shows romaji (tap ふa at the top to change it).</span><span class="dim chev" aria-hidden="true">›</span></a>` : ''}
-        <section class="panel stack-sm" aria-label="Garden at a glance">
-          <div class="tiles">
-            <div class="tile"><span class="tile-v mono">${thirsty}</span><span class="small dim">plants need water</span></div>
-            <div class="tile"><span class="tile-v mono">${well}</span><span class="small dim">remembered well</span></div>
-            <div class="tile"><span class="tile-v mono">${store.daysStudiedThisMonth()}</span><span class="small dim">days studied this month</span></div>
-          </div>
-          <a class="linkbtn" href="#/progress">See all your progress ›</a>
-        </section>
+        ${!placementShown && !store.trackDone('hiragana') && !store.clearedLessons.size ? `<a class="panel hint link-panel" href="#/play/dojo"><span class="grow small">🔤 <span class="strong">New to reading Japanese?</span> Start in the Reading Dojo: hiragana, katakana, then kanji. Until then, every game shows romaji (tap ふa at the top to change it).</span><span class="dim chev" aria-hidden="true">›</span></a>` : ''}
         ${showHint ? `<div class="panel hint"><span class="grow small">📱 On iPhone: <span class="strong">Share › Add to Home Screen</span> keeps your progress safe (Safari may clear website data after ~7 days unused).</span>
           <button class="iconbtn" data-act="hidehint" aria-label="Dismiss">✕</button></div>` : ''}
-        <a class="panel hint link-panel" href="#/check"><span class="grow small">🔧 No sound, or the mic doesn't hear you? Run the <span class="strong">sound &amp; mic check</span>.</span><span class="dim chev" aria-hidden="true">›</span></a>
       </aside>
     </div>`;
   const off = delegate(view, {
@@ -490,6 +481,11 @@ function placementCardHTML() { return placement.placementCard(); }
 
 // ---------- boot ----------
 backBtn.addEventListener('click', goBack);
+// A locked level chip (levels.js levelBar) explains itself when tapped.
+view.addEventListener('click', (e) => {
+  const chip = e.target.closest?.('.level-chip[data-lockline]');
+  if (chip) toast(chip.dataset.lockline);
+});
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || e.defaultPrevented || backBtn.hidden) return;
   if (e.target.closest?.('input, textarea, select')) return;

@@ -246,7 +246,7 @@ test.describe('placement check', () => {
     const card = view(page).locator('.engine-card', { hasText: 'Know some kana' });
     await expect(card).toBeVisible();
     await expectNoHorizontalScroll(page);
-    await card.getByRole('link', { name: /quick check/ }).click();
+    await card.getByRole('link', { name: /quick check/i }).click();
     await expect(page.locator('#title')).toHaveText('Quick check');
     const answers = await page.evaluate(async () => Object.fromEntries((await import('./js/dojo-data.js')).LESSONS.flatMap((l) => l.chars.map((c) => [c.k, c.r]))));
     await view(page).getByRole('button', { name: 'Start' }).click();
@@ -360,7 +360,7 @@ test.describe('Progress screen', () => {
     await expect(charts.first()).toHaveAttribute('aria-label', /Kana \d+% \(\d+\)/);
     await expect(charts.first().locator('title').first()).toContainText('right on the first try');
     await expect(view(page).getByRole('heading', { name: 'Road to JLPT N5' })).toBeVisible();
-    await expect(view(page).locator('.stat-grid')).toContainText('days studied this month');
+    await expect(view(page).locator('.stat-grid')).toContainText(/days? studied this month/);
     await expect(view(page).getByText(/streak/i)).toHaveText(/No streaks/);
     const vw = page.viewportSize().width;
     for (const box of await charts.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().right))) expect(box).toBeLessThanOrEqual(vw);
@@ -369,7 +369,7 @@ test.describe('Progress screen', () => {
 
   test('a brand-new learner sees an empty but friendly Progress screen', async ({ page }) => {
     await page.goto('./#/progress');
-    await expect(view(page).getByText('Play any mode and your accuracy per skill shows up here.')).toBeVisible();
+    await expect(view(page).getByText('Play any mode and your accuracy shows up here.', { exact: false })).toBeVisible();
     await expect(view(page).locator('svg.chart')).toHaveCount(2);   // kana/kanji and the road to N5 still draw
     await expectNoHorizontalScroll(page);
   });

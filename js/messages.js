@@ -140,7 +140,7 @@ export function mount(el) {
     if (open && e.ok == null) {
       if (!quiz || quiz.id !== e.id) quiz = { id: e.id, opts: shuffle(m.meaning.map((text, k) => ({ text, right: k === 0 }))), picked: -1 };
       body = `<div class="msg-check stack-sm"><p class="small strong">What did ${esc(s.name)} mean?</p>
-        <div class="choice-grid practice-opts">${quiz.opts.map((o, k) => `<button class="btn" data-act="mean" data-k="${k}">${esc(o.text)}</button>`).join('')}</div></div>`;
+        <div class="msg-opts">${quiz.opts.map((o, k) => `<button class="btn left" data-act="mean" data-k="${k}">${esc(o.text)}</button>`).join('')}</div></div>`;
     } else if (open) {
       const right = m.meaning[0];
       body = `<p class="small ${e.ok ? 'good-c' : 'miss-c'}">${e.ok ? '✓ ' : ''}${esc(right)}</p>
