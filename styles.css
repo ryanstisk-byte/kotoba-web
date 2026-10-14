@@ -1218,3 +1218,34 @@ body.has-tabs #update-ready { bottom: calc(var(--tabbar-h) + var(--sp-3) + env(s
 .exam-opts.exam-long { grid-template-columns: 1fr; }
 .exam-opts.exam-long .btn { text-align: left; justify-content: flex-start; }
 .particle-grid.palette { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
+
+/* ---------- Skill chart (js/skill-chart.js) ---------- */
+.skill-chart { min-width: 0; }
+.sc-tabs { flex: none; }
+.sc-figure { display: grid; justify-items: center; min-width: 0; }
+.skill-radar { width: min(100%, 460px); height: auto; overflow: visible; display: block; }
+.skill-radar .sc-ring { fill: none; stroke: var(--border-strong); stroke-width: 1; opacity: .55; }
+.skill-radar .sc-spoke { stroke: var(--border-strong); stroke-width: 1; opacity: .45; }
+.skill-radar .sc-ghost { fill: color-mix(in srgb, var(--dim) 12%, transparent); stroke: var(--dim); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.skill-radar .sc-shape { fill: color-mix(in srgb, var(--accent) 28%, transparent); stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; }
+.skill-radar .sc-dot { fill: var(--accent); }
+.skill-radar .sc-label { cursor: pointer; }
+.skill-radar .sc-label text { fill: var(--ink, currentColor); font-size: 12.5px; font-weight: 700; font-family: var(--font-ui, inherit); }
+.skill-radar .sc-label .sc-rank { fill: var(--dim); font-size: 10.5px; font-weight: 600; font-family: var(--font-jp, inherit); }
+.skill-radar .sc-label.review text:first-child { text-decoration: underline dotted; }
+.skill-radar.mini { width: 96px; flex: none; }
+.skill-radar.mini .sc-shape { stroke-width: 2; }
+.sc-summary { overflow-wrap: anywhere; }
+.sc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.sc-row { width: 100%; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(60px, 1fr) 3.2em auto; align-items: center; gap: var(--sp-2);
+  padding: 6px 8px; border: 1px solid transparent; border-radius: var(--r-sm); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.sc-row:hover, .sc-row.on { border-color: var(--border-strong); background: var(--surface-2); }
+.sc-row-name { min-width: 0; overflow-wrap: anywhere; }
+.sc-row .bar { height: 8px; margin-top: 0; }
+.sc-row .tag { justify-self: start; }
+.sc-row .sc-grew + .sc-review, .sc-row .sc-review { grid-column: 1 / -1; }
+.sc-locked { margin: 0; }
+.skill-mini { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
+.skill-mini .grow { min-width: 0; }
+@media (prefers-reduced-motion: reduce) { .skill-radar * { transition: none !important; animation: none !important; } }
+.skill-mini [lang="ja"], .sc-summary [lang="ja"], .sc-row-name [lang="ja"] { white-space: nowrap; }

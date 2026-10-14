@@ -479,7 +479,8 @@ def build_sw(level_of=None):
         level_of = {}
         m = re.search(r'const LATER = (\{.*?\});', src, flags=re.S)
         if m:
-            for lv, names in json.loads(re.sub(r',\s*([\]}])', r'\1', m.group(1).replace("'", '"'))).items():
+            body = re.sub(r'^\s*(\w+):', r'"\1":', m.group(1).replace("'", '"'), flags=re.M)
+            for lv, names in json.loads(re.sub(r',\s*([\]}])', r'\1', body)).items():
                 for n in names:
                     level_of[n.split('/')[-1]] = lv
     files = ['./', './index.html', './styles.css', './manifest.webmanifest']

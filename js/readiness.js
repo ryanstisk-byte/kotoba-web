@@ -50,7 +50,7 @@ export const N4_TARGETS = {
   chapters: 5,          // N4 Story chapters cleared (the whole Journey arc)
 };
 
-function n5Areas(now) {
+export function n5Areas(now = new Date()) {
   const items = store.s.items;
   const known = new Set(store.planted().filter((p) => p.prog.level >= 2).map((p) => p.item.jp));
   const vocabN = N5_WORDS.filter((w) => known.has(w.jp)).length;
@@ -96,7 +96,7 @@ function n5Areas(now) {
 }
 
 /** N4: the same five areas as N5, measured on the N4 content (the N4 deck, kanji, course units and story arc). */
-function n4Areas(now) {
+export function n4Areas(now = new Date()) {
   const items = store.s.items;
   const T = N4_TARGETS;
   const known = new Set(store.planted().filter((p) => p.prog.level >= 2).map((p) => p.item.jp));
