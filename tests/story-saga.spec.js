@@ -114,8 +114,8 @@ test.describe('chapter map', () => {
     await expect(v.locator('.saga-node')).toHaveCount(24);
     await expect(v.locator('.saga-node.next')).toHaveCount(1);
     await expect(v.locator('.saga-node').first()).toHaveClass(/next/);
-    await expect(v.locator('.saga-node.locked')).toHaveCount(16);
-    await expect(v.locator('.saga-node.locked button')).toHaveCount(16);
+    await expect(v.locator('.saga-node.locked')).toHaveCount(23);
+    await expect(v.locator('.saga-node.locked button')).toHaveCount(23);
     await expect(v.getByText('Journey Arc', { exact: false })).toBeVisible();
     for (const b of await v.locator('.saga-node.locked button').all()) await expect(b).toBeDisabled();
     await expect(v.getByText('Tournament Arc', { exact: false })).toBeVisible();

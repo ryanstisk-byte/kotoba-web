@@ -49,10 +49,14 @@ SPEEDS = {'': 1.0, 'slow': 0.6}
 # A kanji alone takes its most common reading on its own; sentences that read it differently (土よう日, 3時, 来ます)
 # get their own exception in SEGMENTS.
 RUN_OVERRIDE = {'十時': 'じゅうじ', '働': 'どう', '出発進行': 'しゅっぱつしんこう', '進行': 'しんこう', '学': 'がく', '間': 'あいだ', '一': 'いち', '二': 'に', '三': 'さん', '四': 'よん', '五': 'ご', '明': 'めい', '鍛冶': 'かじ', '生': 'せい',
-                '土': 'つち', '日': 'ひ', '時': 'とき', '組': 'くみ', '六': 'ろく'}
+                '土': 'つち', '日': 'ひ', '時': 'とき', '組': 'くみ', '六': 'ろく',
+                # N3 kanji shown alone: the on reading, not an old or long kun reading (造 is not みやつこ).
+                '古': 'こ', '必': 'ひつ', '改': 'かい', '最': 'さい', '訪': 'ほう', '造': 'ぞう'}
 # Sentences whose automatic split goes wrong, fixed by hand (a rebuild keeps them).
 SEGMENT_OVERRIDE = {
     '毎日六時に帰ります': [['毎日', 'まいにち'], ['六時', 'ろくじ'], ['に', None], ['帰', 'かえ'], ['ります', None]],
+    '十二月に入り': [['十二月', 'じゅうにがつ'], ['に', None], ['入', 'はい'], ['り', None]],
+    '姉は国際電話で友だちと話している': [['姉', 'あね'], ['は', None], ['国際電話', 'こくさいでんわ'], ['で', None], ['友', 'とも'], ['だちと', None], ['話', 'はな'], ['している', None]],
 }
 WRONG = {'鍛冶', '十時'}   # misread everywhere, not just alone
 # Single kana whose reading differs when said alone (は alone is read as the particle "wa").
