@@ -380,6 +380,8 @@ async function ensureMic() {
     return false;
   }
   if (coach !== c) { t.stop(); return false; }
+  await t.whenLive();   // a phone sends silence for a moment before its mic is really on
+  if (coach !== c) { t.stop(); return false; }
   c.tracker = t;
   return true;
 }

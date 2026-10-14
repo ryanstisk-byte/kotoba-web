@@ -40,7 +40,7 @@ test.describe('analysis', () => {
     const r = await page.evaluate(async () => {
       const { moraInfo } = await import('./js/pron-analysis.js');
       const f = (w) => moraInfo(w).map((m) => m.kana + ':' + m.type + (m.devoice ? '*' : '')).join(' ');
-      return { obaasan: f('おばあさん'), kitte: f('きって'), desu: f('です'), gakkou: f('がっこう'), biiru: f('ビール'), konnichiwa: f('こんにちは') };
+      return { obaasan: f('おばあさん'), kitte: f('きって'), desu: f('です'), gakkou: f('がっこう'), biiru: f('ビール'), konnichiwa: f('こんにちは'), ashita: f('あした'), ee: f('ええ') };
     });
     expect(r).toEqual({
       obaasan: 'お:cv ば:cv あ:long さ:cv ん:n',
@@ -49,6 +49,8 @@ test.describe('analysis', () => {
       gakkou: 'が:cv っ:sokuon こ:cv う:long',
       biiru: 'び:cv い:long る:cv',
       konnichiwa: 'こ:cv ん:n に:cv ち:cv* は:cv',
+      ashita: 'あ:cv し:cv* た:cv',   // a word's first あ is an ordinary beat, not a held vowel
+      ee: 'え:cv え:long',
     });
   });
 
@@ -201,7 +203,11 @@ test.describe('the check itself (fake mic and recognizer)', () => {
     await expect(p.locator('.pron-melody')).toBeVisible();   // the target melody, before trying
     await expectNoHorizontalScroll(page);
     await p.getByRole('button', { name: 'Start', exact: true }).click();
-    await expect(p.getByText(/Listening/)).toBeVisible();
+    // It waits for the mic to be live, counts down from 3, then listens, drawing your pitch over the melody.
+    await expect(p.locator('#pron-count')).toHaveText('3');
+    await expect(p.locator('canvas.pron-live')).toBeVisible();
+    await expect(p.getByText(/Go!/)).toBeVisible({ timeout: 6_000 });
+    await expect(p.locator('canvas.pron-live')).toBeVisible();
     await expect(p.locator('.pron-title')).toHaveText(/Great!|Close!|Try again/, { timeout: 20_000 });
     // The missing あ was heard as missing, and said kindly.
     await expect(p.locator('.pron-mora.miss')).toHaveCount(1);
@@ -215,6 +221,37 @@ test.describe('the check itself (fake mic and recognizer)', () => {
     expect(Object.values(s.engine.tally)[0].speaking[1]).toBe(1);
     expect(s.items).toEqual({});
     await p.getByRole('button', { name: /Close the pronunciation check/ }).click();
+    await expect(page.locator('.pron-overlay')).toHaveCount(0);
+  });
+
+  test('a phone mic that sends silence at first: it waits for the mic before counting down', async ({ page }) => {
+    // getUserMedia hands back a stream that is silent for 1.2 s (like an iPhone waking its mic), then a tone.
+    await page.addInitScript(() => {
+      navigator.mediaDevices.getUserMedia = async () => {
+        const ctx = new AudioContext();
+        await ctx.resume();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        gain.gain.value = 0;
+        osc.connect(gain);
+        const dest = ctx.createMediaStreamDestination();
+        gain.connect(dest);
+        osc.start();
+        gain.gain.setValueAtTime(0.01, ctx.currentTime + 1.2);
+        window.__liveAt = performance.now() + 1200;
+        return dest.stream;
+      };
+    });
+    await page.goto('./#/course/p0-1/lesson');
+    await view(page).locator('.pron-btn').click();
+    const p = page.locator('.pron-sheet');
+    await p.getByRole('button', { name: 'Start', exact: true }).click();
+    await expect(p.getByText(/Turning the mic on/)).toBeVisible();
+    await expect(p.locator('#pron-count')).toHaveText('3', { timeout: 4_000 });
+    const early = await page.evaluate(() => window.__liveAt - performance.now());
+    expect(early).toBeLessThan(150);   // the count only starts once sound is coming in
+    await expect(p.locator('#pron-count')).toHaveText('2');
+    await page.keyboard.press('Escape');   // still closable mid-count
     await expect(page.locator('.pron-overlay')).toHaveCount(0);
   });
 

@@ -391,8 +391,7 @@ test.describe('the Pitch Coach (fake mic singing known curves)', () => {
     // A result with a pitch problem between あ and め offers that step on its own.
     await page.evaluate(async (t) => (await import('./js/pron.js')).openPron(t), AME);
     await pron.getByRole('button', { name: 'Start', exact: true }).click();
-    await expect(pron.getByText(/Listening/)).toBeVisible();
-    await page.waitForTimeout(450);   // the check listens to the room first
+    await expect(pron.getByText(/Go!/)).toBeVisible({ timeout: 10_000 });   // after the mic is on and a 3-second count
     await page.evaluate(() => window.__mic.sing([[0.35, 150], [0.35, 200]]));   // low then high: backwards
     await expect(pron.locator('.pron-title')).toBeVisible({ timeout: 20_000 });
     const step = pron.getByRole('button', { name: /Practise just this step/ });

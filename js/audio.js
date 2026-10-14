@@ -482,6 +482,24 @@ export class PitchTracker {
   /** Loudest level since the clock was last reset (0 means the mic sent only silence). */
   get peak() { return this.samples.reduce((m, s) => Math.max(m, s.level), 0); }
 
+  /**
+   * Resolves once the mic is really delivering sound. A phone (iPhone above all) hands over the stream before the
+   * mic is live and sends pure zeros for a moment, so anything said then is lost. Any reading above zero means it's
+   * live (a real mic is never perfectly silent); after `maxMs` it carries on anyway.
+   */
+  whenLive(maxMs = 2000) {
+    const t0 = performance.now();
+    return new Promise((resolve) => {
+      const check = () => {
+        if (!this.running) return resolve(false);
+        if (this.samples.some((s) => s.level > 0)) return resolve(true);
+        if (performance.now() - t0 > maxMs) return resolve(false);
+        setTimeout(check, 30);
+      };
+      check();
+    });
+  }
+
   /** Restart the clock without stopping the mic (call right as the countdown starts). */
   resetClock() {
     this.startTime = performance.now();
