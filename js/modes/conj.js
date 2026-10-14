@@ -2,7 +2,7 @@
 // the story. A right answer moves straight on; a miss shows the answer with a short "why" and comes back later.
 import { store } from '../store.js';
 import { speaker } from '../audio.js';
-import { VERB_FORMS, ADJ_FORMS, VERB_FORMS_N4, ADJ_FORMS_N4, FORM_LABEL, formsFor, conjugate, conjPrompt, conjDistractors, conjWhy } from '../practice-data.js';
+import { VERB_FORMS, ADJ_FORMS, VERB_FORMS_N4, ADJ_FORMS_N4, VERB_FORMS_N3, FORM_LABEL, formsFor, conjugate, conjPrompt, conjDistractors, conjWhy } from '../practice-data.js';
 import { content, isUnlocked, mixed, levelOf, levelBar } from '../levels.js';
 import { esc, shuffle, pick, delegate } from '../ui.js';
 import { choiceButtons, shuffled } from '../practice-ui.js';
@@ -20,16 +20,22 @@ function makeQuestion(word, form) {
 
 /**
  * Every (word, form) pair open now, each with a level: N5 words in the N5 forms; once N4 is unlocked, N4 words in
- * every form and N5 words in the N4 forms (potential, volitional, passive, causative, ば).
+ * every form and N5 words in the N4 forms (potential, volitional, passive, causative, ば); once N3 is unlocked, N3
+ * words in every form and older words in the N3 forms (causative-passive, ずに).
  */
 export function conjPairs() {
   const out = [];
   const n4 = isUnlocked('N4');
+  const n3 = isUnlocked('N3');
   for (const word of content('conj')) {
     const n5Forms = word.type === 'verb' ? VERB_FORMS : ADJ_FORMS;
     const n4Forms = word.type === 'verb' ? VERB_FORMS_N4 : ADJ_FORMS_N4;
-    if (levelOf(word) === 'N5') for (const form of n5Forms) out.push({ word, form, level: 'N5' });
-    if (n4) for (const form of formsFor(word, levelOf(word) === 'N4' ? [...n5Forms, ...n4Forms] : n4Forms)) out.push({ word, form, level: 'N4' });
+    const n3Forms = word.type === 'verb' ? VERB_FORMS_N3 : [];
+    const lv = levelOf(word);
+    if (lv === 'N5') for (const form of n5Forms) out.push({ word, form, level: 'N5' });
+    if (n4 && lv !== 'N3') for (const form of formsFor(word, lv === 'N4' ? [...n5Forms, ...n4Forms] : n4Forms)) out.push({ word, form, level: 'N4' });
+    // N3: N3 words in every form, and every older word in the N3 forms (causative-passive, ずに).
+    if (n3) for (const form of formsFor(word, lv === 'N3' ? [...n5Forms, ...n4Forms, ...n3Forms] : n3Forms)) out.push({ word, form, level: 'N3' });
   }
   return out;
 }

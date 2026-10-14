@@ -10,7 +10,7 @@
 // Growth since the last visit animates (not with reduced motion). The last visit's values are kept on this device
 // only (localStorage 'kotobaBeat.chart'), outside saved progress and sync.
 import { store } from './store.js';
-import { n5Areas, n4Areas, readiness } from './readiness.js';
+import { n5Areas, n4Areas, n3Areas, readiness } from './readiness.js';
 import { APP_LEVELS, isUnlocked, lockLine, prevLevel } from './levels.js';
 import { LESSONS } from './dojo-data.js';
 import { BRUSH_KANA } from './brush-data.js';
@@ -33,6 +33,7 @@ export const rankOf = (v) => RANKS.filter((r) => clamp(v) >= r.from).slice(-1)[0
 export const ITEM_TARGETS = {
   N5: { listening: 40, speaking: 30, pitch: 20, counters: 20 },
   N4: { listening: 100, speaking: 60, pitch: 40, counters: 40 },
+  N3: { listening: 180, speaking: 100, pitch: 60, counters: 60 },
 };
 /** First-try accuracy that counts as "there" (the app aims for about 85%). */
 const RATE_TARGET = 0.8;
@@ -104,7 +105,7 @@ function practiceAxis(skill, level) {
   };
 }
 
-/** Kana: at N5 the kana read in the Reading Dojo; at N4 the kana written from memory in Kana Brush. */
+/** Kana: at N5 the kana read in the Reading Dojo; from N4 on, the kana written from memory in Kana Brush. */
 function kanaAxis(level) {
   if (level === 'N5') {
     const kana = LESSONS.flatMap((l) => l.chars.map((c) => c.k));
@@ -113,7 +114,7 @@ function kanaAxis(level) {
   }
   const target = Math.round(BRUSH_KANA.length * 0.8);
   const n = BRUSH_KANA.filter((x) => { const c = store.brushCard(x.k); return c && c.r && c.s >= 4; }).length;
-  return { value: n / target, text: `${n}/${target}`, detail: `${n} of ${target} kana written from memory and holding in Kana Brush (the N4 aim: writing them, not just reading).` };
+  return { value: n / target, text: `${n}/${target}`, detail: `${n} of ${target} kana written from memory and holding in Kana Brush (from N4 on, the aim is writing them, not just reading).` };
 }
 
 /** Reviews waiting in an area: a calm note, never a loss. */
@@ -127,7 +128,7 @@ function reviewWaiting(id, now = Date.now()) {
 
 /** Every axis for a level: [{ ...axis, value (0..1), text, detail, rank, review }]. */
 export function axesFor(level, now = new Date()) {
-  const areas = Object.fromEntries((level === 'N4' ? n4Areas(now) : n5Areas(now)).map((a) => [a.id, a]));
+  const areas = Object.fromEntries(({ N4: n4Areas, N3: n3Areas }[level] || n5Areas)(now).map((a) => [a.id, a]));
   return AXES.map((a) => {
     let m;
     if (a.id === 'kana') m = kanaAxis(level);
@@ -249,7 +250,7 @@ export function mountSkillChart(el, { level = null } = {}) {
         <div class="seg sc-tabs" role="tablist" aria-label="Level">${APP_LEVELS.map((lv) => `<button class="seg-btn ${lv === shown ? 'on' : ''}" role="tab" aria-selected="${lv === shown}"
           data-act="sc-level" data-lv="${lv}" data-state="${st(lv)}" ${st(lv) === 'locked' ? 'disabled' : ''}>${st(lv) === 'locked' ? '🔒 ' : st(lv) === 'done' ? '✓ ' : ''}${lv}</button>`).join('')}</div></div>
       <p class="small dim">${shown === current ? `Each axis fills toward what ${shown} asks for.` : st(shown) === 'done' ? `${shown} is done: this is where you finished it.` : `A look ahead at ${shown}: you're working toward ${current} now.`}${ghost ? ` The faint outline is ${before}.` : ''}</p>
-      ${APP_LEVELS.filter((lv) => st(lv) === 'locked').map((lv) => `<p class="small dim sc-locked">🔒 ${lv}: ${esc(lockLine(lv))}</p>`).join('')}
+      ${APP_LEVELS.filter((lv) => st(lv) === 'locked').slice(0, 1).map((lv) => `<p class="small dim sc-locked">🔒 ${lv}: ${esc(lockLine(lv))}</p>`).join('')}
       <div class="sc-figure">${radarSVG(axes, { values: axes.map((a) => a.value), ghost, label: chartLabel(shown, axes) })}</div>
       <p class="sc-summary">Strongest: <span class="strong">${esc(strong.label)}</span> <span lang="ja">${esc(strong.rank.jp)}</span> (${pct(strong.value)}). Next to grow: <span class="strong">${esc(weak.label)}</span> <span lang="ja">${esc(weak.rank.jp)}</span> (${pct(weak.value)}).</p>
       ${shown === current ? `<a class="btn primary wide" href="${best[0]}" data-act="sc-train">Train ${esc(weak.label.toLowerCase())} in ${esc(best[1])}</a>` : ''}

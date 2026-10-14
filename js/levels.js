@@ -4,7 +4,7 @@
 // has enough content at every level the app offers.
 //
 // The gate: N5 is always open. Each later level opens once the level before it is done: a full mock passed, or the
-// real test marked as passed on Progress (store.examDone). The Settings switch "Show every level" opens them all, for
+// real test marked as passed on Progress (store.examDone). N4 opens after N5, N3 after N4. The Settings switch "Show every level" opens them all, for
 // testing and for learners who want to look ahead. Locking never takes anything away: what's already planted keeps
 // being reviewed, and locked content shows as locked with one friendly line, never hidden.
 //
@@ -12,7 +12,7 @@
 // levels below (`mixed`).
 import { store } from './store.js';
 import { APP_LEVELS, levelOf, prevLevel, nextLevel, tagLevel } from './level-tag.js';
-import { PHRASES, CHAPTERS, TRAINS, KANJI, SHOP_STOCK, CUSTOMERS, SHOP_KEIGO, N5_WORDS, N4_WORDS, ARCS } from './data.js';
+import { PHRASES, CHAPTERS, TRAINS, KANJI, SHOP_STOCK, CUSTOMERS, SHOP_KEIGO, N5_WORDS, N4_WORDS, N3_WORDS, ARCS } from './data.js';
 import { DIALOGUES, NUMBER_SCENES, KATA_WORDS, CONJ_WORDS, BUILD_SENTENCES } from './practice-data.js';
 import { ALL_LESSONS, TRACKS } from './dojo-data.js';
 import { STUDY_UNITS } from './course-data.js';
@@ -31,11 +31,13 @@ export function lockLine(level) {
   return before ? `Unlocks when you pass a full mock ${before}, or mark the real ${before} as passed.` : '';
 }
 
-/** Levels open now, easiest first. */
+/** Levels open now, easiest first. A level done opens everything up to the one after it (a passed N4 opens N3 even
+ * if N5 was never marked). */
 export function unlockedLevels() {
   const done = store.examDone();
   const all = !!store.settings.showAllLevels;
-  return APP_LEVELS.filter((lv) => { const before = prevLevel(lv); return !before || all || done.has(before); });
+  const top = Math.max(-1, ...APP_LEVELS.map((lv, i) => (done.has(lv) ? i : -1)));
+  return APP_LEVELS.filter((lv, i) => i === 0 || all || i <= top + 1);
 }
 export const isUnlocked = (level) => unlockedLevels().includes(level);
 export const lockedLevels = () => APP_LEVELS.filter((lv) => !isUnlocked(lv));
@@ -49,7 +51,7 @@ export const itemOpen = (x) => isUnlocked(levelOf(x));
  * Sources are functions so the lists are read when asked for (they are filled in when the data modules load).
  */
 export const SOURCES = {
-  garden: () => [...N5_WORDS, ...N4_WORDS],                 // the decks the Garden introduces, in teaching order
+  garden: () => [...N5_WORDS, ...N4_WORDS, ...N3_WORDS],                 // the decks the Garden introduces, in teaching order
   rhythm: () => PHRASES.filter((p) => !p.isBoss),           // phrases to say on the beat
   slice: () => PHRASES,                                     // words to say out loud (pitch pairs included)
   duel: () => PHRASES,                                      // melodies to tell apart (pairs and single words)
@@ -57,18 +59,18 @@ export const SOURCES = {
   arcs: () => ARCS,
   particle: () => TRAINS,
   forge: () => KANJI,
-  dojo: () => ALL_LESSONS,                                  // kana lessons (N5) and kanji lessons (N5, N4)
+  dojo: () => ALL_LESSONS,                                  // kana lessons (N5) and kanji lessons (N5, N4, N3)
   tracks: () => TRACKS,
   conj: () => CONJ_WORDS,
   build: () => BUILD_SENTENCES,
   kata: () => KATA_WORDS,
   shop: () => SHOP_STOCK,
   customers: () => Object.entries(CUSTOMERS).map(([key, c]) => ({ ...c, key })),
-  keigo: () => SHOP_KEIGO,                                  // the shopkeeper's polite replies (N4)
+  keigo: () => SHOP_KEIGO,                                  // the shopkeeper's polite replies (N4, N3)
   listen: () => DIALOGUES,
   numbers: () => NUMBER_SCENES,
   course: () => STUDY_UNITS,
-  brush: () => [...BRUSH_KANA, ...BRUSH_WORDS],             // single kana (N5), whole words (N4)
+  brush: () => [...BRUSH_KANA, ...BRUSH_WORDS],             // single kana (N5), whole words (N4, N3)
   rival: () => RIVALS,
   messages: () => MESSAGES,
 };
@@ -135,10 +137,10 @@ export function levelBar(key = null) {
       ? `<span class="level-chip on" title="${lv} content is in the mix">${lv}</span>`
       : `<span class="level-chip locked" title="${lockLine(lv)}">🔒 ${lv}</span>`;
   }).join('');
+  // The mix (once two levels are open), then the next locked level's friendly line.
   const locked = APP_LEVELS.find((lv) => !open.includes(lv));
-  const note = locked
-    ? `<span class="small dim">${lockLine(locked)}</span>`
-    : open.length > 1 ? `<span class="small dim">Mostly ${open[open.length - 1]}, with some ${open.slice(0, -1).join(' and ')} review.</span>` : '';
+  const mix = open.length > 1 ? `Mostly ${open[open.length - 1]}, with some ${open.slice(0, -1).join(' and ')} review.` : '';
+  const note = [mix, locked ? lockLine(locked) : ''].filter(Boolean).map((t) => `<span class="small dim">${t}</span>`).join(' ');
   return `<div class="level-bar" data-levels="${open.join(' ')}">${chips}${note}</div>`;
 }
 

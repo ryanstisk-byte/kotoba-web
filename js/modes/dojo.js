@@ -12,8 +12,8 @@ import * as fx from '../fx.js';
 // ---------- lookups ----------
 const KANA = {};      // 'kana:あ' -> { id, k, r, m, track, lesson }
 for (const l of LESSONS) for (const c of l.chars) KANA['kana:' + c.k] = { ...c, id: 'kana:' + c.k, track: l.track, lesson: l.id };
-// Kanji tracks: the starter kanji ('kanji', N5) and the N4 kanji ('kanji4').
-const isKanji = (track) => track === 'kanji' || track === 'kanji4';
+// Kanji tracks: the starter kanji ('kanji', N5), the N4 kanji ('kanji4') and the N3 kanji ('kanji3').
+const isKanji = (track) => track === 'kanji' || track === 'kanji4' || track === 'kanji3';
 const KANJI = {};     // 'kj:一' -> { id, k, meaning, m, word, reading, wordEn, track, lesson, level }
 for (const l of ALL_LESSONS) if (isKanji(l.track)) for (const j of l.kanji) KANJI['kj:' + j.k] = { ...j, id: 'kj:' + j.k, track: l.track, lesson: l.id, level: l.level };
 const ITEM = { ...KANA, ...KANJI };

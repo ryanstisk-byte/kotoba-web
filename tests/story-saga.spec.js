@@ -33,7 +33,7 @@ async function readToQuestions(page) {
 }
 
 test.describe('story saga data', () => {
-  test('chapters 5-17 are complete, valid and graded; chapters 1-4 are unchanged', async ({ page }) => {
+  test('chapters 5-24 are complete, valid and graded; chapters 1-4 are unchanged', async ({ page }) => {
     await page.goto('./');
     const problems = await page.evaluate(async () => {
       const { CHAPTERS, CAST, GARDEN_CATALOG, QUIZZES, ARCS } = await import('./js/data.js');
@@ -44,14 +44,15 @@ test.describe('story saga data', () => {
       const speakers = new Set(Object.values(CAST));
       const str = (x) => typeof x === 'string' && x.trim().length > 0;
       const kana = (s) => toHiragana(s).replace(/[^ぁ-ゖー]/g, '');
-      if (CHAPTERS.map((c) => c.id).join() !== Array.from({ length: 17 }, (_, i) => 'ch' + (i + 1)).join()) out.push('chapter ids');
-      // Chapters 1-12 are N5 (the last arc leaning toward N4); 13-17 are the N4 Journey arc (js/story-n4.js).
-      if (CHAPTERS.map((c) => c.level).join() !== [...Array(12).fill('N5'), ...Array(5).fill('N4')].join()) out.push('chapter levels');
+      if (CHAPTERS.map((c) => c.id).join() !== Array.from({ length: 24 }, (_, i) => 'ch' + (i + 1)).join()) out.push('chapter ids');
+      // Chapters 1-12 are N5 (the last arc leaning toward N4); 13-17 are the N4 Journey arc (js/story-n4.js); 18-24 the
+      // N3 Rivals arc (js/story-n3.js).
+      if (CHAPTERS.map((c) => c.level).join() !== [...Array(12).fill('N5'), ...Array(5).fill('N4'), ...Array(7).fill('N3')].join()) out.push('chapter levels');
       // Chapters 1-4 stay exactly as they were (saved progress refers to them).
       if (CHAPTERS.slice(0, 4).map((c) => c.beats.length).join() !== '8,9,8,8') out.push('ch1-4 beat counts changed');
       if (CHAPTERS[3].title !== 'さいごの しょうぶ' || CHAPTERS[0].beats[0].jp !== 'ここは 小さい 町です。') out.push('ch1-4 content changed');
       for (const ch of CHAPTERS.slice(4)) {
-        const [lo, hi] = ch.level === 'N4' ? [12, 20] : [7, 10];   // N4 chapters are longer
+        const [lo, hi] = { N3: [15, 26], N4: [12, 20] }[ch.level] || [7, 10];   // later chapters are longer
         if (ch.beats.length < lo || ch.beats.length > hi) out.push(`${ch.id}: ${ch.beats.length} beats`);
         if (!ch.beats.some((b) => b.choice)) out.push(`${ch.id}: no choice`);
         ch.beats.forEach((b, i) => {
@@ -77,7 +78,7 @@ test.describe('story saga data', () => {
       }
       for (const ch of CHAPTERS) {
         const qs = QUIZZES[ch.id];
-        const [qlo, qhi] = ch.level === 'N4' ? [3, 4] : [2, 3];
+        const [qlo, qhi] = { N3: [4, 6], N4: [3, 4] }[ch.level] || [2, 3];
         if (!qs || qs.length < qlo || qs.length > qhi) { out.push(`${ch.id}: needs ${qlo}-${qhi} questions`); continue; }
         qs.forEach((q, i) => {
           if (!str(q.q) || !str(q.why) || q.options.length < 2 || !(q.answer >= 0 && q.answer < q.options.length)) out.push(`${ch.id} q${i}: bad`);
@@ -107,14 +108,14 @@ test.describe('story saga data', () => {
 });
 
 test.describe('chapter map', () => {
-  test('a new learner sees all 17 chapters (the N4 arc too), the first one next and the rest locked but visible', async ({ page }) => {
+  test('a new learner sees all 24 chapters (the N4 and N3 arcs too), the first one next and the rest locked but visible', async ({ page }) => {
     await page.goto('./#/play/story');
     const v = view(page);
-    await expect(v.locator('.saga-node')).toHaveCount(17);
+    await expect(v.locator('.saga-node')).toHaveCount(24);
     await expect(v.locator('.saga-node.next')).toHaveCount(1);
     await expect(v.locator('.saga-node').first()).toHaveClass(/next/);
-    await expect(v.locator('.saga-node.locked')).toHaveCount(16);
-    await expect(v.locator('.saga-node.locked button')).toHaveCount(16);
+    await expect(v.locator('.saga-node.locked')).toHaveCount(23);
+    await expect(v.locator('.saga-node.locked button')).toHaveCount(23);
     await expect(v.getByText('Journey Arc', { exact: false })).toBeVisible();
     for (const b of await v.locator('.saga-node.locked button').all()) await expect(b).toBeDisabled();
     await expect(v.getByText('Tournament Arc', { exact: false })).toBeVisible();
@@ -130,7 +131,7 @@ test.describe('chapter map', () => {
     await expect(v.locator('.saga-node.next')).toContainText('The Tournament Notice');
     await expect(v.getByRole('button', { name: /^Replay chapter/ })).toHaveCount(4);
     await expect(v.getByRole('button', { name: /^No-furigana challenge/ })).toHaveCount(4);
-    await expect(v.locator('.saga-node.locked')).toHaveCount(12);   // 6-12, and the N4 arc (13-17) until N4 opens
+    await expect(v.locator('.saga-node.locked')).toHaveCount(19);   // 6-12, and the N4 (13-17) and N3 (18-24) arcs until they open
     await expectNoHorizontalScroll(page);
   });
 });

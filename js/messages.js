@@ -22,7 +22,7 @@ const reviewedWords = () => store.planted().filter(({ prog }) => prog.r > 0).len
 /**
  * Which tier of message fits: 1 kana-only polite; 2 casual speech, once hiragana is done and the course is a few units
  * in (or 60 words are known); 3 N4 grammar, once the N5 core course is done (or 200 words are known); 4 N4 casual
- * chat, once N4 is unlocked as well.
+ * chat, once N4 is unlocked as well; 5 N3 grammar in chat, once N3 is unlocked.
  */
 export function learnerTier() {
   const done = new Set(store.s.course.done);
@@ -32,6 +32,8 @@ export function learnerTier() {
   if (t === 2 && (done.has('p1-10') || words >= 200)) t = 3;
   // 4: N4 plain, casual speech between friends, once N4 is unlocked (js/levels.js).
   if (t === 3 && isUnlocked('N4')) t = 4;
+  // 5: N3 grammar in casual chat, once N3 is unlocked.
+  if (t === 4 && isUnlocked('N3')) t = 5;
   return t;
 }
 

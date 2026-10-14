@@ -9,7 +9,7 @@
 // look-alikes) until it's right twice in a row. The plant's growth stage only ever follows the Meaning card.
 import { store, DAILY_REVIEW_CAP } from '../store.js';
 import { speaker, Recognizer, recognitionSupported, normalizeJa } from '../audio.js';
-import { gardenStage, accentMorae, accentName, toMorae, N5_WORDS, N4_WORDS, GARDEN_CATALOG } from '../data.js';
+import { gardenStage, accentMorae, accentName, toMorae, N5_WORDS, N4_WORDS, N3_WORDS, GARDEN_CATALOG } from '../data.js';
 import { isUnlocked, lockLine, levelBar } from '../levels.js';
 import { mountRecap, listenQuestion, meaningQuestion, withReading, optionCount } from '../recap.js';
 import { cardQuestion, cardName } from '../grammar-cards.js';
@@ -168,6 +168,9 @@ export function mount(el, ctx) {
         ${planted.length ? (isUnlocked('N4')
           ? `<p class="small dim">N4 deck: ${planted.filter((p) => p.item.deck === 'n4').length} of ${N4_WORDS.length} words planted. They come in after the N5 deck.</p>`
           : `<p class="small dim">🔒 N4 deck (${N4_WORDS.length} words), after the N5 deck. ${esc(lockLine('N4'))}</p>`) : ''}
+        ${planted.length && isUnlocked('N4') ? (isUnlocked('N3')
+          ? `<p class="small dim">N3 deck: ${planted.filter((p) => p.item.deck === 'n3').length} of ${N3_WORDS.length} words planted. They come in after the N4 deck.</p>`
+          : `<p class="small dim">🔒 N3 deck (${N3_WORDS.length} words), after the N4 deck. ${esc(lockLine('N3'))}</p>`) : ''}
         ${grammarCount ? `<p class="small dim">${grammarCount} grammar card${grammarCount === 1 ? '' : 's'} come up in the watering too, up to 2 new a day.</p>` : ''}
         ${daily.waiting ? `<p class="small dim">Big backlog? Only ${cap} a day, most overdue first. The other ${daily.waiting} wait patiently.</p>` : ''}
         ${action}

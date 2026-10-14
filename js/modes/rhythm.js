@@ -94,8 +94,8 @@ export function mount(el, ctx) {
   const phrase = () => queue[index % queue.length];
   const level = () => store.level(phrase());
   const tempo = rhythmSpeed(store.engine);   // difficulty targeting: a little slower while speaking is hard
-  // N4 lines are longer and start a little faster (natural speed for set phrases), then speed up the same way.
-  const levelBoost = () => (levelOf(phrase()) === 'N4' ? 0.6 : 0);
+  // N4 and N3 lines are longer and start a little faster (natural speed for set phrases), then speed up the same way.
+  const levelBoost = () => ({ N4: 0.6, N3: 0.9 }[levelOf(phrase())] || 0);
   const mps = () => Math.max(1.6, Math.min(2.0 + levelBoost() + 0.8 * level(), 7.0) * tempo);
   const beat = () => 1 / mps();
   const latency = () => (store.settings.latencyMs || 0) / 1000;

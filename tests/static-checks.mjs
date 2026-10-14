@@ -52,7 +52,7 @@ for (const f of new Set(clipFiles)) {
 
 // ---- every spoken line has its clips ----
 const clipKeys = new Set([...clipsSrc.matchAll(/^"(.*)":\s*"[^"]+\.mp3"/gm)].map((m) => JSON.parse(`"${m[1]}"`)));
-const collected = JSON.parse(execFileSync(process.execPath, [join(ROOT, 'tools/collect.mjs')], { encoding: 'utf8' }));
+const collected = JSON.parse(execFileSync(process.execPath, [join(ROOT, 'tools/collect.mjs')], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }));
 const noClip = [];
 // Clip key -> file, to check that every clip N5 content uses is precached (only later levels' clips may wait).
 const clipFile = Object.fromEntries([...clipsSrc.matchAll(/^"(.*)":\s*"([^"]+\.mp3)"/gm)].map((m) => [JSON.parse(`"${m[1]}"`), m[2]]));

@@ -12,11 +12,11 @@ import { conjKey } from './grammar-cards.js';
 import { recentRate } from './skills.js';
 import { shuffle } from './ui.js';
 import { RIVALS } from './rival-data.js';
-import { itemOpen, mixed, levelOf } from './levels.js';
+import { itemOpen, mixed, levelOf, APP_LEVELS } from './levels.js';
 
 /**
- * Rivals unlocked so far: Kaito from the start, the others once their story chapter is cleared. The N4 rivals also
- * need N4 unlocked (js/levels.js); their chapters are N4 chapters, so that comes first anyway.
+ * Rivals unlocked so far: Kaito from the start, the others once their story chapter is cleared. The N4 and N3 rivals
+ * also need their level unlocked (js/levels.js); their chapters are of that level, so that comes first anyway.
  */
 export function unlockedRivals() {
   const cleared = store.clearedChapters;
@@ -95,7 +95,7 @@ export function attackPool(now = Date.now()) {
     const right = conj.jp;
     const card = store.s.grammar[conjKey(word.jp, form)];
     const due = !!(card && card.r && card.due <= now);
-    out.push({ key: `cj:${word.jp}|${form}`, level: levelOf(word) === 'N4' || FORM_LEVEL[form] === 'N4' ? 'N4' : 'N5', kind: 'conj', skill: 'grammar', ask: `${FORM_LABEL[form]}?`, prompt: conjPrompt(word, form).jp, promptJa: true,
+    out.push({ key: `cj:${word.jp}|${form}`, level: [levelOf(word), FORM_LEVEL[form]].sort((x, y) => APP_LEVELS.indexOf(y) - APP_LEVELS.indexOf(x))[0], kind: 'conj', skill: 'grammar', ask: `${FORM_LABEL[form]}?`, prompt: conjPrompt(word, form).jp, promptJa: true,
       promptEn: word.en, answer: right, pool: conjDistractors(word, form), optionsJa: true, say: right, sayable: right, targets: [conj.jp, conj.kana],
       detail: conjWhy(word, form), due, easy: mastery(k) >= WELL,
       grade: (ok, firstTry) => {
@@ -154,10 +154,11 @@ export function optionsFor(a) {
  * kind. Returns at most `n` attacks. `level`: the rival's level.
  */
 export function planFight(pool, n = 16, level = 'N5') {
-  // An N4 rival attacks mostly with N4 items (about 70%, js/levels.js), the rest review from N5. An N5 rival keeps
-  // to N5 items while there are enough of them.
+  // An N4 or N3 rival attacks mostly with items of its own level (about 70%, js/levels.js), the rest review from the
+  // levels below, never above. An N5 rival keeps to N5 items while there are enough of them.
   const n5 = pool.filter((a) => levelOf(a) === 'N5');
-  const picked = level === 'N5' ? (n5.length >= MIN_ITEMS ? n5 : pool) : mixed(pool, n);
+  const upTo = pool.filter((a) => APP_LEVELS.indexOf(levelOf(a)) <= APP_LEVELS.indexOf(level));
+  const picked = level === 'N5' ? (n5.length >= MIN_ITEMS ? n5 : pool) : mixed(upTo.length >= MIN_ITEMS ? upTo : pool, n);
   const byKind = {};
   for (const a of shuffle(picked)) (byKind[a.kind] || (byKind[a.kind] = [])).push(a);
   for (const list of Object.values(byKind)) list.sort((a, b) => Number(b.due) - Number(a.due));

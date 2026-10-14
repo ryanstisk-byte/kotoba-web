@@ -15,6 +15,34 @@ import { pronButton, pronAvailable, wordTarget } from '../pron.js';
 
 const HAS_JP = /[ぁ-ゖァ-ヺ一-鿿]/;
 
+// Reading-passage beats (N3): a beat with `doc: { kind, title }` is a written text the characters read, shown as a
+// paper document instead of a speech line. Each kind gets a Japanese + English label.
+const DOC_KINDS = {
+  article: ['新聞', 'Newspaper'],
+  notice: ['お知らせ', 'Notice'],
+  letter: ['手紙', 'Letter'],
+  rules: ['規則', 'Rules'],
+  essay: ['作文', 'Essay'],
+  diary: ['日記', 'Diary'],
+};
+const docKind = (kind) => DOC_KINDS[kind] || ['文書', kind ? kind[0].toUpperCase() + kind.slice(1) : 'Document'];
+
+/** Splits a passage into sentences after each 。 (not inside 「」 quotes), keeping any text after the last 。 (a
+ *  signature like a notice's sender) as its own piece. */
+export function docSentences(text) {
+  const out = [];
+  let cur = '';
+  let depth = 0;
+  for (const ch of String(text)) {
+    cur += ch;
+    if (ch === '「' || ch === '『') depth++;
+    else if ((ch === '」' || ch === '』') && depth > 0) depth--;
+    else if (ch === '。' && depth === 0) { out.push(cur.trim()); cur = ''; }
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out.filter(Boolean);
+}
+
 export function mount(el, ctx) {
   let chapter = null;
   let index = 0;
@@ -31,6 +59,7 @@ export function mount(el, ctx) {
   let mineOff = null;
   let pre = null;          // words taught before a first read: { words, phase: 'learn' | 'check', i, picked, opts, ok }
   let recapOff = null;     // a scene recap while it's showing
+  let enteredDoc = null;   // the document beat last drawn, so its sheet animates in only once
 
   const beat = () => chapter.beats[Math.min(index, chapter.beats.length - 1)];
   const byId = (id) => CHAPTERS.find((c) => c.id === id);
@@ -194,6 +223,7 @@ export function mount(el, ctx) {
   }
 
   function enterBeat() {
+    enteredDoc = null;
     showEnglish = !!beat().choice && earlyHint(store.engine, 'grammar');   // meaning up front on choices while grammar is hard
     selectedWord = null;
     wrongReply = null;
@@ -276,6 +306,7 @@ export function mount(el, ctx) {
     if (finished) return renderFinished();
     if (quiz) return renderQuiz();
     const b = beat();
+    if (b.doc) return renderDoc(b);
     const c = b.speaker;
     const pct = (sceneAt() / sceneLen()) * 100;
     el.innerHTML = `
@@ -295,6 +326,13 @@ export function mount(el, ctx) {
           <span class="line-jp" lang="ja">${esc(b.jp)}</span>
           ${showEnglish ? `<span class="trace-c">${esc(b.en)}</span>` : '<span class="small dim">Tap for meaning</span>'}
         </button>
+        ${beatTail(b)}
+      </div>`;
+  }
+
+  /** Under a line or a document: the beat's word chips, the picked word, the note, then the choice or the controls. */
+  function beatTail(b) {
+    return `
         ${b.words.length ? `<div class="chips">${b.words.map((w, i) => `<button class="chip" data-act="word" data-i="${i}" lang="ja">${esc(w.jp)}</button>`).join('')}</div>` : ''}
         ${selectedWord ? `<p>${esc(selectedWord.jp)}${challenge ? '' : ` (${esc(selectedWord.reading)})`}: ${esc(selectedWord.en)}</p>` : ''}
         ${b.note ? `<div class="panel note">💡 ${esc(b.note)}</div>` : ''}
@@ -308,7 +346,51 @@ export function mount(el, ctx) {
             <button class="btn" data-act="replay" aria-label="Replay">🔊 Replay</button>
             <button class="btn" data-act="meaning" aria-label="Meaning">📖 Meaning</button>
             <button class="btn primary" data-act="next" aria-label="Next">Next ▶</button>
-          </div>`}
+          </div>`}`;
+  }
+
+  /** A reading-passage beat: the text as a paper document (kind label, title, one sentence per line), the kana
+   *  reading over each sentence while ふりがな is on, and the English under the text when Meaning is on. */
+  function renderDoc(b) {
+    const { kind, title } = b.doc;
+    const [kindJp, kindEn] = docKind(kind);
+    const pct = (sceneAt() / sceneLen()) * 100;
+    const lines = docSentences(b.jp);
+    const readings = docSentences(b.reading);
+    const perLine = readings.length === lines.length;   // otherwise the reading shows as one block above the text
+    const help = showReading && !challenge;
+    const docEnter = enteredDoc !== b;   // animate the sheet in only the first time this beat draws
+    enteredDoc = b;
+    const para = (jp, i) => {
+      const last = i === lines.length - 1;
+      const cls = /へ。$/.test(jp) && i === 0 ? 'doc-salute' : !/[。」』]$/.test(jp) && last && i > 0 ? 'doc-sign' : /^[一二三四五六七八九十]+、/.test(jp) ? 'doc-item' : '';
+      return `<p class="doc-p ${cls}">${help && perLine ? `<span class="reading doc-reading dim" lang="ja" data-noruby>${esc(readings[i])}</span>` : ''}<span class="doc-jp">${esc(jp)}</span></p>`;
+    };
+    el.innerHTML = `
+      <div class="stack doc-beat"${noRuby()}>
+        <div class="row-between"><span class="small dim">${chapter.number}. ${esc(chapter.title)}</span>
+          ${ctx.today ? '' : '<button class="btn ghost small-btn" data-act="list">Chapters</button>'}</div>
+        <div class="bar"><span style="width:${pct}%"></span></div>
+        <div class="speaker-row">
+          <span class="grow small dim">${esc(b.speaker.name === 'Narrator' ? 'You read:' : `${b.speaker.name} reads:`)}</span>
+          ${challenge
+            ? '<span class="tag saga-challenge-tag" title="Reading help is off for this replay">🙈 Challenge</span>'
+            : `<button class="chip-toggle ${showReading ? 'on' : ''}" data-act="furi" aria-pressed="${showReading}">ふりがな</button>`}
+        </div>
+        <article class="doc-card doc-${esc(kind || 'text')}${docEnter ? ' doc-enter' : ''}" aria-labelledby="doc-title">
+          <header class="doc-head">
+            <span class="doc-kind"><span lang="ja">${esc(kindJp)}</span><span class="doc-kind-en">${esc(kindEn)}</span></span>
+            <h2 class="doc-title" id="doc-title" lang="ja">${esc(title)}</h2>
+          </header>
+          ${help && !perLine ? `<p class="reading doc-reading dim" lang="ja" data-noruby>${esc(b.reading)}</p>` : ''}
+          <div class="doc-body line-jp" lang="ja">${lines.map(para).join('')}</div>
+          <footer class="doc-foot">
+            ${showEnglish
+              ? `<p class="doc-en trace-c">${esc(b.en)}</p>`
+              : '<button class="btn ghost small-btn doc-meaning" data-act="meaning">Tap for meaning</button>'}
+          </footer>
+        </article>
+        ${beatTail(b)}
       </div>`;
   }
 

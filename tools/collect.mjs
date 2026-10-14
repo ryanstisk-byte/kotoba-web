@@ -1,11 +1,13 @@
 // Lists every line the app speaks (for voice clips) and every Japanese text with a known reading.
 // Run: node tools/collect.mjs > /tmp/collect.json   (used by tools/build_assets.py)
 import { PHRASES, CHAPTERS, CAST, STORY_WORDS, TRAINS, assembleTrain, KANJI, SHOP_STOCK, COUNTERS, CUSTOMERS, SHOP_GREETINGS, SHOP_THANKS, GARDEN_CATALOG,
-  SHOP_GREETINGS_N4, SHOP_THANKS_N4, SHOP_KEIGO, N4_WORDS } from '../js/data.js';
-import { LESSONS, KANJI_LESSONS, N4_KANJI_LESSONS, READ_WORDS } from '../js/dojo-data.js';
+  SHOP_GREETINGS_N4, SHOP_THANKS_N4, SHOP_GREETINGS_N3, SHOP_THANKS_N3, SHOP_KEIGO, N4_WORDS, N3_WORDS } from '../js/data.js';
+import { LESSONS, KANJI_LESSONS, N4_KANJI_LESSONS, N3_KANJI_LESSONS, READ_WORDS } from '../js/dojo-data.js';
 import { N5_WORDS } from '../js/data.js';
 import { N5 } from '../js/n5.js';
 import { N4 } from '../js/n4.js';
+import { N3 } from '../js/n3.js';
+import { N3_TASK, N3_POINT, N3_GIST, N3_UTTER, N3_QUICK } from '../js/exam-bank-n3-listen.js';
 import { N4_TASK, N4_POINT, N4_UTTER, N4_QUICK } from '../js/exam-bank-n4-listen.js';
 import { BRUSH_WORDS } from '../js/brush-data.js';
 import { STUDY_UNITS } from '../js/course-data.js';
@@ -14,12 +16,13 @@ import { TASK, UTTER } from '../js/exam-bank-listen2.js';
 import { PARAPHRASE, TEXT_GRAMMAR, SHORT, MID, INFO } from '../js/exam-bank-reading.js';
 import { ALL_MESSAGES, SENDERS } from '../js/messages-data.js';
 import { rivalLines } from '../js/rival-data.js';
-import { DIALOGUES, NUMBER_SCENES, KATA_WORDS, CONJ_WORDS, VERB_FORMS, ADJ_FORMS, VERB_FORMS_N4, ADJ_FORMS_N4, formsFor, conjugate, conjPrompt, BUILD_SENTENCES } from '../js/practice-data.js';
+import { DIALOGUES, NUMBER_SCENES, KATA_WORDS, CONJ_WORDS, VERB_FORMS, ADJ_FORMS, VERB_FORMS_N4, ADJ_FORMS_N4, VERB_FORMS_N3, formsFor, conjugate, conjPrompt, BUILD_SENTENCES } from '../js/practice-data.js';
 
 // Every clip records the easiest level that uses it (LV while it's added): N5 clips are precached when the app
-// installs; clips only N4 content uses are cached once N4 is unlocked (sw.js LATER), so they don't weigh on a phone
-// before they're needed.
-const ORDER = ['N5', 'N4'];
+// installs; clips only N4 (or N3) content uses are cached once that level is unlocked (sw.js LATER), so they don't
+// weigh on a phone before they're needed.
+const ORDER = ['N5', 'N4', 'N3'];
+const later = (...ls) => ls.sort((a, b) => ORDER.indexOf(b) - ORDER.indexOf(a))[0];
 let LV = 'N5';
 const lv = (x) => (x && x.level) || 'N5';
 const clips = new Map();
@@ -60,11 +63,11 @@ for (const t of TRAINS) {
   for (const filled of combos) add(assembleTrain(t, filled));
 }
 LV = 'N5';
-// Shop orders: an N5 customer orders N5 goods; an N4 customer orders anything on the shelf (js/modes/shop.js).
+// Shop orders: a customer orders goods of their level or below (js/modes/shop.js).
 for (const c of Object.values(CUSTOMERS)) {
   for (const item of SHOP_STOCK) {
-    if (lv(c) === 'N5' && lv(item) !== 'N5') continue;
-    const level = lv(c) === 'N4' || lv(item) === 'N4' ? 'N4' : 'N5';
+    if (ORDER.indexOf(lv(item)) > ORDER.indexOf(lv(c))) continue;
+    const level = later(lv(c), lv(item));
     COUNTERS[item.counter].say.forEach((s) => add(c.order(item, s), c.voice, null, level));
   }
 }
@@ -75,7 +78,11 @@ add(SHOP_THANKS[0], 1);
 LV = 'N4';
 add(SHOP_GREETINGS_N4[0].jp, 1); pairs.push([SHOP_GREETINGS_N4[0].jp, SHOP_GREETINGS_N4[0].reading]);
 add(SHOP_THANKS_N4[0].jp, 1); pairs.push([SHOP_THANKS_N4[0].jp, SHOP_THANKS_N4[0].reading]);
+LV = 'N3';
+add(SHOP_GREETINGS_N3[0].jp, 1); pairs.push([SHOP_GREETINGS_N3[0].jp, SHOP_GREETINGS_N3[0].reading]);
+add(SHOP_THANKS_N3[0].jp, 1); pairs.push([SHOP_THANKS_N3[0].jp, SHOP_THANKS_N3[0].reading]);
 for (const m of SHOP_KEIGO) {
+  LV = lv(m);
   add(m.line.jp, m.who); pairs.push([m.line.jp, m.line.reading]);
   add(m.options[0].jp, 1);
   for (const o of m.options) pairs.push([o.jp, o.reading]);
@@ -84,13 +91,14 @@ LV = 'N5';
 for (const l of LESSONS) for (const c of l.chars) add(c.k);
 for (const l of KANJI_LESSONS) for (const j of l.kanji) { add(j.reading); pairs.push([j.word, j.reading]); }
 for (const l of N4_KANJI_LESSONS) for (const j of l.kanji) { add(j.reading, 0, null, 'N4'); pairs.push([j.word, j.reading]); }
+for (const l of N3_KANJI_LESSONS) for (const j of l.kanji) { add(j.reading, 0, null, 'N3'); pairs.push([j.word, j.reading]); }
 for (const v of READ_WORDS) add(v.w);
 // Course example sentences, each in its speaker's voice (0 narrator, 1 Ren, 2 Master, 3 Kaito; N4 units also 4, 5).
 for (const u of STUDY_UNITS) for (const p of u.points) for (const ex of p.examples) { add(ex.jp, ex.voice, null, lv(u)); pairs.push([ex.jp, ex.reading]); }
 
 // Mock JLPT listening (js/exam-bank-listen*.js): every question, conversation line and reply in its voice. Each item
 // plays once in the full mock, so only normal speed is needed; the mini mock's replay uses the same clip.
-for (const [bank, level] of [[[...TASK, ...POINT, ...UTTER, ...QUICK], 'N5'], [[...N4_TASK, ...N4_POINT, ...N4_UTTER, ...N4_QUICK], 'N4']]) {
+for (const [bank, level] of [[[...TASK, ...POINT, ...UTTER, ...QUICK], 'N5'], [[...N4_TASK, ...N4_POINT, ...N4_UTTER, ...N4_QUICK], 'N4'], [[...N3_TASK, ...N3_POINT, ...N3_GIST, ...N3_UTTER, ...N3_QUICK], 'N3']]) {
   for (const it of bank) {
     for (const l of [it.question, it.line, ...(it.lines || []), ...(it.replies || [])].filter(Boolean)) {
       put(l.jp + '#' + l.voice, [l.jp, l.voice, null, ['']], level);
@@ -102,12 +110,12 @@ for (const [bank, level] of [[[...TASK, ...POINT, ...UTTER, ...QUICK], 'N5'], [[
 for (const m of ALL_MESSAGES) { add(m.jp, SENDERS[m.from].voice, null, lv(m)); pairs.push([m.jp, m.kana]); }
 // Rival Battle: each rival's taunts, counters and endings in their own voice, and Ren's finisher shouts.
 for (const [l, voice, level] of rivalLines()) { add(l.jp, voice, null, level); pairs.push([l.jp, l.reading]); }
-// Kana Brush words (N4): each word said whole, before it's written kana by kana.
-for (const w of BRUSH_WORDS) add(w.kana, 0, null, 'N4');
+// Kana Brush words (N4, N3): each word said whole, before it's written kana by kana.
+for (const w of BRUSH_WORDS) add(w.kana, 0, null, lv(w));
 
 // N5 deck: each word with its pitch accent set, and its example sentence. Added last so these win over
 // an older clip of the same text.
-for (const [words, raw, level] of [[N5_WORDS, N5, 'N5'], [N4_WORDS, N4, 'N4']]) {
+for (const [words, raw, level] of [[N5_WORDS, N5, 'N5'], [N4_WORDS, N4, 'N4'], [N3_WORDS, N3, 'N3']]) {
   words.forEach((w, i) => {
     const [, , , , , , , say, exSay] = raw[i];
     add(w.say, 0, { accent: w.accent, ...(say ? { say } : {}) }, level);
@@ -126,11 +134,15 @@ for (const d of DIALOGUES) for (const l of d.lines) { add(l.jp, l.who.voice, nul
 const keep = (key, level) => { const was = levels.get(key); if (was && ORDER.indexOf(level) < ORDER.indexOf(was)) levels.set(key, level); };
 for (const s of NUMBER_SCENES) { if (!clips.has(s.jp + '#' + s.voice)) add(s.jp, s.voice, null, lv(s)); else keep(s.jp + '#' + s.voice, lv(s)); if (s.reading) pairs.push([s.jp, s.reading]); }
 for (const w of KATA_WORDS) if (!clips.has(w.say + '#0')) add(w.say, 0, null, lv(w)); else keep(w.say + '#0', lv(w));
-// Conjugation Dojo: N5 words in the N5 forms; N4 words in every form and N5 words in the N4 forms (js/modes/conj.js).
+// Conjugation Dojo: N5 words in the N5 forms; N4 words in every N5 and N4 form and N5 words in the N4 forms; N3 words
+// in every form and older words in the N3 forms (js/modes/conj.js).
 for (const w of CONJ_WORDS) {
   const n5Forms = w.type === 'verb' ? VERB_FORMS : ADJ_FORMS;
   const n4Forms = w.type === 'verb' ? VERB_FORMS_N4 : ADJ_FORMS_N4;
-  const sets = lv(w) === 'N5' ? [[n5Forms, 'N5'], [formsFor(w, n4Forms), 'N4']] : [[formsFor(w, [...n5Forms, ...n4Forms]), 'N4']];
+  const n3Forms = w.type === 'verb' ? VERB_FORMS_N3 : [];
+  const sets = lv(w) === 'N5' ? [[n5Forms, 'N5'], [formsFor(w, n4Forms), 'N4'], [formsFor(w, n3Forms), 'N3']]
+    : lv(w) === 'N4' ? [[formsFor(w, [...n5Forms, ...n4Forms]), 'N4'], [formsFor(w, n3Forms), 'N3']]
+      : [[formsFor(w, [...n5Forms, ...n4Forms, ...n3Forms]), 'N3']];
   for (const [forms, level] of sets) {
     for (const f of forms) {
       for (const c of [conjugate(w, f), conjPrompt(w, f)]) {
