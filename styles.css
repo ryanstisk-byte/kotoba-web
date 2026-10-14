@@ -1187,6 +1187,18 @@ body.has-tabs #update-ready { bottom: calc(var(--tabbar-h) + var(--sp-3) + env(s
 /* "What did they mean?" answers are English sentences: one per row, at reading size, so none wraps a word per line. */
 .msg-opts { display: grid; gap: var(--sp-2); }
 .msg-opts .btn { min-height: 48px; font-weight: 600; }
+.msg-contacts { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--sp-2); max-width: 520px; }
+.msg-contact { position: relative; display: grid; justify-items: center; gap: 4px; min-width: 0; padding: var(--sp-2) 2px; border-radius: 12px;
+  border: 1.5px solid transparent; background: none; color: inherit; font: inherit; cursor: pointer; }
+.msg-contact[aria-pressed=true] { border-color: var(--who); background: color-mix(in srgb, var(--who) 12%, var(--surface)); }
+.msg-contact.locked .msg-face { background: var(--surface-2); color: var(--dim); }
+.msg-contact.locked .msg-contact-name { color: var(--dim); }
+.msg-contact-name { font-size: 0.8rem; font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-contact .msg-face .ico { width: 18px; height: 18px; }
+.msg-dot { position: absolute; top: 6px; right: calc(50% - 26px); width: 12px; height: 12px; border-radius: 50%; background: var(--accent); border: 2px solid var(--surface); }
+.msg-about { border-left: 4px solid var(--who); display: grid; gap: var(--sp-1); }
+.msg-reg { font-weight: 700; }
+.msg-fit { text-align: right; }
 /* ---------- Rival Battle ---------- */
 .rival { --rival: var(--trace); }
 .rival-list { display: grid; gap: var(--sp-2); }
