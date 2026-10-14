@@ -211,13 +211,19 @@ export function mount(el, ctx) {
   }
 
   /** The answer: the kana itself, its sound, a button to hear it and the writing mnemonic. */
-  const answerHTML = () => `<p class="brush-answer"><span class="brush-answer-k" lang="ja">${esc(cur.k)}</span>
+  const answerHTML = () => `<p class="brush-answer"><span class="brush-answer-k" lang="ja">${strokeGlyph(cur.k)}<span class="sr-only">${esc(cur.k)}</span></span>
       <span class="mono strong">${esc(cur.info.r)}</span> · ${STROKES[cur.k].length} stroke${STROKES[cur.k].length === 1 ? '' : 's'}</p>
     <p class="small">💡 ${esc(cur.info.m)}</p>`;
 
+  /**
+   * A kana drawn from its own model strokes, so it shows exactly the strokes the learner draws. A heavy system font
+   * (Hiragino Sans on iPhone) runs some of them together, e.g. さ's last two and こ's hook.
+   */
+  const strokeGlyph = (k) => `<svg class="brush-glyph" viewBox="0 0 109 109" aria-hidden="true">${PATHS[k].map((d) => `<path d="${d}"/>`).join('')}</svg>`;
+
   /** Two kana side by side (the one asked for and the one the drawing came out as), with what tells them apart. */
   const lookalikeHTML = (other) => `<div class="brush-pair">${[cur.k, other].map((k, j) => `<figure class="brush-pair-k ${j ? 'other' : 'asked'}">
-      <svg viewBox="0 0 109 109" aria-hidden="true">${PATHS[k].map((d) => `<path d="${d}"/>`).join('')}</svg>
+      ${strokeGlyph(k)}
       <figcaption><span lang="ja">${esc(k)}</span> <span class="mono">${esc(BRUSH_BY_KANA[k]?.r || '')}</span>${j ? ' (you drew)' : ' (this sound)'}</figcaption>
     </figure>`).join('')}</div>
     <p class="small strong brush-pair-tip">${esc(lookalikeTip(cur.k, other))}</p>`;
