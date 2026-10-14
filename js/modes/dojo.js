@@ -141,7 +141,7 @@ export function mount(el, ctx) {
     el.innerHTML = `
       <div class="stack">
         <div class="hero-jp accent-c" lang="ja" data-noruby>読</div>
-        <p class="dim">Learn to read Japanese from zero: hiragana first, then katakana, then your first kanji. Each lesson is a few characters and a short practice. Until you know them, every game shows romaji over the Japanese (Settings › Reading help).</p>
+        <p class="dim">Learn to read from zero: hiragana, then katakana, then your first kanji, a few characters per lesson. Until you know them, games show romaji over the Japanese.</p>
         ${due.length ? `<button class="btn primary wide" data-act="review">🔁 Review ${Math.min(due.length, 15)} learned character${due.length === 1 ? '' : 's'}</button>` : ''}
         ${brushHTML()}
         ${next ? `<button class="btn ${due.length ? '' : 'primary'} wide" data-act="lesson" data-id="${next.id}">▶ Next lesson: ${esc(trackTitle(next.track))} · ${esc(next.title)}</button>`
@@ -156,12 +156,13 @@ export function mount(el, ctx) {
             <div class="row-between"><h2 class="section-title"><span lang="ja" data-noruby>${esc(t.jp)}</span> ${esc(t.title)}</h2><span class="small dim mono">${open ? `${done}/${lessons.length}` : '🔒 ' + levelOf(t)}</span></div>
             <p class="small dim">${esc(t.body)}</p>
             ${open ? '' : `<p class="small dim">${esc(lockLine(levelOf(t)))}</p>`}
+            <details class="fold" ${next && next.track === t.id ? 'open' : ''}><summary class="small strong">${open ? `${lessons.length} lessons` : `${lessons.length} lessons, locked`}</summary>
             <div class="lesson-list">${lessons.map((l, i) => `
               <button class="panel lesson-row ${cleared.has(l.id) ? 'cleared' : ''} ${next && next.id === l.id ? 'next' : ''}" data-act="lesson" data-id="${l.id}" ${open ? '' : 'disabled'}>
                 <span class="ch-num">${cleared.has(l.id) ? '✓' : i + 1}</span>
                 <span class="grow"><span class="strong">${esc(l.title)}</span><br><span class="lesson-preview" lang="ja" data-noruby>${esc(preview(l))}</span></span>
                 <span class="dim chev" aria-hidden="true">›</span>
-              </button>`).join('')}</div>
+              </button>`).join('')}</div></details>
           </section>`;
         }).join('')}
       </div>`;

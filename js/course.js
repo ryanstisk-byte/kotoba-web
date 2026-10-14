@@ -270,9 +270,19 @@ export function renderPath(view) {
         <h2 class="section-label">PHASE ${ph.n} · ${esc(ph.title.toUpperCase())}</h2>
         <p class="small dim">${esc(ph.when)}. ${esc(ph.focus)}</p>
         ${UNITS.some((u) => u.phase === ph.id && !itemOpen(u)) ? `<p class="small dim">🔒 ${esc(lockLine(levelOf(UNITS.find((u) => u.phase === ph.id && !itemOpen(u)))))}</p>` : ''}
-        ${UNITS.filter((u) => u.phase === ph.id).map((u) => unitRow(u, cur, reached)).join('')}
+        ${phaseUnits(ph, cur, reached)}
       </section>`).join('')}
     </div>`;
+  };
+  // A phase that's locked or all done folds to one line; the phases still being worked on stay open.
+  const phaseUnits = (ph, cur, reached) => {
+    const units = UNITS.filter((u) => u.phase === ph.id);
+    const locked = units.every((u) => !itemOpen(u));
+    const allDone = units.every((u) => u.outline || isDone(u.id));
+    const open = !locked && (!allDone || (cur && cur.phase === ph.id));
+    const label = locked ? `${units.length} units, locked` : allDone ? `${units.length} units, all done` : `${units.length} units`;
+    return `<details class="fold" ${open ? 'open' : ''}><summary class="small strong">${label}</summary>
+      <div class="stack-sm">${units.map((u) => unitRow(u, cur, reached)).join('')}</div></details>`;
   };
   const unitRow = (u, cur, reached) => {
     const num = u.id.split('-')[1];

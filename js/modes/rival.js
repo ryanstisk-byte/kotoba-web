@@ -10,7 +10,7 @@ import { attackPool, planFight, nextAttack, optionsFor, unlockedRivals, MIN_ITEM
 import { levelBar, itemOpen, lockLine, levelOf } from '../levels.js';
 
 export { unlockedRivals };
-import { esc, pick, delegate } from '../ui.js';
+import { esc, pick, delegate, howTo } from '../ui.js';
 import { choiceButtons, sayAt } from '../practice-ui.js';
 import * as fx from '../fx.js';
 
@@ -76,9 +76,11 @@ export function mount(el, ctx) {
         ${levelBar('rival')}
         <div class="hero-jp accent-c center-text" lang="ja" data-noruby>戦</div>
         <p class="lead strong">A rival challenges you. Every attack is something you've already learned.</p>
-        <p class="dim">Answer by tapping${speech ? ', or say it out loud with the mic' : ''}. Answers in a row build a combo and a finisher. A miss costs nothing: the rival says the answer and it comes back later. You can't lose.</p>
+        ${howTo(`<p>Answer by tapping${speech ? ', or say it out loud with the mic' : ''}. Answers in a row build a combo and a finisher. A miss costs nothing: the rival says the answer and it comes back later. You can't lose.</p>`)}
         ${quiet ? '<div class="panel note small">Quiet mode: tap answers only.</div>' : ''}
         ${!enough ? `<div class="panel note">The rivals wait until you've learned a little more: a few Garden words, Reading Dojo kana or practice games. (${pool.length} of ${MIN_ITEMS} so far.)</div>` : ''}
+        <button class="btn primary wide" data-act="start" ${enough ? '' : 'disabled'}>⚔ Fight ${esc(rival.name)}</button>
+        <h2 class="section-label">CHOOSE A RIVAL</h2>
         <div class="rival-list">
           ${RIVALS.map((r) => {
             const on = open.includes(r);
@@ -89,7 +91,6 @@ export function mount(el, ctx) {
             </button>`;
           }).join('')}
         </div>
-        <button class="btn primary wide" data-act="start" ${enough ? '' : 'disabled'}>⚔ Fight ${esc(rival.name)}</button>
       </div>`;
   }
 

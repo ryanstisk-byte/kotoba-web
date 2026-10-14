@@ -105,7 +105,7 @@ export function mount(el, ctx) {
           ${results ? `<p class="tiny dim saga-results">${esc(results)}</p>` : ''}
           <div class="saga-actions">
             <button class="btn small-btn" data-act="open" data-id="${ch.id}" aria-label="Replay chapter ${ch.number}">↻ Replay</button>
-            <button class="btn small-btn" data-act="challenge" data-id="${ch.id}" aria-label="No-furigana challenge, chapter ${ch.number}">🙈 No-furigana challenge</button>
+            <button class="btn small-btn" data-act="challenge" data-id="${ch.id}" aria-label="No-furigana challenge, chapter ${ch.number}">🙈 No furigana</button>
           </div>
         </div></li>`;
     };
@@ -123,7 +123,9 @@ export function mount(el, ctx) {
           <section class="stack-sm" aria-label="${esc(arc.en)}">
             <h3 class="section-label"><span lang="ja">${esc(arc.title)}</span> ${esc(arc.en.toUpperCase())} · ${esc(arc.label || arc.level)}</h3>
             ${itemOpen(arc) ? '' : `<p class="small dim">🔒 ${esc(lockLine(levelOf(arc)))}</p>`}
-            <ol class="saga-path">${arc.chapters.map((id) => node(byId(id))).join('')}</ol>
+            ${itemOpen(arc) ? `<ol class="saga-path">${arc.chapters.map((id) => node(byId(id))).join('')}</ol>`
+              : `<details class="fold"><summary class="small strong">${arc.chapters.length} chapters, locked</summary>
+                <ol class="saga-path">${arc.chapters.map((id) => node(byId(id))).join('')}</ol></details>`}
           </section>`).join('')}
         <p class="small dim">Cleared chapters: replay them, or take the no-furigana challenge to read them from memory.</p>
       </div>`;
