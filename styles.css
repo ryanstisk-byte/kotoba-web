@@ -1218,3 +1218,60 @@ body.has-tabs #update-ready { bottom: calc(var(--tabbar-h) + var(--sp-3) + env(s
 .exam-opts.exam-long { grid-template-columns: 1fr; }
 .exam-opts.exam-long .btn { text-align: left; justify-content: flex-start; }
 .particle-grid.palette { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
+
+/* ======================================================================
+   Story: reading-passage beats (N3). A beat with `doc` (js/story-n3.js) is a written text the characters read: a
+   newspaper article, notice, letter, rules, diary or essay. Shown as a sheet of paper (js/modes/story.js renderDoc).
+   ====================================================================== */
+.doc-card {
+  position: relative; width: 100%; max-width: 42rem; color: var(--ink);
+  background: var(--surface);
+  border: 1.5px solid var(--border-strong); border-radius: 4px 4px var(--r-md) var(--r-md);
+  box-shadow: var(--shadow-hard);
+  padding: var(--sp-5) var(--sp-5) var(--sp-4);
+  display: flex; flex-direction: column; gap: var(--sp-4);
+}
+/* A coloured strip along the top edge, like the masthead of a printed sheet. */
+.doc-card::before {
+  content: ""; position: absolute; inset: -1.5px -1.5px auto; height: 6px; border-radius: 4px 4px 0 0; background: var(--border-strong);
+}
+.doc-article::before { background: var(--ink); }
+.doc-notice::before { background: var(--accent); }
+.doc-rules::before { background: var(--electric); }
+.doc-letter::before, .doc-diary::before, .doc-essay::before { background: var(--trace); }
+.doc-head { display: flex; flex-direction: column; gap: var(--sp-2); padding-bottom: var(--sp-3); border-bottom: 1px solid var(--border); }
+.doc-article .doc-head { border-bottom: 3px double var(--border-strong); }
+.doc-kind {
+  align-self: flex-start; display: inline-flex; align-items: baseline; gap: var(--sp-2);
+  padding: 2px var(--sp-3); border-radius: var(--r-pill); border: 1.5px solid var(--border-strong);
+  background: var(--surface-2); font-family: var(--font-jp); font-size: var(--fs-sm); font-weight: 800;
+}
+.doc-kind-en { font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); }
+.doc-title { font-family: var(--font-jp); font-size: var(--fs-xl); font-weight: 800; line-height: 1.45; overflow-wrap: anywhere; }
+.doc-title:has(.jr) { line-height: var(--lh-ruby); }
+/* The text: body weight and size, a comfortable measure, one sentence per line with air between them. */
+.doc-body.line-jp {
+  font-size: var(--fs-jp-md); font-weight: 500; line-height: 1.85; max-width: 34em;
+  display: flex; flex-direction: column; gap: var(--sp-3);
+}
+.doc-body .jr { line-height: var(--lh-ruby); }
+.doc-p { margin: 0; text-indent: 1em; overflow-wrap: anywhere; }   /* 字下げ: Japanese paragraphs start one space in */
+.doc-p.doc-salute, .doc-p.doc-item, .doc-rules .doc-p, .doc-notice .doc-p.doc-sign { text-indent: 0; }
+.doc-p.doc-item { padding-left: 2em; text-indent: -2em; }   /* 一、二、: numbers hang in the margin */
+.doc-p.doc-sign { text-align: right; text-indent: 0; font-weight: 700; color: var(--dim); }
+.doc-reading { display: block; text-indent: 0; line-height: 1.6; margin-bottom: 2px; font-weight: 400; }
+/* Handwritten kinds (letter, diary, essay) get a faint left margin rule, like writing paper. */
+.doc-letter .doc-body, .doc-diary .doc-body, .doc-essay .doc-body { border-left: 2px solid var(--accent-soft); padding-left: var(--sp-3); }
+.doc-foot { border-top: 1px dashed var(--border); padding-top: var(--sp-3); }
+.doc-meaning { width: auto; }
+.doc-en { font-size: var(--fs-md); line-height: 1.7; max-width: 38em; }
+/* The sheet slides in once when the beat opens (not on every re-render). */
+.doc-card.doc-enter { animation: doc-in var(--dur) var(--ease-out); }
+@keyframes doc-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (max-width: 480px) {
+  .doc-card { padding: var(--sp-4) var(--sp-4) var(--sp-3); }
+  .doc-title { font-size: var(--fs-lg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .doc-card.doc-enter { animation: none; }
+}

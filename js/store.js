@@ -1,6 +1,6 @@
 // Progress store: spaced review with no streaks. Missing days never wipes anything out.
 // Port of ProgressStore.swift plus the daily-plan bookkeeping for the "Today" screen.
-import { PHRASES, PHRASE_BY_ID, GARDEN_CATALOG, CHAPTERS, N5_WORDS, N4_WORDS } from './data.js';
+import { PHRASES, PHRASE_BY_ID, GARDEN_CATALOG, CHAPTERS, N5_WORDS, N4_WORDS, N3_WORDS } from './data.js';
 import { itemOpen } from './levels.js';
 import { ALL_LESSONS, LESSON_BY_ID } from './dojo-data.js';
 import * as srs from './srs.js';
@@ -939,7 +939,7 @@ class Store {
 
   thirsty(now = Date.now()) { return this.planted().filter((p) => p.prog.due <= now).map((p) => p.item); }
 
-  /** New words not yet planted that today's watering would introduce, in order (starter phrases, the N5 deck, then the N4 deck once unlocked). */
+  /** New words not yet planted that today's watering would introduce, in order (starter phrases, the N5 deck, then the N4 and N3 decks once unlocked). */
   freshWords(limit) {
     const plants = this.planted();
     const fresh = plants.filter((p) => !p.prog.r && p.prog.due <= Date.now())
@@ -955,8 +955,8 @@ class Store {
     if (fresh.length < limit) {
       // Skip N5 words already growing under another id (met in Story, Kanji Forge or the starter phrases).
       const known = new Set(plants.map((p) => p.item.jp).concat(fresh.map((f) => f.jp)));
-      // Then the N4 deck, once N4 is unlocked (js/levels.js).
-      for (const w of [...N5_WORDS, ...N4_WORDS.filter(itemOpen)]) {
+      // Then the N4 deck, once N4 is unlocked, and the N3 deck once N3 is (js/levels.js).
+      for (const w of [...N5_WORDS, ...N4_WORDS.filter(itemOpen), ...N3_WORDS.filter(itemOpen)]) {
         if (fresh.length >= limit) break;
         if (!this.s.items[w.id] && !known.has(w.jp)) { fresh.push(GARDEN_CATALOG[w.id]); known.add(w.jp); }
       }
@@ -1157,7 +1157,7 @@ class Store {
     const cleared = this.clearedLessons;
     return ALL_LESSONS.filter((l) => l.track === track).every((l) => cleared.has(l.id));
   }
-  /** First lesson not yet cleared, in course order (hiragana, katakana, kanji, then N4 kanji once unlocked). */
+  /** First lesson not yet cleared, in course order (hiragana, katakana, kanji, then N4 and N3 kanji once unlocked). */
   nextLesson() {
     const cleared = this.clearedLessons;
     return ALL_LESSONS.find((l) => !cleared.has(l.id) && itemOpen(l)) || null;

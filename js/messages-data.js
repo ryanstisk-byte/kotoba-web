@@ -6,6 +6,7 @@
 // message. Every message is voiced in its sender's VOICEVOX voice (tools/collect.mjs).
 
 import { N4_MESSAGES, N4_WELCOME_BACK } from './n4-extras.js';
+import { N3_MESSAGES, N3_WELCOME_BACK } from './n3-extras.js';
 import { GARDEN_CATALOG, deckIdFor } from './data.js';
 import { tagLevel } from './level-tag.js';
 
@@ -236,6 +237,9 @@ tagLevel(WELCOME_BACK, 'N5');
 const wordIds = (m) => ({ ...m, words: m.words.map((w) => (GARDEN_CATALOG[w] ? w : deckIdFor(w))).filter((id) => id && GARDEN_CATALOG[id]) });
 MESSAGES.push(...tagLevel(N4_MESSAGES.map(wordIds), 'N4'));
 WELCOME_BACK.push(...tagLevel([N4_WELCOME_BACK].map(wordIds), 'N4'));
+// N3 (tier 5: N3 grammar in casual chat, わけ, はず, ように, っぽい, ちゃう) from js/n3-extras.js.
+MESSAGES.push(...tagLevel(N3_MESSAGES.map(wordIds), 'N3'));
+WELCOME_BACK.push(...tagLevel([N3_WELCOME_BACK].map(wordIds), 'N3'));
 
 export const ALL_MESSAGES = [...MESSAGES, ...WELCOME_BACK];
 export const MESSAGE_BY_ID = Object.fromEntries(ALL_MESSAGES.map((m) => [m.id, m]));

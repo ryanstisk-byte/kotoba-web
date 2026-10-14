@@ -303,7 +303,7 @@ def source_texts():
     texts = set()
     for dirpath, _, files in os.walk(os.path.join(ROOT, 'js')):
         for f in files:
-            if not f.endswith('.js') or f in ('readings.js', 'clips.js', 'n5.js', 'n4.js', 'words.js'):
+            if not f.endswith('.js') or f in ('readings.js', 'clips.js', 'n5.js', 'n4.js', 'n3.js', 'words.js'):
                 continue
             src = open(os.path.join(dirpath, f), encoding='utf-8').read()
             # Lists of look-alike characters (js/word-help.js) are not text: reading 右石 as a word would give 石 the
@@ -532,6 +532,7 @@ def build_deck(level):
 def build_n5():
     build_deck('N5')
     build_deck('N4')
+    build_deck('N3')
 
 
 def main():

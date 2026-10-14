@@ -7,9 +7,12 @@
 // questions can be flagged to come back to. Furigana as in the real test: none in the vocabulary part, and elsewhere
 // only over kanji beyond N5. The results show the score against the pass line (an estimate: the real test scales its
 // scores), each part with where to practise it, and every miss with its answer and why. Each miss goes to the Garden.
+// N4 and N3 have their own layouts. N3 adds 内容理解(長文) (a long text with several questions, shown like the mid
+// texts) and 概要理解 (a talk with nothing on screen until it ends; then the question is heard and the options appear),
+// and is scored in three sections, each with its own minimum (scoreSections in js/exam-data.js).
 import { store } from './store.js';
 import { speaker } from './audio.js';
-import { buildMock, scoreMock, mockIds, formatsFor, PARTS, SCORING, MOCK_LEVELS, TYPES, LEVEL_KANJI } from './exam-data.js';
+import { buildMock, scoreMock, mockIds, formatsFor, PARTS, SCORING, MOCK_LEVELS, TYPES, LEVEL_KANJI, typeOf, scoreSections } from './exam-data.js';
 import { isUnlocked, lockLine } from './levels.js';
 import { pictureSVG, sceneSVG } from './exam-art.js';
 import { readingOf } from './furigana.js';
@@ -78,6 +81,7 @@ export function mount(el, ctx = {}) {
   let tapeRun = 0;         // the listening tape's run number (a new run cancels the old one)
   let playing = -1;        // index of the listening item playing now
   let practicePlay = 0;    // replay run in practice mode
+  let talked = new Set();  // 概要理解 questions whose talk has played (their question and options show from then on)
 
   const practice = () => mock && mock.practice;
   const secIdx = () => flat.map((f, i) => i).filter((i) => flat[i].sec === si);
@@ -94,6 +98,7 @@ export function mount(el, ctx = {}) {
     }));
     answers = flat.map(() => null);
     flags = new Set();
+    talked = new Set();
     qi = 0;
     si = 0;
     doneBefore = store.examDone().has(level);
@@ -138,6 +143,20 @@ export function mount(el, ctx = {}) {
   }
 
   // ----- listening: the tape (full mock) and practice playback (mini) -----
+  /**
+   * Plays one listening item. A 概要理解 item plays its talk first; only then are its question and options shown,
+   * and the question is heard.
+   */
+  async function playItem(i, live) {
+    const q = flat[i].q;
+    if (!q.afterTalk) { await playLines(q.say, live); return; }
+    await playLines(q.talk, live);
+    if (!live()) return;
+    talked.add(i);
+    if (phase === 'question' && qi === i) render(); else updateSheet();
+    await playLines([q.lead], live);
+  }
+
   /** Plays every listening item once, in order, with the real test's pause after each, then ends the part. */
   async function runTape(from) {
     const run = ++tapeRun;
@@ -146,7 +165,7 @@ export function mount(el, ctx = {}) {
       if (!live()) return;
       playing = i;
       if (phase === 'question') { qi = i; render(); } else updateSheet();
-      await playLines(flat[i].q.say, live);
+      await playItem(i, live);
       if (!live()) return;
       await new Promise((r) => setTimeout(r, (TYPES[flat[i].q.type].pause || 10) * 1000 * TAPE.scale));
     }
@@ -160,7 +179,8 @@ export function mount(el, ctx = {}) {
     const { q } = flat[qi] || {};
     if (!q || q.part !== 'listening' || quiet || isTape()) return;
     const run = ++practicePlay;
-    setTimeout(() => { if (run === practicePlay && phase === 'question' && flat[qi].q === q) playLines(q.say, () => run === practicePlay); }, 350);
+    const at = qi;
+    setTimeout(() => { if (run === practicePlay && phase === 'question' && qi === at) playItem(at, () => run === practicePlay); }, 350);
   }
 
   // ----- answering and moving around the part -----
@@ -219,6 +239,7 @@ export function mount(el, ctx = {}) {
   function renderIntro() {
     const r = readiness();
     const sc = SCORING[level];
+    const secs = scoreSections(level);
     const FORMATS = FORMATS_OF();
     const full = FORMATS.full;
     const n = (f) => f.sections.reduce((a, s) => a + s.parts.reduce((b, [, c]) => b + c, 0), 0);
@@ -245,7 +266,7 @@ export function mount(el, ctx = {}) {
         </div>
       </div>
       <details class="panel small"><summary class="strong">How it's scored</summary>
-        <p>Like the real ${level}: vocabulary, grammar and reading together score 0 to ${sc.lk.max}, and listening scores 0 to ${sc.li.max}, for ${sc.total} in all. You pass with ${sc.pass} or more, as long as you also get at least ${sc.lk.min} in the first part and ${sc.li.min} in listening.</p>
+        <p>Like the real ${level}: ${secs.map((x) => `${x.short} scores 0 to ${x.max}`).join(', ').replace(/, ([^,]*)$/, ' and $1')}, for ${sc.total} in all. You pass with ${sc.pass} or more, as long as you also get at least ${secs.map((x) => `${x.min} in ${x.short}`).join(', ').replace(/, ([^,]*)$/, ' and $1')}.</p>
         <p>Questions are weighted roughly like the real test: a reading question counts about three vocabulary questions, and the longer listening tasks a little more than the quick replies.</p>
         <p class="dim">The real test uses scaled scores (each question's weight depends on how hard it proved for everyone who sat it), so your score here is an estimate.</p>
       </details>
@@ -269,7 +290,7 @@ export function mount(el, ctx = {}) {
       ${timeUp ? '<p class="note-c small" role="status">Time\'s up for that part. In the real test you\'d move on now, so this one does too.</p>' : ''}
       <h2 class="section-title"><span lang="ja" data-noruby>${esc(sec.ja)}</span></h2>
       <p class="strong">${esc(sec.title)}</p>
-      <p>${n} questions${sec.minutes ? `, ${sec.minutes} minutes` : ''}.${listening ? (quiet ? ' Quiet mode: you read each line instead of hearing it.'
+      <p>${n} questions${sec.minutes ? `, ${sec.minutes} minutes` : ''}.${listening && sec.questions.some((q) => q.afterTalk) && !quiet ? ' In 概要理解 nothing is shown at first: listen to the talk, then the question is read and the options appear.' : ''}${listening ? (quiet ? ' Quiet mode: you read each line instead of hearing it.'
         : mock.timed ? ' Each item plays once, then there\'s a short pause to answer, and the next one starts by itself. You can go back and change answers while it plays.'
           : ' Each one plays when it opens; you can replay it.') : ' You can go back and change answers until the part ends.'}</p>
       <button class="btn primary wide" data-act="begin">Start ${esc(sec.title.toLowerCase())}</button>
@@ -301,7 +322,8 @@ export function mount(el, ctx = {}) {
         ${(d.notes || []).map((l) => `<p>${furi(l)}</p>`).join('')}
       </div>`;
     }
-    return `<div class="panel exam-doc exam-${esc(q.type)}" lang="ja">${d.title ? `<p class="exam-doc-title">${furi(d.title)}</p>` : ''}
+    const cls = q.type === 'long' ? 'exam-mid exam-longtext' : `exam-${esc(q.type)}`;
+    return `<div class="panel exam-doc ${cls}" lang="ja">${d.title ? `<p class="exam-doc-title">${furi(d.title)}</p>` : ''}
       <p class="exam-text">${furi(d.text)}</p></div>`;
   }
 
@@ -337,17 +359,23 @@ export function mount(el, ctx = {}) {
     }
     if (q.part === 'listening') {
       const pic = q.scene ? sceneSVG(q.scene, { label: 'The situation' }) : '';
+      const held = waiting(q);
       if (quiet || review) {
         return `${pic}<div class="panel exam-passage stack-sm" lang="ja">${q.transcript.map((l, i) => `<p>${q.heard && i > 0 ? `<span class="small dim">${i}.</span> ` : ''}${furi(l.text)}</p>`).join('')}</div>`;
       }
       const status = `<span class="small accent-c exam-status" id="ex-status" aria-live="polite">${playing === qi ? 'Playing…' : ''}</span>`;
-      return `${pic}${practice() ? `<p class="small dim" lang="ja">${furi(q.ask)}</p>` : ''}
-        <div class="row-gap">${practice() ? '<button class="btn" data-act="play">🔊 Play again</button>' : '<span class="small dim">Each item plays once.</span>'}${status}</div>`;
+      return `${pic}${practice() && !held ? `<p class="small dim" lang="ja">${furi(q.ask)}</p>` : ''}
+        <div class="row-gap">${practice() ? '<button class="btn" data-act="play">🔊 Play again</button>' : '<span class="small dim">Each item plays once.</span>'}${status}</div>
+        ${held ? '<p class="small dim exam-wait" lang="ja">話を 聞いて ください。しつもんと 1から4は、話の あとで 出ます。<br><span lang="en">Listen to the talk. The question and the options come after it.</span></p>' : ''}`;
     }
     return '';
   }
 
+  /** A 概要理解 question whose talk hasn't played yet on this screen: nothing to show (unless read in quiet mode). */
+  const waiting = (q, i = qi) => !!q.afterTalk && !quiet && !talked.has(i) && phase !== 'result';
+
   function optionsHTML(q) {
+    if (waiting(q)) return '';
     const picked = answers[qi];
     const btn = (o, i, inner) => `<button class="btn exam-opt ${picked === o ? 'on' : ''}" data-act="pick" data-i="${i}" aria-pressed="${picked === o}"${q.ja ? ' lang="ja"' : ''}>${inner}</button>`;
     if (q.pictures) {
@@ -357,7 +385,8 @@ export function mount(el, ctx = {}) {
       const showText = practice() || quiet;
       return `<div class="exam-opts exam-heard">${q.shown.map((o, i) => btn(o, i, `<span class="exam-num">${i + 1}</span>${showText ? ` <span class="small">${furi(o)}</span>` : ''}`)).join('')}</div>`;
     }
-    return `<div class="choice-grid exam-opts${q.type === 'usage' ? ' exam-long' : ''}">${q.shown.map((o, i) => btn(o, i, `<span class="exam-num">${i + 1}</span> ${q.part === 'vocab' ? esc(o) : furi(o)}`)).join('')}</div>`;
+    const long = q.type === 'usage' || (level === 'N3' && q.options.some((o) => o.length > 12));
+    return `<div class="choice-grid exam-opts${long ? ' exam-long' : ''}">${q.shown.map((o, i) => btn(o, i, `<span class="exam-num">${i + 1}</span> ${q.part === 'vocab' ? esc(o) : furi(o)}`)).join('')}</div>`;
   }
 
   function sheetGrid() {
@@ -382,7 +411,7 @@ export function mount(el, ctx = {}) {
     const sec = mock.sections[si];
     const idx = secIdx();
     const pos = idx.indexOf(qi);
-    const t = TYPES[q.type];
+    const t = typeOf(q.type, level);
     const prevSame = pos > 0 && flat[idx[pos - 1]].q.type === q.type;
     const answered = idx.filter((i) => answers[i] != null).length;
     el.innerHTML = `<div class="stack exam" data-noruby data-qid="${esc(q.qid || q.id)}" data-type="${q.type}">
@@ -427,6 +456,7 @@ export function mount(el, ctx = {}) {
   function renderResult() {
     const sc = SCORING[level];
     const r = result;
+    const secs = r.sections || scoreSections(level).map((x) => ({ ...x, score: r[x.id] || 0, met: (r[x.id] || 0) >= x.min }));
     const nowDone = !doneBefore && store.examDone().has(level);
     const next = readiness();
     const missed = flat.map((f, i) => ({ ...f, i })).filter((f) => answers[f.i] !== f.q.answer);
@@ -437,7 +467,7 @@ export function mount(el, ctx = {}) {
         ${low ? `<br><span class="small">Practise in ${p.practice.map(([m, t]) => `<a href="#/play/${m}">${esc(t)}</a>`).join(', ')}.</span>` : ''}</li>`;
     }).join('');
     const pctOf = (v, max) => Math.round((v / max) * 100);
-    const label = (q) => `${TYPES[q.type].mondai} · ${PARTS[q.part].title}`;
+    const label = (q) => `${typeOf(q.type, level).mondai} · ${PARTS[q.part].title}`;
     const shown = (q, v) => (q.pictures ? pictureSVG(v, { cls: 'inline', label: v }) : furi(v));
     el.innerHTML = `<div class="stack exam exam-result" data-noruby>
       <p class="small dim">${esc(FORMATS_OF()[r.format].title)} ${level}</p>
@@ -449,14 +479,13 @@ export function mount(el, ctx = {}) {
       </div>
       <p class="small dim">The pass line is ${sc.pass}.</p>
       <div class="tiles">
-        <div class="tile"><span class="tile-v mono">${r.lk}<span class="small dim"> / ${sc.lk.max}</span></span><span class="small dim">Vocabulary, grammar, reading (need ${sc.lk.min})</span></div>
-        <div class="tile"><span class="tile-v mono">${r.li}<span class="small dim"> / ${sc.li.max}</span></span><span class="small dim">Listening (need ${sc.li.min})</span></div>
+        ${secs.map((x) => `<div class="tile exam-sec ${x.met ? '' : 'under'}" data-sec="${x.id}"><span class="tile-v mono">${x.score}<span class="small dim"> / ${x.max}</span></span><span class="small dim">${esc(x.title)} (need ${x.min})${x.met ? '' : ', under the minimum'}</span></div>`).join('')}
         <div class="tile"><span class="tile-v mono">${r.ok}<span class="small dim"> / ${r.n}</span></span><span class="small dim">questions right</span></div>
       </div>
-      <p class="small">In plain words: the first two parts score up to ${sc.lk.max} together and listening up to ${sc.li.max}. A pass needs ${sc.pass} in total, plus at least ${sc.lk.min} and ${sc.li.min} in those two, so one strong part can't carry a very weak one.${!r.pass && r.total >= sc.pass ? ' You were over the total, so one part was under its minimum.' : ''}</p>
+      <p class="small">In plain words: ${secs.length === 2 && secs[0].id === 'lk' ? `the first two parts score up to ${secs[0].max} together and listening up to ${secs[1].max}` : `${secs.map((x) => `${x.short} scores up to ${x.max}`).join(', ')}`}. A pass needs ${sc.pass} in total, plus ${secs.length === 2 ? `at least ${secs[0].min} and ${secs[1].min} in those two` : secs.every((x) => x.min === secs[0].min) ? `at least ${secs[0].min} in each of the ${secs.length}` : secs.map((x) => `${x.min} in ${x.short}`).join(', ')}, so one strong part can't carry a very weak one.${!r.pass && r.total >= sc.pass ? ` You were over the total, so ${secs.filter((x) => !x.met).map((x) => x.short).join(' and ') || 'one part'} was under its minimum.` : ''}</p>
       <p class="small dim">An estimate: questions here are weighted roughly like the real test, but the real ${level} uses scaled scores worked out from everyone who sits it.</p>
       ${nowDone ? `<p class="panel good-panel strong">${level} is done on your road.${next ? ` Your Road to ${next.level} starts now.` : ''}</p>` : ''}
-      ${r.pass && r.format === 'mini' ? `<p class="small">Try the full mock when you have about an hour and a half: passing that one finishes ${level} on your road.</p>` : ''}
+      ${r.pass && r.format === 'mini' ? `<p class="small">Try the full mock when you have about ${Math.round(FORMATS_OF().full.sections.reduce((t, x) => t + x.minutes, 0) / 30) / 2} hours: passing that one finishes ${level} on your road.</p>` : ''}
       <h3 class="strong">By part</h3>
       <ul class="exam-parts">${partRows}</ul>
       <h3 class="strong">${missed.length ? `Your misses (${missed.length})` : 'No misses at all.'}</h3>
@@ -484,7 +513,7 @@ export function mount(el, ctx = {}) {
     back: () => { phase = 'question'; render(); },
     goto: (b) => go(+b.dataset.i),
     finishpart: finishPart,
-    play: () => { const run = ++practicePlay; speaker.stop(); playLines(flat[qi].q.say, () => run === practicePlay); },
+    play: () => { const run = ++practicePlay; const at = qi; speaker.stop(); playItem(at, () => run === practicePlay); },
     pause: () => { stopClock(); stopTape(); phase = 'paused'; render(); },
     resume: () => {
       phase = 'question';
@@ -499,7 +528,7 @@ export function mount(el, ctx = {}) {
   const onKey = (e) => {
     if (phase !== 'question' || e.target.closest?.('input, textarea, select')) return;
     const q = flat[qi]?.q;
-    if (q && /^[1-4]$/.test(e.key) && q.shown[+e.key - 1] !== undefined) { e.preventDefault(); pick(q.shown[+e.key - 1]); }
+    if (q && !waiting(q) && /^[1-4]$/.test(e.key) && q.shown[+e.key - 1] !== undefined) { e.preventDefault(); pick(q.shown[+e.key - 1]); }
   };
   window.addEventListener('keydown', onKey);
 

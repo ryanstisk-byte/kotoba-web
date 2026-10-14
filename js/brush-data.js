@@ -4,6 +4,7 @@
 import { LESSONS } from './dojo-data.js';
 import { STROKES } from './kana-strokes.js';
 import { N4_BRUSH_WORDS } from './n4-extras.js';
+import { N3_BRUSH_WORDS } from './n3-extras.js';
 import { tagLevel } from './level-tag.js';
 
 /** Hiragana: a picture that walks through the strokes. */
@@ -133,3 +134,9 @@ export const BRUSH_BY_KANA = Object.fromEntries(BRUSH_KANA.map((x) => [x.k, x]))
  */
 export const BRUSH_WORDS = tagLevel(N4_BRUSH_WORDS.filter((w) => [...w.kana].every((k) => BRUSH_BY_KANA[k]))
   .map((w) => ({ ...w, id: 'bw:' + w.kana })), 'N4');
+// N3: longer words (js/n3-extras.js), drawn the same way. A word already in the N4 set keeps its N4 card.
+{
+  const have = new Set(BRUSH_WORDS.map((w) => w.kana));
+  BRUSH_WORDS.push(...tagLevel(N3_BRUSH_WORDS.filter((w) => [...w.kana].every((k) => BRUSH_BY_KANA[k]) && !have.has(w.kana) && have.add(w.kana))
+    .map((w) => ({ ...w, id: 'bw:' + w.kana })), 'N3'));
+}

@@ -229,7 +229,7 @@ planted from Story or Kanji Forge. Each word is voiced with its listed pitch acc
 too (normal and slow). Readings were checked against JMdict (EDRDG, CC BY-SA 4.0). After editing the TSV, run the
 build below; it regenerates `js/n5.js`.
 
-## JLPT levels (N5, then N4)
+## JLPT levels (N5, then N4, then N3)
 
 Every piece of content carries a JLPT level (`js/level-tag.js`; everything from before N4 is N5), and every mode draws
 its content through `js/levels.js`, which answers "which levels are open?" and "this mode's content for them". A session
@@ -253,6 +253,20 @@ draws about 70% from the newest open level and 30% review from the levels below 
 - Modes get harder at N4: longer, faster Rhythm lines; N4 connectors in Particle Train and Sentence Builder; plain
   casual chat in Ren's Messages; rivals at full power in Rival Battle; keigo customers and replies at the Shopkeeper;
   whole words to write in Kana Brush.
+- **N3** opens once N4 is done, the same way (a full mock N4 passed, or the real N4 marked as passed). A level done opens
+  everything up to the one after it. N3 content, in its own files:
+  - `tools/n3.tsv`: the N3 deck (1,529 words: verbs, adjectives and adverbs, nouns, everyday words), after the N4 deck.
+  - `js/course-data.js`: Phase 3 "N3 intermediate" units p3-1 to p3-13 (58 grammar points, each with its blank).
+  - `js/n3-kanji-a.js`, `js/n3-kanji-b.js`: the 370 N3 kanji as Reading Dojo lessons (track `kanji3`) and 139 Kanji
+    Forge kanji.
+  - `js/story-n3.js`: the Rivals arc (宿敵編), chapters 18-24, with reading passages (a newspaper article, notices,
+    rules, a letter, a diary, an essay) shown as document cards in Story Mode, and 5 questions a chapter.
+  - `js/n3-listening.js` (natural-speed Listening Lab scenes, some asking for the gist, 概要理解), `js/n3-practice.js`,
+    `js/n3-speaking.js` and `js/n3-extras.js`: as for N4, plus two N3 forms in Conjugation Dojo (causative-passive
+    行かされる and ずに), formal work phrases, a business client at the Shopkeeper, tier 5 messages and the N3 rivals.
+  - `js/exam-bank-n3-*.js`: the mock N3 (vocabulary 30 min, grammar and reading 70 min, listening 40 min), with long
+    passages (内容理解・長文) and gist listening (概要理解: the question comes after the talk). Scored in three sections
+    of 0-60 (language knowledge, reading, listening): pass at 95 of 180 with at least 19 in each (`SCORING.N3`).
 - `tests/levels.spec.js` fails if any mode has too little content at any level, or a mode screen doesn't import
   `js/levels.js`. A new level adds its content to every source in `SOURCES`; a new mode adds a source and covers every
   level.

@@ -9,14 +9,16 @@
 //   Listening   first-try listening accuracy over the last 4 weeks, once there are enough answers
 //   Reading     kana learned, and Story chapters cleared
 // N4 readiness (once N5 is done) has the same five areas on the N4 content: the N4 deck, the N4 kanji, the N4 course
-// grammar, listening, and the N4 Story arc with the N4 kanji lessons (N4_TARGETS).
+// grammar, listening, and the N4 Story arc with the N4 kanji lessons (N4_TARGETS). N3 (once N4 is done) does the same
+// on the N3 deck, the N3 kanji lessons, the Phase 3 grammar, listening and the seven N3 Story chapters with their
+// reading passages (N3_TARGETS).
 // "Ready for a mock" comes when the areas average 90% of their targets and none is under 60%. A mock is optional
 // practice: the mini mock is open any time, and nothing is locked.
 import { store, dateKey } from './store.js';
-import { N5_WORDS, N4_WORDS, KANJI, CHAPTERS } from './data.js';
-import { LESSONS, KANJI_LESSONS, N4_KANJI_LESSONS } from './dojo-data.js';
+import { N5_WORDS, N4_WORDS, N3_WORDS, KANJI, CHAPTERS } from './data.js';
+import { LESSONS, KANJI_LESSONS, N4_KANJI_LESSONS, N3_KANJI_LESSONS } from './dojo-data.js';
 import { UNITS } from './course-data.js';
-import { LEVELS, MOCK_LEVELS, N5_GRAMMAR_KEYS, N4_GRAMMAR_KEYS, SCORING } from './exam-data.js';
+import { LEVELS, MOCK_LEVELS, N5_GRAMMAR_KEYS, N4_GRAMMAR_KEYS, N3_GRAMMAR_KEYS, SCORING, scoreSections } from './exam-data.js';
 import { esc } from './ui.js';
 
 export const N5_TARGETS = {
@@ -50,7 +52,23 @@ export const N4_TARGETS = {
   chapters: 5,          // N4 Story chapters cleared (the whole Journey arc)
 };
 
-function n5Areas(now) {
+/**
+ * N3 targets: the N3 deck (it's big, so a smaller share), the N3 kanji lessons, the Phase 3 grammar, listening, and the
+ * seven chapters of the N3 Story arc (each with its reading passages).
+ */
+export const N3_TARGETS = {
+  vocab: 0.6,           // share of the N3 deck known
+  kanji: 0.75,          // share of the N3 kanji lessons' kanji learned (or forged)
+  grammar: 0.8,         // share of the N3 grammar points held
+  grammarDays: 7,
+  listening: 0.8,       // first-try listening accuracy
+  listeningAnswers: 80,
+  chapters: 7,          // N3 Story chapters cleared (the whole Rivals arc and its reading passages)
+};
+/** The N3 kanji the app teaches (N3 Reading Dojo lessons and N3 Kanji Forge). */
+export const TEACHABLE_KANJI_N3 = [...new Set([...N3_KANJI_LESSONS.flatMap((l) => l.kanji.map((j) => j.k)), ...KANJI.filter((k) => k.level === 'N3').map((k) => k.kanji)])];
+
+export function n5Areas(now) {
   const items = store.s.items;
   const known = new Set(store.planted().filter((p) => p.prog.level >= 2).map((p) => p.item.jp));
   const vocabN = N5_WORDS.filter((w) => known.has(w.jp)).length;
@@ -96,7 +114,7 @@ function n5Areas(now) {
 }
 
 /** N4: the same five areas as N5, measured on the N4 content (the N4 deck, kanji, course units and story arc). */
-function n4Areas(now) {
+export function n4Areas(now) {
   const items = store.s.items;
   const T = N4_TARGETS;
   const known = new Set(store.planted().filter((p) => p.prog.level >= 2).map((p) => p.item.jp));
@@ -142,6 +160,56 @@ function n4Areas(now) {
   ];
 }
 
+/** N3: the same five areas, measured on the N3 content (the N3 deck, kanji, Phase 3 units and the Rivals arc). */
+export function n3Areas(now) {
+  const items = store.s.items;
+  const T = N3_TARGETS;
+  const known = new Set(store.planted().filter((p) => p.prog.level >= 2).map((p) => p.item.jp));
+  const vocabN = N3_WORDS.filter((w) => known.has(w.jp)).length;
+  const vocabT = Math.max(1, Math.round(N3_WORDS.length * T.vocab));
+
+  const learned = (id) => items[id] && items[id].level >= 1;
+  const kanjiN = TEACHABLE_KANJI_N3.filter((k) => learned('kj:' + k) || store.forgedKanji.has(k)).length;
+  const kanjiT = Math.max(1, Math.round(TEACHABLE_KANJI_N3.length * T.kanji));
+
+  const g = store.s.grammar;
+  const gramN = N3_GRAMMAR_KEYS.filter((k) => g[k] && g[k].r && g[k].s >= T.grammarDays && !g[k].help).length;
+  const gramT = Math.max(1, Math.round(N3_GRAMMAR_KEYS.length * T.grammar));
+
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const from = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 27);
+  const lis = store.skillDays(dateKey(from), dateKey(today)).listening;
+  const lisVal = lis.tot ? clamp(lis.tot / T.listeningAnswers) * clamp(lis.rate / T.listening) : 0;
+
+  const n3Chapters = CHAPTERS.filter((c) => c.level === 'N3');
+  const chN = n3Chapters.filter((c) => store.clearedChapters.has(c.id)).length;
+  const lessons = N3_KANJI_LESSONS.filter((l) => store.clearedLessons.has(l.id)).length;
+  const readVal = 0.6 * clamp(chN / T.chapters) + 0.4 * clamp(lessons / N3_KANJI_LESSONS.length);
+
+  return [
+    { id: 'vocab', label: 'Vocabulary', value: clamp(vocabN / vocabT), text: `${vocabN}/${vocabT}`,
+      title: `Vocabulary: ${vocabN} of the ${vocabT} N3 words to aim for (${pct(T.vocab)} of the N3 deck)`,
+      tip: 'Water the Garden: N3 words come in after the N4 deck.', href: '#/garden', go: 'Garden' },
+    { id: 'kanji', label: 'Kanji', value: clamp(kanjiN / kanjiT), text: `${kanjiN}/${kanjiT}`,
+      title: `Kanji: ${kanjiN} of ${kanjiT} N3 kanji learned in the Reading Dojo or forged`,
+      tip: 'Learn the N3 kanji in the Reading Dojo, then forge them in Kanji Forge.', href: '#/play/dojo', go: 'Reading Dojo' },
+    { id: 'grammar', label: 'Grammar', value: clamp(gramN / gramT), text: `${gramN}/${gramT}`,
+      title: `Grammar: ${gramN} of ${gramT} N3 grammar points remembered for a week or more`,
+      tip: 'Work through the Phase 3 units in the course; their grammar cards come back in the Garden.', href: '#/course', go: 'Course' },
+    { id: 'listening', label: 'Listening', value: lisVal, text: lis.tot ? `${pct(lis.rate)} (${lis.tot})` : '–',
+      title: lis.tot ? `Listening: ${pct(lis.rate)} right on the first try from ${lis.tot} answers in the last 4 weeks (aim: ${pct(T.listening)} from ${T.listeningAnswers})`
+        : 'Listening: no answers in the last 4 weeks yet',
+      tip: 'Play Listening Lab or Numbers & Time: N3 scenes are in the mix now.', href: '#/play/listen', go: 'Listening Lab' },
+    { id: 'reading', label: 'Reading', value: readVal, text: `${pct(readVal)}`,
+      title: `Reading: ${chN} of ${T.chapters} N3 Story chapters (with their reading passages) cleared, ${lessons} of ${N3_KANJI_LESSONS.length} N3 kanji lessons done`,
+      tip: chN < T.chapters ? 'Read the next chapter of the Rivals arc, passages and all.' : 'Finish the N3 kanji lessons in the Reading Dojo.',
+      href: chN < T.chapters ? '#/play/story' : '#/play/dojo', go: chN < T.chapters ? 'Story' : 'Reading Dojo' },
+  ];
+}
+
+/** Each level's readiness areas. */
+const LEVEL_AREAS = { N5: n5Areas, N4: n4Areas, N3: n3Areas };
+
 /**
  * Readiness for the next level not done yet: { level, areas, overall (0..1), ready, mock (a mock exists for it),
  * snoozed, weakest, done (levels done) }, or null once every level is done.
@@ -151,7 +219,7 @@ export function readiness(now = new Date()) {
   const level = LEVELS.find((lv) => !done.has(lv));
   if (!level) return null;
   const mock = MOCK_LEVELS.includes(level);
-  const areas = level === 'N5' ? n5Areas(now) : level === 'N4' ? n4Areas(now) : [];
+  const areas = LEVEL_AREAS[level] ? LEVEL_AREAS[level](now) : [];
   const overall = areas.length ? areas.reduce((a, x) => a + x.value, 0) / areas.length : 0;
   const ready = mock && areas.length > 0 && overall >= READY_AVERAGE && Math.min(...areas.map((x) => x.value)) >= READY_FLOOR;
   const later = store.exam.later[level];
@@ -165,12 +233,16 @@ export function lastMock(level) {
   return h.length ? h[h.length - 1] : null;
 }
 
-/** One line about a mock result: "Full mock, 12 Oct: 96/180, passed". */
+/**
+ * One line about a mock result: "Full mock, 12 Oct: 96/180, pass". When the total was over the pass line but a
+ * section was under its minimum (scoreSections), it says which: "100/180, not yet (reading under 19)".
+ */
 export function mockLine(h) {
   const d = new Date(h.at);
   const mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
   const sc = SCORING[h.level];
-  return `${h.format === 'full' ? 'Full' : 'Mini'} mock, ${d.getDate()} ${mon}: ${h.total}/${sc ? sc.total : 180}, ${h.pass ? 'pass' : 'not yet'}`;
+  const under = sc && !h.pass && h.total >= sc.pass ? scoreSections(h.level).filter((x) => typeof h[x.id] === 'number' && h[x.id] < x.min) : [];
+  return `${h.format === 'full' ? 'Full' : 'Mini'} mock, ${d.getDate()} ${mon}: ${h.total}/${sc ? sc.total : 180}, ${h.pass ? 'pass' : 'not yet'}${under.length ? ` (${under.map((x) => `${x.short} under ${x.min}`).join(', ')})` : ''}`;
 }
 
 /** The Today card: the meter for the next level, and a nudge toward a mock once ready. Empty when all are done. */

@@ -14,7 +14,7 @@ const FIXTURE_V11 = JSON.parse(readFileSync(new URL('./fixtures/progress-v11.jso
  */
 const MIN = {
   garden: 20, rhythm: 12, slice: 20, duel: 20, story: 4, arcs: 1, particle: 20, forge: 12, dojo: 5, tracks: 1, conj: 20,
-  build: 20, kata: 20, shop: 6, customers: 3, keigo: { N4: 20 }, listen: 6, numbers: 20, course: 8, brush: 20, rival: 3, messages: 20,
+  build: 20, kata: 20, shop: 6, customers: 3, keigo: { N4: 20, N3: 20 }, listen: 6, numbers: 20, course: 8, brush: 20, rival: 3, messages: 20,
 };
 
 const N4_PASS = { level: 'N5', format: 'full', pass: true, total: 130, lk: 90, li: 40, at: Date.now() - 86_400_000 };
@@ -49,7 +49,7 @@ test.describe('levels: every mode covers every level', () => {
     expect(r.short).toEqual([]);
     expect(r.missing).toEqual([]);
     expect(r.untagged).toEqual([]);
-    expect(r.levels).toEqual(['N5', 'N4']);
+    expect(r.levels).toEqual(['N5', 'N4', 'N3']);
     // Each mode's screen imports js/levels.js (it draws its content through it).
     const modeFiles = readdirSync(new URL('../js/modes/', import.meta.url)).filter((f) => f.endsWith('.js') && f !== 'story-mine.js');
     const without = modeFiles.filter((f) => !readFileSync(new URL('../js/modes/' + f, import.meta.url), 'utf8').includes("from '../levels.js'"));
@@ -138,7 +138,7 @@ test.describe('levels: the N4 gate', () => {
     await expect(page.locator('.levels-line')).toContainText('N4 (Unlocks when');
   });
 
-  test('Settings "Show every level" opens N4 at once and turning it off takes nothing away', async ({ page }) => {
+  test('Settings "Show every level" opens N4 and N3 at once and turning it off takes nothing away', async ({ page }) => {
     await seed(page, base());
     await page.goto('./#/settings');
     const sw = page.getByRole('switch', { name: /Show every level/ });
@@ -146,12 +146,12 @@ test.describe('levels: the N4 gate', () => {
     await sw.check();
     expect((await saved(page)).settings.showAllLevels).toBe(true);
     await page.goto('./#/play/particle');
-    await expect(page.locator('.level-bar .level-chip.on')).toHaveText(['N5', 'N4']);
+    await expect(page.locator('.level-bar .level-chip.on')).toHaveText(['N5', 'N4', 'N3']);
     await page.goto('./#/settings');
     await page.getByRole('switch', { name: /Show every level/ }).uncheck();
     expect((await saved(page)).settings.showAllLevels).toBe(false);
     await page.goto('./#/play/particle');
-    await expect(page.locator('.level-bar .level-chip.locked')).toContainText('N4');
+    await expect(page.locator('.level-bar .level-chip.locked')).toHaveText([/N4/, /N3/]);
   });
 
   test('v11 progress migrates to v12 untouched, with the level switch off and N4 still locked', async ({ page }) => {
@@ -171,7 +171,7 @@ test.describe('levels: the N4 gate', () => {
 
 test.describe('levels: N4 in the modes', () => {
   test('with N4 open, the modes show N4 content: a train with its own palette, an N4 form, an N4 customer', async ({ page }) => {
-    await seed(page, base({ settings: { hideIosHint: true, readingHelp: 'off', showAllLevels: true } }));
+    await seed(page, base({ exam: { history: [N4_PASS], real: {}, seen: [], later: {} } }));
     await page.goto('./');
     const r = await page.evaluate(async () => {
       const L = await import('./js/levels.js');
@@ -226,6 +226,99 @@ test.describe('levels: N4 in the modes', () => {
     expect(r.shizuka).toEqual(['静かなら', '静かに なる']);
     expect(r.noDouble).toBe(true);
     expect(r.why).toContain('わ');
+  });
+});
+
+const N3_PASS = { level: 'N4', format: 'full', pass: true, total: 120, lk: 80, li: 40, at: Date.now() - 86_400_000 };
+
+test.describe('levels: the N3 gate', () => {
+  test('with only N5 done, N3 shows locked with its line', async ({ page }) => {
+    await seed(page, base({ exam: { history: [N4_PASS], real: {}, seen: [], later: {} } }));
+    await page.goto('./#/play/particle');
+    await expect(page.locator('.level-bar .level-chip.on')).toHaveText(['N5', 'N4']);
+    await expect(page.locator('.level-bar .level-chip.locked')).toHaveText([/N3/]);
+    await expect(page.locator('.level-bar')).toContainText('Unlocks when you pass a full mock N4');
+  });
+
+  test('a passed full mock N4 unlocks N3 in every mode', async ({ page }) => {
+    await seed(page, base({ exam: { history: [N4_PASS, N3_PASS], real: {}, seen: [], later: {} } }));
+    await page.goto('./#/play/particle');
+    await expect(page.locator('.level-bar .level-chip.on')).toHaveText(['N5', 'N4', 'N3']);
+    await expect(page.locator('.level-bar')).toContainText('Mostly N3, with some N5 and N4 review');
+    const r = await page.evaluate(async () => {
+      const L = await import('./js/levels.js');
+      return { open: L.unlockedLevels(), listen: L.content('listen').some((d) => d.level === 'N3'), course: L.content('course').some((u) => u.id === 'p3-1'),
+        deck: L.content('garden').some((w) => w.id.startsWith('n3:')), tracks: L.content('tracks').map((t) => t.id) };
+    });
+    expect(r).toEqual({ open: ['N5', 'N4', 'N3'], listen: true, course: true, deck: true, tracks: ['hiragana', 'katakana', 'kanji', 'kanji4', 'kanji3'] });
+    await expectNoHorizontalScroll(page);
+  });
+
+  test('a level done opens everything up to the next one (a passed N4 alone opens N4 and N3)', async ({ page }) => {
+    await seed(page, base({ exam: { history: [N3_PASS], real: {}, seen: [], later: {} } }));
+    await page.goto('./');
+    expect(await page.evaluate(async () => (await import('./js/levels.js')).unlockedLevels())).toEqual(['N5', 'N4', 'N3']);
+  });
+});
+
+test.describe('levels: N3 in the modes', () => {
+  test('with N3 open, the modes show N3 content: N3 forms, an N3 customer, trains with their own palette in Phase 3 units', async ({ page }) => {
+    await seed(page, base({ exam: { history: [N4_PASS, N3_PASS], real: {}, seen: [], later: {} } }));
+    await page.goto('./');
+    const r = await page.evaluate(async () => {
+      const L = await import('./js/levels.js');
+      const { conjPairs } = await import('./js/modes/conj.js');
+      const { STUDY_UNITS } = await import('./js/course-data.js');
+      const pairs = conjPairs();
+      const units = new Set(STUDY_UNITS.filter((u) => u.level === 'N3').map((u) => u.id));
+      const trains = L.content('particle').filter((t) => t.level === 'N3');
+      const builds = L.content('build').filter((t) => t.level === 'N3');
+      return {
+        forms: [...new Set(pairs.filter((p) => p.level === 'N3').map((p) => p.form))].filter((f) => f === 'cpass' || f === 'zu').sort(),
+        olderInN3: pairs.some((p) => p.level === 'N3' && p.word.level === 'N5' && p.form === 'cpass'),
+        palette: trains.every((t) => t.palette && t.gaps.filter(Boolean).every((g) => g.correct.every((c) => t.palette.includes(c)))),
+        units: trains.every((t) => units.has(t.unit)) && builds.every((b) => units.has(b.unit)),
+        everyUnitPractised: [...units].every((u) => trains.some((t) => t.unit === u) || builds.some((b) => b.unit === u)),
+        customers: L.content('customers').map((c) => c.level).includes('N3'),
+      };
+    });
+    expect(r).toEqual({ forms: ['cpass', 'zu'], olderInN3: true, palette: true, units: true, everyUnitPractised: true, customers: true });
+    await page.goto('./#/play/conj');
+    await expect(page.locator('.level-bar')).toContainText('Mostly N3');
+    await expectNoHorizontalScroll(page);
+  });
+
+  test('N3 forms (causative-passive, ずに) are right for every group, with no second right answer offered', async ({ page }) => {
+    await page.goto('./');
+    const r = await page.evaluate(async () => {
+      const { conjugate, conjDistractors, conjWhy } = await import('./js/practice-data.js');
+      const V = (jp, kana, group) => ({ type: 'verb', jp, kana, group, en: '' });
+      const forms = (w) => ['cpass', 'zu'].map((f) => conjugate(w, f).jp);
+      const iku = V('行く', 'いく', 'u');
+      return {
+        iku: forms(iku), hanasu: forms(V('話す', 'はなす', 'u')), matsu: forms(V('待つ', 'まつ', 'u')), taberu: forms(V('食べる', 'たべる', 'ru')),
+        suru: forms(V('勉強する', 'べんきょうする', 'suru')), kuru: forms(V('来る', 'くる', 'kuru')),
+        noLong: !conjDistractors(iku, 'cpass').includes('行かせられる') && conjDistractors(iku, 'cpass').length >= 3,
+        zuOpts: conjDistractors(iku, 'zu').length >= 3,
+        why: conjWhy(iku, 'cpass'),
+      };
+    });
+    expect(r.iku).toEqual(['行かされる', '行かずに']);
+    expect(r.hanasu).toEqual(['話させられる', '話さずに']);
+    expect(r.matsu).toEqual(['待たされる', '待たずに']);
+    expect(r.taberu).toEqual(['食べさせられる', '食べずに']);
+    expect(r.suru).toEqual(['勉強させられる', '勉強せずに']);
+    expect(r.kuru).toEqual(['こさせられる', 'こずに']);
+    expect(r.noLong).toBe(true);
+    expect(r.zuOpts).toBe(true);
+    expect(r.why).toContain('行かせられる');
+  });
+
+  test('the Shopkeeper: an N3 customer orders goods of their level or below and gets the formal greetings', async ({ page }) => {
+    await seed(page, base({ exam: { history: [N4_PASS, N3_PASS], real: {}, seen: [], later: {} } }));
+    await page.goto('./#/play/shop');
+    await expect(page.locator('.level-bar')).toContainText('N3');
+    await expectNoHorizontalScroll(page);
   });
 });
 

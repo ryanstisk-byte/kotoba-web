@@ -8,7 +8,9 @@
 //   Vocabulary (20 min)          漢字読み 7, 表記 5, 文脈規定 6, 言い換え類義 3
 //   Grammar and reading (40 min) 文法形式の判断 9, 文の組み立て 4, 文章の文法 4, 内容理解(短文) 2, 内容理解(中文) 2, 情報検索 1
 //   Listening (30 min)           課題理解 7, ポイント理解 6, 発話表現 5, 即時応答 6
-import { N5_WORDS, N4_WORDS } from './data.js';
+// N4 and N3 have their own layouts (FORMATS_N4, FORMATS_N3) and pools; N3 is scored in three sections (SCORING).
+import { N5_WORDS, N4_WORDS, N3_WORDS, KANJI } from './data.js';
+import { KANJI_LESSONS, N4_KANJI_LESSONS, N3_KANJI_LESSONS } from './dojo-data.js';
 import { BUILD_SENTENCES } from './practice-data.js';
 import { STUDY_UNITS } from './course-data.js';
 import { unitCardKeys, cardQuestion } from './grammar-cards.js';
@@ -17,6 +19,8 @@ import { POINT, QUICK } from './exam-bank-listen1.js';
 import { TASK, UTTER } from './exam-bank-listen2.js';
 import { N4_PARAPHRASE, N4_USAGE, N4_TEXT_GRAMMAR, N4_SHORT, N4_MID, N4_INFO } from './exam-bank-n4-reading.js';
 import { N4_TASK, N4_POINT, N4_UTTER, N4_QUICK } from './exam-bank-n4-listen.js';
+import { N3_PARAPHRASE, N3_USAGE, N3_TEXT_GRAMMAR, N3_SHORT, N3_MID, N3_LONG, N3_INFO } from './exam-bank-n3-reading.js';
+import { N3_TASK, N3_POINT, N3_GIST, N3_UTTER, N3_QUICK } from './exam-bank-n3-listen.js';
 
 /**
  * The kanji an N5 learner is expected to know (the commonly used N5 list, about 100). The vocabulary part shows no
@@ -26,23 +30,47 @@ export const N5_KANJI = new Set([...'一二三四五六七八九十百千万円�
 
 /** The N4 kanji (the commonly used N4 list, about 170 beyond N5). In an N4 mock, kanji beyond N5 + N4 get furigana. */
 export const N4_KANJI = new Set([...N5_KANJI, ...'同事自民発者地合市業方回場員開力問代動京通理田主題首意不作用度強持野都以思家世区県進正院心界産教文元重近考画海売知集別物引使所品計死特私始朝村運終台広住真有料工建急止送切説転研究楽起着乗病声質待試族銀早映親験働英頭低医仕去味門写字答夜音注帰歌光悪図室太歩風紙黒春赤青館屋色走秋夏顔短薬習便洋旅軽池服遠夕借曜弱肉貸堂暗鳥飯勉冬昼茶弟洗牛兄犬菜暑妹寒姉漢']);
+/**
+ * The kanji known by N3: N5 + N4, plus every kanji the app teaches up to N3 (the N5, N4 and N3 Reading Dojo lessons
+ * and Kanji Forge). In an N3 mock, kanji beyond these get furigana.
+ */
+const lessonKanji = (lessons) => lessons.flatMap((l) => l.kanji.map((j) => j.k));
+export const N3_KANJI = new Set([...N4_KANJI, ...lessonKanji(KANJI_LESSONS), ...lessonKanji(N4_KANJI_LESSONS), ...lessonKanji(N3_KANJI_LESSONS),
+  ...KANJI.filter((k) => ['N5', 'N4', 'N3'].includes(k.level || 'N5')).map((k) => k.kanji)]);
 /** Kanji a level's test expects (no furigana over these). */
-export const LEVEL_KANJI = { N5: N5_KANJI, N4: N4_KANJI };
+export const LEVEL_KANJI = { N5: N5_KANJI, N4: N4_KANJI, N3: N3_KANJI };
 
 /** The levels the app knows about, easiest first, and the ones with a mock. */
 export const LEVELS = ['N5', 'N4', 'N3', 'N2', 'N1'];
-export const MOCK_LEVELS = ['N5', 'N4'];
+export const MOCK_LEVELS = ['N5', 'N4', 'N3'];
 
 /**
- * The real N5's score: two scored sections, a pass line and a minimum for each section. The real test scales its
+ * Each level's score: its scored sections (each with a maximum and a minimum), the total and the pass line. N5 and N4
+ * have two sections (lk: vocabulary, grammar and reading; li: listening). N3 has three of 0-60 each (lv: vocabulary
+ * and grammar; rd: reading; li: listening), a pass at 95 of 180 and at least 19 in each. The real test scales its
  * scores (each question's weight depends on how hard it proved), so the mock's score is an estimate.
  */
 export const SCORING = {
   N5: { lk: { max: 120, min: 38 }, li: { max: 60, min: 19 }, total: 180, pass: 80 },
   N4: { lk: { max: 120, min: 38 }, li: { max: 60, min: 19 }, total: 180, pass: 90 },
+  N3: { lv: { max: 60, min: 19 }, rd: { max: 60, min: 19 }, li: { max: 60, min: 19 }, total: 180, pass: 95 },
 };
 
-/** Parts of a mock. `group` is the scored section: lk = language knowledge and reading, li = listening. */
+/** Every scored section a level can have: its name and the parts (PARTS) it scores. */
+export const SECTION_DEFS = {
+  lk: { title: 'Vocabulary, grammar, reading', short: 'language knowledge and reading', parts: ['vocab', 'grammar', 'reading'] },
+  lv: { title: 'Vocabulary and grammar', short: 'language knowledge', parts: ['vocab', 'grammar'] },
+  rd: { title: 'Reading', short: 'reading', parts: ['reading'] },
+  li: { title: 'Listening', short: 'listening', parts: ['listening'] },
+};
+
+/** A level's scored sections, in order: [{ id, title, short, parts, max, min }]. */
+export function scoreSections(level) {
+  const sc = SCORING[level] || SCORING.N5;
+  return Object.keys(sc).filter((k) => SECTION_DEFS[k]).map((k) => ({ id: k, ...SECTION_DEFS[k], max: sc[k].max, min: sc[k].min }));
+}
+
+/** Parts of a mock. `group` is the N5/N4 scored section (lk or li); other levels map parts with SECTION_DEFS. */
 export const PARTS = {
   vocab: { title: 'Vocabulary', group: 'lk', practice: [['garden', 'Garden'], ['forge', 'Kanji Forge'], ['dojo', 'Reading Dojo']] },
   grammar: { title: 'Grammar', group: 'lk', practice: [['particle', 'Particle Train'], ['build', 'Sentence Builder'], ['conj', 'Conjugation Dojo']] },
@@ -86,6 +114,9 @@ export const TYPES = {
   mid: { part: 'reading', mondai: 'もんだい5', weight: 3,
     ja: 'つぎの ぶんしょうを 読んで、しつもんに こたえて ください。こたえは、1・2・3・4から いちばん いい ものを 一つ えらんで ください。',
     en: 'Read the text and answer the questions.' },
+  long: { part: 'reading', mondai: 'もんだい6', weight: 3,
+    ja: 'つぎの 文章を 読んで、質問に 答えなさい。答えは、1・2・3・4から 最も よい ものを 一つ えらびなさい。',
+    en: 'Read the long text and answer the questions.' },
   info: { part: 'reading', mondai: 'もんだい6', weight: 3,
     ja: 'みぎの ページを 見て、下の しつもんに こたえて ください。こたえは、1・2・3・4から いちばん いい ものを 一つ えらんで ください。',
     en: 'Look at the page and answer the question.' },
@@ -95,6 +126,9 @@ export const TYPES = {
   point: { part: 'listening', mondai: 'もんだい2', weight: 1.5, pause: 12,
     ja: 'もんだい2では、はじめに しつもんを 聞いて ください。それから 話を 聞いて、もんだいようしの 1から4の 中から、いちばん いい ものを 一つ えらんで ください。',
     en: 'Listen to the question, then the conversation, and catch the point it asks about.' },
+  gist: { part: 'listening', mondai: 'もんだい3', weight: 1.5, pause: 12,
+    ja: 'もんだい3では、もんだいようしに 何も いんさつされて いません。はじめに 話を 聞いて ください。それから、しつもんを 聞いて、1から4の 中から、最も よい ものを 一つ えらんで ください。',
+    en: 'Nothing is shown first. Listen to the talk; then the question is read and the options appear. Choose what it is mainly about.' },
   utter: { part: 'listening', mondai: 'もんだい3', weight: 1, pause: 8,
     ja: 'もんだい3では、えを 見ながら しつもんを 聞いて ください。→（やじるし）の 人は 何と 言いますか。1から3の 中から、いちばん いい ものを 一つ えらんで ください。',
     en: 'Look at the picture. What does the person with the arrow say?' },
@@ -102,6 +136,29 @@ export const TYPES = {
     ja: 'もんだい4は、えなどが ありません。ぶんを 聞いて、1から3の 中から、いちばん いい へんじを 一つ えらんで ください。',
     en: 'No pictures. Listen to the line and choose the best reply.' },
 };
+
+/**
+ * The N3 booklet's 問題 numbers and instructions where they differ from TYPES (N3 has 長文 and 概要理解, so the later
+ * 問題 move up one, and the booklet uses more kanji). `typeOf(type, level)` merges them.
+ */
+export const TYPES_N3 = {
+  read: { ja: '＿＿の ことばの 読み方として 最も よい ものを、1・2・3・4から 一つ えらびなさい。' },
+  spell: { ja: '＿＿の ことばを 漢字で 書くとき、最も よい ものを、1・2・3・4から 一つ えらびなさい。' },
+  context: { ja: '（　）に 入れるのに 最も よい ものを、1・2・3・4から 一つ えらびなさい。' },
+  para: { ja: '＿＿に 意味が 最も 近い ものを、1・2・3・4から 一つ えらびなさい。' },
+  usage: { ja: 'つぎの ことばの 使い方として 最も よい ものを、1・2・3・4から 一つ えらびなさい。' },
+  grammar: { ja: 'つぎの 文の （　）に 入れるのに 最も よい ものを、1・2・3・4から 一つ えらびなさい。' },
+  star: { ja: 'つぎの 文の ★に 入る 最も よい ものを、1・2・3・4から 一つ えらびなさい。' },
+  textgram: { ja: 'つぎの 文章を 読んで、文章 全体の 内容を 考えて、１から５の 中に 入る 最も よい ものを、1・2・3・4から 一つ えらびなさい。' },
+  short: { ja: 'つぎの 文章を 読んで、質問に 答えなさい。答えは、1・2・3・4から 最も よい ものを 一つ えらびなさい。' },
+  mid: { ja: 'つぎの 文章を 読んで、質問に 答えなさい。答えは、1・2・3・4から 最も よい ものを 一つ えらびなさい。' },
+  info: { mondai: 'もんだい7', ja: '右の ページを 見て、下の 質問に 答えなさい。答えは、1・2・3・4から 最も よい ものを 一つ えらびなさい。' },
+  utter: { mondai: 'もんだい4', ja: 'もんだい4では、絵を 見ながら 質問を 聞いて ください。→（やじるし）の 人は 何と 言いますか。1から3の 中から、最も よい ものを 一つ えらんで ください。' },
+  quick: { mondai: 'もんだい5', ja: 'もんだい5では、もんだいようしに 何も いんさつされて いません。まず 文を 聞いて ください。それから、その へんじを 聞いて、1から3の 中から、最も よい ものを 一つ えらんで ください。' },
+};
+const LEVEL_TYPES = { N3: TYPES_N3 };
+/** A question type's heading and instructions for a level's booklet. */
+export const typeOf = (type, level = 'N5') => ({ ...TYPES[type], ...((LEVEL_TYPES[level] || {})[type] || {}) });
 
 /**
  * Sections in order, each a list of [type, count] in the real test's order. A group type (a text with several
@@ -151,8 +208,34 @@ export const FORMATS_N4 = {
     ],
   },
 };
+/**
+ * The real N3's layout (vocabulary 30 min; grammar and reading 70; listening 40), with 内容理解(長文) and 概要理解:
+ *   Vocabulary (30 min)          漢字読み 8, 表記 6, 文脈規定 11, 言い換え類義 5, 用法 5
+ *   Grammar and reading (70 min) 文法形式の判断 13, 文の組み立て 5, 文章の文法 5 (one text), 内容理解(短文) 4,
+ *                                内容理解(中文) 6 (two texts), 内容理解(長文) 4 (one text), 情報検索 2 (one page)
+ *   Listening (40 min)           課題理解 6, ポイント理解 6, 概要理解 3, 発話表現 4, 即時応答 9
+ * The mini mock drops 情報検索 for one 長文 text, so every section has a few questions.
+ */
+export const FORMATS_N3 = {
+  full: {
+    title: 'Full mock', timed: true, practice: false,
+    sections: [
+      { id: 'vocab', title: 'Vocabulary', ja: '言語知識（文字・語彙）', minutes: 30, parts: [['read', 8], ['spell', 6], ['context', 11], ['para', 5], ['usage', 5]] },
+      { id: 'grammar', title: 'Grammar and reading', ja: '言語知識（文法）・読解', minutes: 70, parts: [['grammar', 13], ['star', 5], ['textgram', 5], ['short', 4], ['mid', 6], ['long', 4], ['info', 2]] },
+      { id: 'listening', title: 'Listening', ja: '聴解', minutes: 40, parts: [['task', 6], ['point', 6], ['gist', 3], ['utter', 4], ['quick', 9]] },
+    ],
+  },
+  mini: {
+    title: 'Mini mock', timed: false, practice: true, minutes: 20,
+    sections: [
+      { id: 'vocab', title: 'Vocabulary', ja: '言語知識（文字・語彙）', parts: [['read', 2], ['spell', 1], ['context', 1], ['para', 1], ['usage', 1]] },
+      { id: 'grammar', title: 'Grammar and reading', ja: '言語知識（文法）・読解', parts: [['grammar', 2], ['star', 1], ['textgram', 5], ['short', 1], ['long', 4]] },
+      { id: 'listening', title: 'Listening', ja: '聴解', parts: [['task', 2], ['point', 1], ['gist', 1], ['utter', 1], ['quick', 2]] },
+    ],
+  },
+};
 /** Each level's formats. */
-export const LEVEL_FORMATS = { N5: FORMATS, N4: FORMATS_N4 };
+export const LEVEL_FORMATS = { N5: FORMATS, N4: FORMATS_N4, N3: FORMATS_N3 };
 export const formatsFor = (level) => LEVEL_FORMATS[level] || FORMATS;
 
 const KANJI_RE = /[一-鿿々]/;
@@ -263,12 +346,20 @@ const N4B = (() => {
   const both = deckBank([...N5_WORDS, ...N4_WORDS]);
   return { ...own, POOL_DECK: both.DECK, POOL_SPELL: both.SPELL };
 })();
+/** N3 questions ask N3 words; their wrong options may come from all three decks. */
+const N3B = (() => {
+  const own = deckBank(N3_WORDS);
+  const all = deckBank([...N5_WORDS, ...N4_WORDS, ...N3_WORDS]);
+  return { ...own, POOL_DECK: all.DECK, POOL_SPELL: all.SPELL };
+})();
 const { DECK, READ, SPELL, CONTEXT } = N5B;
 
 /** The N5 course's grammar cards (re-entry and N5 core units). */
 export const N5_GRAMMAR_KEYS = STUDY_UNITS.filter((u) => u.phase === 'p0' || u.phase === 'p1').flatMap((u) => unitCardKeys(u.id));
 /** The N4 course's grammar cards (the Phase 2 "N4 bridge" units). */
 export const N4_GRAMMAR_KEYS = STUDY_UNITS.filter((u) => u.phase === 'p2').flatMap((u) => unitCardKeys(u.id));
+/** The N3 course's grammar cards (the Phase 3 units). */
+export const N3_GRAMMAR_KEYS = STUDY_UNITS.filter((u) => u.phase === 'p3').flatMap((u) => unitCardKeys(u.id));
 
 /** Particles that let a phrase move: with two of them among the four slots, more than one order can be right. */
 const FREE = new Set(['は', 'が', 'を', 'に', 'で', 'へ', 'と', 'も', 'から', 'まで']);
@@ -284,6 +375,7 @@ const starts = (s) => {
 const starOk = (s) => s.tiles.length >= 4 && !(s.alts || []).length && new Set(s.tiles).size === s.tiles.length && starts(s).length;
 const STAR = BUILD_SENTENCES.filter((s) => (s.level || 'N5') === 'N5' && starOk(s));
 const STAR_N4 = BUILD_SENTENCES.filter((s) => s.level === 'N4' && starOk(s));
+const STAR_N3 = BUILD_SENTENCES.filter((s) => s.level === 'N3' && starOk(s));
 
 // ---------- question builders ----------
 
@@ -382,7 +474,7 @@ function textgramQuestions(t) {
   }));
 }
 
-/** A reading text (short, mid or an information page) with its questions. */
+/** A reading text (short, mid, long or an information page) with its questions. */
 function readingQuestions(type, it) {
   return it.questions.map((q, i) => ({
     id: `${type}:${it.id}`, qid: `${type}:${it.id}:${i}`, part: 'reading', type, doc: it, ask: q.q,
@@ -391,6 +483,18 @@ function readingQuestions(type, it) {
 }
 
 const spoken = (l) => ({ text: l.jp, voice: l.voice, reading: l.reading });
+
+/**
+ * 概要理解 (N3): nothing is shown first. The talk plays, then the question; only then do the options appear (the
+ * screen holds them back until `talk` has played). `say` is the talk and then the question.
+ */
+function gistQuestion(it) {
+  const q = spoken(it.question);
+  const talk = it.lines.map(spoken);
+  return { id: `gist:${it.id}`, part: 'listening', type: 'gist', why: it.why, ja: true, ask: it.question.jp,
+    talk, lead: q, say: [...talk, q], transcript: [...talk, q], afterTalk: true,
+    options: it.options.slice(), answer: it.options[0] };
+}
 
 /**
  * A listening question. 課題理解 / ポイント理解: the question, the conversation, the question again; the options are
@@ -450,7 +554,30 @@ const POOLS_N4 = {
   utter: { list: N4_UTTER, id: (t) => 'utter:' + t.id, make: (t) => [listenQuestion('utter', t)] },
   quick: { list: N4_QUICK, id: (t) => 'quick:' + t.id, make: (t) => [listenQuestion('quick', t)] },
 };
-const LEVEL_POOLS = { N5: POOLS, N4: POOLS_N4 };
+/**
+ * The N3 mock's pools: the N3 deck, the Phase 3 grammar, N3 Sentence Builder lines and the N3 banks, with 長文 and
+ * 概要理解.
+ */
+const POOLS_N3 = {
+  read: { list: N3B.READ, id: (w) => 'read:' + w.id, make: (w, rand) => [readQuestion(w, rand)], word: true },
+  spell: { list: N3B.SPELL, id: (w) => 'spell:' + w.id, make: (w, rand) => [spellQuestion(w, rand, N3B)], word: true },
+  context: { list: N3B.CONTEXT, id: (w) => 'ctx:' + w.id, make: (w, rand) => [contextQuestion(w, rand, N3B)], word: true },
+  para: { list: N3_PARAPHRASE, id: (p) => 'para:' + p.id, make: (p) => [paraQuestion(p)] },
+  usage: { list: N3_USAGE, id: (u) => 'use:' + u.id, make: (u) => [usageQuestion(u)] },
+  grammar: { list: N3_GRAMMAR_KEYS, id: (k) => 'gram:' + k, make: POOLS.grammar.make },
+  star: { list: STAR_N3, id: (x) => 'star:' + x.id, make: (x, rand) => [starQuestion(x, rand)] },
+  textgram: { list: N3_TEXT_GRAMMAR, id: (t) => 'tg:' + t.id, make: (t) => textgramQuestions(t) },
+  short: { list: N3_SHORT, id: (t) => 'short:' + t.id, make: (t) => readingQuestions('short', t) },
+  mid: { list: N3_MID, id: (t) => 'mid:' + t.id, make: (t) => readingQuestions('mid', t) },
+  long: { list: N3_LONG, id: (t) => 'long:' + t.id, make: (t) => readingQuestions('long', t) },
+  info: { list: N3_INFO, id: (t) => 'info:' + t.id, make: (t) => readingQuestions('info', t) },
+  task: { list: N3_TASK, id: (t) => 'task:' + t.id, make: (t) => [listenQuestion('task', t)] },
+  point: { list: N3_POINT, id: (t) => 'point:' + t.id, make: (t) => [listenQuestion('point', t)] },
+  gist: { list: N3_GIST, id: (t) => 'gist:' + t.id, make: (t) => [gistQuestion(t)] },
+  utter: { list: N3_UTTER, id: (t) => 'utter:' + t.id, make: (t) => [listenQuestion('utter', t)] },
+  quick: { list: N3_QUICK, id: (t) => 'quick:' + t.id, make: (t) => [listenQuestion('quick', t)] },
+};
+const LEVEL_POOLS = { N5: POOLS, N4: POOLS_N4, N3: POOLS_N3 };
 
 // ---------- a whole mock ----------
 
@@ -489,36 +616,42 @@ export function buildMock({ level = 'N5', format = 'mini', seen = [], rand = Mat
 export const mockIds = (mock) => [...new Set(mock.sections.flatMap((s) => s.questions.map((q) => q.id)))];
 
 /**
- * Scores answered questions like the real test: each scored section scales to its maximum by the share of its
- * question weight answered right (weights in TYPES), then the pass line and each section's minimum are checked.
- * `answers` maps a question's index (in order, over all sections) to the option picked, or null when unanswered.
- * The real test uses scaled scores, so this is an estimate.
+ * Scores answered questions like the real test: each scored section (scoreSections) scales to its maximum by the
+ * share of its question weight answered right (weights in TYPES), then the pass line and each section's minimum are
+ * checked. `answers` maps a question's index (in order, over all sections) to the option picked, or null when
+ * unanswered. Returns each section's score by id (lk and li for N5/N4; lv, rd and li for N3), `sections` (with each
+ * one's max, min and whether it met its minimum), the total, pass, per-part tallies and questions right. The real test
+ * uses scaled scores, so this is an estimate.
  */
 export function scoreMock(mock, answers) {
-  const sc = SCORING[mock.level];
+  const sc = SCORING[mock.level] || SCORING.N5;
+  const defs = scoreSections(mock.level);
+  const sectionOf = Object.fromEntries(defs.flatMap((d) => d.parts.map((p) => [p, d.id])));
   const parts = {};
   for (const id of Object.keys(PARTS)) parts[id] = [0, 0];
-  const w = { lk: [0, 0], li: [0, 0] };
+  const w = Object.fromEntries(defs.map((d) => [d.id, [0, 0]]));
   let i = 0;
   for (const sec of mock.sections) {
     for (const q of sec.questions) {
       const t = parts[q.part];
-      const g = w[PARTS[q.part].group];
+      const g = w[sectionOf[q.part]];
       const weight = TYPES[q.type]?.weight || 1;
       const ok = answers[i] != null && answers[i] === q.answer;
       t[1] += 1;
-      g[1] += weight;
-      if (ok) { t[0] += 1; g[0] += weight; }
+      if (g) g[1] += weight;
+      if (ok) { t[0] += 1; if (g) g[0] += weight; }
       i++;
     }
   }
-  const lk = w.lk[1] ? Math.round((sc.lk.max * w.lk[0]) / w.lk[1]) : 0;
-  const li = w.li[1] ? Math.round((sc.li.max * w.li[0]) / w.li[1]) : 0;
-  const total = lk + li;
-  const pass = total >= sc.pass && lk >= sc.lk.min && li >= sc.li.min;
+  const sections = defs.map((d) => {
+    const score = w[d.id][1] ? Math.round((d.max * w[d.id][0]) / w[d.id][1]) : 0;
+    return { id: d.id, title: d.title, score, max: d.max, min: d.min, met: score >= d.min };
+  });
+  const total = sections.reduce((a, x) => a + x.score, 0);
+  const pass = total >= sc.pass && sections.every((x) => x.met);
   const n = Object.values(parts).reduce((a, t) => a + t[1], 0);
   const ok = Object.values(parts).reduce((a, t) => a + t[0], 0);
-  return { lk, li, total, pass, parts, ok, n };
+  return { ...Object.fromEntries(sections.map((x) => [x.id, x.score])), sections, total, pass, parts, ok, n };
 }
 
 /** Sizes of the bank (items per question type), for the tests and the intro screen. */

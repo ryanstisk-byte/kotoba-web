@@ -3,6 +3,7 @@
 // Every line has a hiragana reading and an English line; tools/collect.mjs voices them all.
 
 import { N4_RIVALS } from './n4-extras.js';
+import { N3_RIVALS } from './n3-extras.js';
 import { tagLevel } from './level-tag.js';
 
 /** L(jp, reading, en) */
@@ -78,6 +79,8 @@ tagLevel(RIVALS, 'N5');
 // N4 rivals (js/n4-extras.js): the same faces at full power, unlocked by the N4 story chapters, with more hits to win
 // and attacks drawn mostly from N4 content.
 RIVALS.push(...tagLevel(N4_RIVALS.map((r) => ({ ...r })), 'N4'));
+// N3 rivals (js/n3-extras.js): the Rivals arc's rematches, unlocked by the N3 chapters, attacking mostly with N3 items.
+RIVALS.push(...tagLevel(N3_RIVALS.map((r) => ({ ...r })), 'N3'));
 export const RIVAL_BY_ID = Object.fromEntries(RIVALS.map((r) => [r.id, r]));
 
 /** Ren (the learner's side, voice 1) shouts one of these with each finisher. */

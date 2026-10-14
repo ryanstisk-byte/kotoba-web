@@ -12,12 +12,12 @@ import * as fx from './fx.js';
 import { mountRecap, particleQuestion, orderQuestion, listenQuestion, meaningQuestion } from './recap.js';
 import { POINT_PARTICLES } from './grammar-cards.js';
 import { pronButton, wordTarget } from './pron.js';
-import { N4_WORDS } from './data.js';
+import { N4_WORDS, N3_WORDS } from './data.js';
 import { itemOpen, lockLine, levelOf } from './levels.js';
 
-/** N5 and N4 deck words by written form (the first entry wins for the rare shared spelling). */
+/** N5, N4 and N3 deck words by written form (the first entry wins for the rare shared spelling). */
 const N5_BY_JP = new Map();
-for (const w of [...N5_WORDS, ...N4_WORDS]) if (!N5_BY_JP.has(w.jp)) N5_BY_JP.set(w.jp, w);
+for (const w of [...N5_WORDS, ...N4_WORDS, ...N3_WORDS]) if (!N5_BY_JP.has(w.jp)) N5_BY_JP.set(w.jp, w);
 export const unitWords = (u) => (u.vocab || []).map((jp) => N5_BY_JP.get(jp)).filter(Boolean);
 /** Units with content in a level that's open (js/levels.js): Phase 2 (N4) waits until N4 is unlocked. */
 const openUnits = () => STUDY_UNITS.filter(itemOpen);
@@ -269,7 +269,7 @@ export function renderPath(view) {
       ${PHASES.map((ph) => `<section class="stack-sm" aria-label="Phase ${ph.n}: ${esc(ph.title)}">
         <h2 class="section-label">PHASE ${ph.n} · ${esc(ph.title.toUpperCase())}</h2>
         <p class="small dim">${esc(ph.when)}. ${esc(ph.focus)}</p>
-        ${UNITS.some((u) => u.phase === ph.id && !itemOpen(u)) ? `<p class="small dim">🔒 ${esc(lockLine('N4'))}</p>` : ''}
+        ${UNITS.some((u) => u.phase === ph.id && !itemOpen(u)) ? `<p class="small dim">🔒 ${esc(lockLine(levelOf(UNITS.find((u) => u.phase === ph.id && !itemOpen(u)))))}</p>` : ''}
         ${UNITS.filter((u) => u.phase === ph.id).map((u) => unitRow(u, cur, reached)).join('')}
       </section>`).join('')}
     </div>`;

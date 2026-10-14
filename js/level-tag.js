@@ -2,7 +2,7 @@
 // (js/levels.js builds on it: which levels are unlocked, and each mode's content for them).
 
 /** Levels with content in the app, easiest first. A new level goes at the end, and every mode must cover it. */
-export const APP_LEVELS = ['N5', 'N4'];
+export const APP_LEVELS = ['N5', 'N4', 'N3'];
 
 /** Gives every item in `list` a `level` (unless it already has one) and returns the list. */
 export function tagLevel(list, level) {

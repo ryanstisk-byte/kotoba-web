@@ -3,10 +3,10 @@
 // answers a customer's request with the shop's own polite and humble forms (かしこまりました, 少々 お待ちください…).
 import { store } from '../store.js';
 import { speaker } from '../audio.js';
-import { CUSTOMERS, COUNTERS, SHOP_GREETINGS, SHOP_THANKS, SHOP_GREETINGS_N4, SHOP_THANKS_N4 } from '../data.js';
+import { CUSTOMERS, COUNTERS, SHOP_GREETINGS, SHOP_THANKS, SHOP_GREETINGS_N4, SHOP_THANKS_N4, SHOP_GREETINGS_N3, SHOP_THANKS_N3 } from '../data.js';
 import { esc, pick, shuffle, delegate } from '../ui.js';
 import * as fx from '../fx.js';
-import { content, pickMixed, levelOf, levelBar } from '../levels.js';
+import { content, pickMixed, levelOf, levelBar, APP_LEVELS } from '../levels.js';
 
 export function mount(el, ctx) {
   const GOAL = 3;
@@ -16,7 +16,11 @@ export function mount(el, ctx) {
   let item = SHOP_STOCK[0];
   let keigo = null;       // N4: { m (the moment), opts (shuffled) }
   let lines = null;       // N4 greetings or thanks on screen, shuffled
-  const n4 = () => levelOf(customer) === 'N4';
+  // N4 and N3 customers both get the polite shop: greetings, keigo moments and thanks (N3 ones more formal).
+  const n4 = () => levelOf(customer) !== 'N5';
+  const GREETS = () => (levelOf(customer) === 'N3' ? SHOP_GREETINGS_N3 : SHOP_GREETINGS_N4);
+  const THANKS = () => (levelOf(customer) === 'N3' ? SHOP_THANKS_N3 : SHOP_THANKS_N4);
+  const rank = (x) => APP_LEVELS.indexOf(levelOf(x));
   let count = 1;
   let step = 'greet';
   let basket = [];
@@ -29,9 +33,10 @@ export function mount(el, ctx) {
 
   // A course unit can limit orders to its counters (ctx.counters); the shelf and scoring stay the same.
   const orderStock = ctx.counters?.length ? SHOP_STOCK.filter((s) => ctx.counters.includes(s.counter)) : SHOP_STOCK;
-  // An N5 customer orders N5 goods; an N4 customer anything on the shelf, mostly N4 (about 70%).
+  // A customer orders goods of their level or below: an N5 customer N5 goods, an N4 or N3 customer mostly their
+  // own level's (about 70%) and the rest from below.
   const stockFor = (c) => {
-    const list = levelOf(c) === 'N4' ? orderStock : orderStock.filter((x) => levelOf(x) === 'N5');
+    const list = orderStock.filter((x) => rank(x) <= rank(c));
     return list.length ? list : orderStock;
   };
   const say = (it, n) => COUNTERS[it.counter].say[n - 1];
@@ -64,7 +69,7 @@ export function mount(el, ctx) {
     if (step === 'greet') {
       if (n4()) {
         return `<p class="small strong dim">A customer walks in. Greet them the way a shop does, politely.</p>
-          ${lines.map((g) => `<button class="btn left" data-act="greet4" data-i="${SHOP_GREETINGS_N4.indexOf(g)}" lang="ja">${esc(g.jp)}</button>`).join('')}`;
+          ${lines.map((g) => `<button class="btn left" data-act="greet4" data-i="${GREETS().indexOf(g)}" lang="ja">${esc(g.jp)}</button>`).join('')}`;
       }
       return `<p class="small strong dim">A customer walks in. What do you say?</p>
         ${SHOP_GREETINGS.map((g, i) => `<button class="btn left" data-act="greet" data-i="${i}" lang="ja">${esc(g)}</button>`).join('')}`;
@@ -90,7 +95,7 @@ export function mount(el, ctx) {
     }
     if (step === 'reply' && n4()) {
       return `<p class="small strong dim">They're leaving. Thank them the way a shop does.</p>
-        ${lines.map((t) => `<button class="btn left" data-act="reply4" data-i="${SHOP_THANKS_N4.indexOf(t)}" lang="ja">${esc(t.jp)}</button>`).join('')}`;
+        ${lines.map((t) => `<button class="btn left" data-act="reply4" data-i="${THANKS().indexOf(t)}" lang="ja">${esc(t.jp)}</button>`).join('')}`;
     }
     if (step === 'reply') {
       return `<p class="small strong dim">They're leaving. What does a shopkeeper say?</p>
@@ -134,13 +139,13 @@ export function mount(el, ctx) {
       if (!showText) store.grade({ skill: 'listening', id: `order:${item.name}`, ok: true, firstTry: !mistakes });
       step = 'reply';
       // N4: before they go, a request that needs the shop's polite words.
-      const moments = content('keigo');
+      const moments = content('keigo').filter((x) => rank(x) <= rank(customer));
       if (n4() && moments.length) {
-        const m = pick(moments);
+        const m = pickMixed(moments);
         keigo = { m, opts: shuffle(m.options) };
         step = 'keigo';
         setTimeout(() => speaker.speak(m.line.jp, { mps: 4, voice: m.who }), 900);
-      } else lines = shuffle(SHOP_THANKS_N4);
+      } else lines = shuffle(THANKS());
     } else {
       store.log(false);
       store.grade({ skill: 'counters', id: `${item.counter}:${count}`, ok: false, firstTry: !mistakes });
@@ -190,7 +195,7 @@ export function mount(el, ctx) {
       feedback = '✓ ' + m.why;
       speaker.speak(m.options[0].jp, { mps: 4.5, voice: 1 });
       step = 'reply';
-      lines = shuffle(SHOP_THANKS_N4);
+      lines = shuffle(THANKS());
     } else {
       mistakes++;
       feedback = `Not quite: ${m.options[i].jp} doesn't fit here. ${m.why}`;
@@ -201,7 +206,7 @@ export function mount(el, ctx) {
 
   /** N4 greeting and thanks: the first in the data is the right one. */
   function lineN4(kind, i) {
-    const list = kind === 'greet' ? SHOP_GREETINGS_N4 : SHOP_THANKS_N4;
+    const list = kind === 'greet' ? GREETS() : THANKS();
     const ok = i === 0;
     if (!mistakes || ok) store.log(ok);
     store.grade({ skill: 'grammar', id: kind === 'greet' ? 'shop:greet4' : 'shop:thanks4', ok, firstTry: !mistakes });
@@ -236,7 +241,7 @@ export function mount(el, ctx) {
     customer = CUSTOMERS[pickMixed(content('customers')).key];
     item = pickMixed(stockFor(customer));
     keigo = null;
-    lines = n4() ? shuffle(SHOP_GREETINGS_N4) : null;
+    lines = n4() ? shuffle(GREETS()) : null;
     count = 1 + Math.floor(Math.random() * 5);
     basket = [];
     feedback = null;

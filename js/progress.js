@@ -9,8 +9,9 @@ import { SKILL_LABELS } from './skills.js';
 import { knobs } from './tuning.js';
 import { accuracyNote } from './today.js';
 import { esc, delegate } from './ui.js';
-import { readiness, mockLine, N5_TARGETS, N4_TARGETS, READY_AVERAGE, READY_FLOOR } from './readiness.js';
-import { SCORING } from './exam-data.js';
+import { readiness, mockLine, N5_TARGETS, N4_TARGETS, N3_TARGETS, READY_AVERAGE, READY_FLOOR } from './readiness.js';
+import { SCORING, scoreSections } from './exam-data.js';
+import { N3_WORDS } from './data.js';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const MON = MONTHS.map((m) => m.slice(0, 3));
@@ -235,12 +236,13 @@ function roadSection(road, d) {
       <p><span class="stat-v mono">${pct(road.overall)}</span> <span class="small dim">of the way to ${road.mock ? `a mock ${road.level}` : road.level}</span></p>
       ${barChart(rows, { label: `Readiness for ${road.level}: ${rows.map((r) => `${r.label} ${r.text}`).join(', ')}.` })}
       ${road.mock ? `<p class="small">${road.ready ? `<span class="strong good-c">Ready for a mock ${road.level}.</span> ` : ''}Each bar fills toward a target, and "ready" comes when they average ${pct(READY_AVERAGE)} with none under ${pct(READY_FLOOR)}.</p>
-      ${road.level === 'N4' ? `<p class="small dim">Targets: ${pct(N4_TARGETS.vocab)} of the ${d.n4Total}-word N4 deck known (Seedling or later); ${pct(N4_TARGETS.kanji)} of the N4 kanji the app teaches; ${pct(N4_TARGETS.grammar)} of the N4 grammar points remembered for a week; ${pct(N4_TARGETS.listening)} right in listening over ${N4_TARGETS.listeningAnswers}+ answers; the ${N4_TARGETS.chapters} chapters of the N4 Story arc and the N4 kanji lessons.</p>` : `<p class="small dim">Targets: ${pct(N5_TARGETS.vocab)} of the ${d.n5Total}-word N5 deck known (Seedling or later); ${pct(N5_TARGETS.kanji)} of the kanji the app teaches; ${pct(N5_TARGETS.grammar)} of the N5 grammar points remembered for a week; ${pct(N5_TARGETS.listening)} right in listening over ${N5_TARGETS.listeningAnswers}+ answers; the kana and ${N5_TARGETS.chapters} Story chapters. The real ${road.level} also uses about ${N5_KANJI_ESTIMATE} kanji, more than the app teaches yet, so its kanji questions come from words you know.</p>`}`
+      ${road.level === 'N3' ? `<p class="small dim">Targets: ${pct(N3_TARGETS.vocab)} of the ${N3_WORDS.length}-word N3 deck known (Seedling or later); ${pct(N3_TARGETS.kanji)} of the N3 kanji the app teaches; ${pct(N3_TARGETS.grammar)} of the N3 grammar points remembered for a week; ${pct(N3_TARGETS.listening)} right in listening over ${N3_TARGETS.listeningAnswers}+ answers; the ${N3_TARGETS.chapters} chapters of the N3 Story arc (with their reading passages) and the N3 kanji lessons.</p>`
+      : road.level === 'N4' ? `<p class="small dim">Targets: ${pct(N4_TARGETS.vocab)} of the ${d.n4Total}-word N4 deck known (Seedling or later); ${pct(N4_TARGETS.kanji)} of the N4 kanji the app teaches; ${pct(N4_TARGETS.grammar)} of the N4 grammar points remembered for a week; ${pct(N4_TARGETS.listening)} right in listening over ${N4_TARGETS.listeningAnswers}+ answers; the ${N4_TARGETS.chapters} chapters of the N4 Story arc and the N4 kanji lessons.</p>` : `<p class="small dim">Targets: ${pct(N5_TARGETS.vocab)} of the ${d.n5Total}-word N5 deck known (Seedling or later); ${pct(N5_TARGETS.kanji)} of the kanji the app teaches; ${pct(N5_TARGETS.grammar)} of the N5 grammar points remembered for a week; ${pct(N5_TARGETS.listening)} right in listening over ${N5_TARGETS.listeningAnswers}+ answers; the kana and ${N5_TARGETS.chapters} Story chapters. The real ${road.level} also uses about ${N5_KANJI_ESTIMATE} kanji, more than the app teaches yet, so its kanji questions come from words you know.</p>`}`
         : `<p class="small dim">${road.level} lessons and a mock ${road.level} are still to come. Until then this shows the ground they build on.</p>`}
       ${road.mock ? `<div class="row2"><a class="btn ${road.ready ? 'primary' : ''}" href="#/exam">Mock ${road.level}</a>
         <span class="real-pass"><button class="btn ghost wide" data-act="real-ask" data-level="${road.level}">I passed the real ${road.level}</button></span></div>` : ''}
       ${sc && recent.length ? `<h3 class="small strong">Mock results</h3><ul class="small mock-list">${recent.map((h) => `<li>${esc(mockLine(h))}</li>`).join('')}</ul>
-        <p class="tiny dim">The pass line is ${sc.pass}/${sc.total}. Only a full mock counts toward finishing a level.</p>` : ''}
+        <p class="tiny dim">The pass line for ${road.level} is ${sc.pass}/${sc.total}, with at least ${scoreSections(road.level).map((x) => `${x.min} in ${x.short}`).join(', ')}. Only a full mock counts toward finishing a level.</p>` : ''}
       ${doneLines ? `<ul class="small">${doneLines}</ul>` : ''}
       ${levelsLine()}
     </section>`;

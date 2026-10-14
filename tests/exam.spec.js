@@ -3,7 +3,9 @@
 // and a timed full mock, misses going into the Garden, and the v8 → v9 migration and sync merge.
 import { readFileSync } from 'node:fs';
 import { test, expect, seed, saved, view, expectNoHorizontalScroll } from './helpers.js';
-import { buildMock, scoreMock, mockIds, nearMisses, BANK, FORMATS, TYPES, N5_KANJI } from '../js/exam-data.js';
+import { buildMock, scoreMock, mockIds, nearMisses, BANK, BANKS, FORMATS, FORMATS_N3, TYPES, N5_KANJI, N3_KANJI, SCORING, MOCK_LEVELS, typeOf, scoreSections } from '../js/exam-data.js';
+import * as N3_READING from '../js/exam-bank-n3-reading.js';
+import * as N3_LISTEN from '../js/exam-bank-n3-listen.js';
 import { PICTURES } from '../js/exam-art.js';
 import * as READING from '../js/exam-bank-reading.js';
 import * as LISTEN1 from '../js/exam-bank-listen1.js';
@@ -432,5 +434,232 @@ test.describe('saved progress v8 → v9', () => {
     expect(r.m.exam.later.N5).toBe('2026-10-20');
     expect(r.again.exam).toEqual(r.m.exam);
     expect(r.old.exam.history).toHaveLength(2);
+  });
+});
+
+/** Progress with N5 and N4 done (full mocks passed), so the mock N3 is open. */
+const n3Open = () => ({
+  v: 12, items: {}, chapters: [], forged: [], dojo: [], storyReplays: {}, days: {},
+  settings: { hideIosHint: true, readingHelp: 'off' },
+  exam: { history: [
+    { level: 'N5', format: 'full', pass: true, total: 130, lk: 90, li: 40, at: Date.now() - 9 * 86_400_000 },
+    { level: 'N4', format: 'full', pass: true, total: 120, lk: 80, li: 40, at: Date.now() - 86_400_000 },
+  ], real: {}, seen: [], later: {} },
+});
+
+test.describe('mock N3 (js/exam-data.js, run in Node)', () => {
+  test('the full mock N3 follows the real N3: parts, order, counts and minutes, with 長文 and 概要理解', () => {
+    const order = {
+      vocab: ['read', 'spell', 'context', 'para', 'usage'],
+      grammar: ['grammar', 'star', 'textgram', 'short', 'mid', 'long', 'info'],
+      listening: ['task', 'point', 'gist', 'utter', 'quick'],
+    };
+    const counts = { read: 8, spell: 6, context: 11, para: 5, usage: 5, grammar: 13, star: 5, textgram: 5, short: 4, mid: 6, long: 4, info: 2,
+      task: 6, point: 6, gist: 3, utter: 4, quick: 9 };
+    expect(MOCK_LEVELS).toContain('N3');
+    for (let k = 1; k <= 3; k++) {
+      const m = buildMock({ level: 'N3', format: 'full', rand: seeded(k) });
+      expect(m.sections.map((s) => [s.id, s.minutes])).toEqual([['vocab', 30], ['grammar', 70], ['listening', 40]]);
+      for (const sec of m.sections) {
+        const types = sec.questions.map((q) => q.type);
+        expect([...new Set(types)], sec.id).toEqual(order[sec.id]);
+        for (const t of order[sec.id]) expect(types.filter((x) => x === t).length, t).toBe(counts[t]);
+      }
+      const qs = m.sections.flatMap((s) => s.questions);
+      for (const q of qs) {
+        expect(q.options.length, q.id).toBe(q.heard ? 3 : 4);
+        expect(new Set(q.options).size, q.id).toBe(q.options.length);
+        expect(q.options, q.id).toContain(q.answer);
+        for (const o of q.options) {
+          if (q.pictures) expect(PICTURES[o], `${q.id}: ${o}`).toBeTruthy();
+          else expect(o, q.id).not.toMatch(/[A-Za-z]{2,}/);
+        }
+      }
+      // Deck questions ask N3 words; one long text gives its four questions.
+      expect(qs.filter((q) => /^(read|spell|ctx):/.test(q.id)).every((q) => q.id.includes(':n3:'))).toBe(true);
+      expect(new Set(qs.filter((q) => q.type === 'long').map((q) => q.id)).size).toBe(1);
+    }
+    for (const t of ['long', 'gist']) {
+      expect(TYPES[t].ja, t).toMatch(/[ぁ-ん]/);
+      expect(TYPES[t].en, t).toMatch(/[a-z]/);
+    }
+    // The N3 booklet numbers: 長文 is 問題6, 情報検索 問題7; 概要理解 問題3, 発話表現 問題4, 即時応答 問題5.
+    expect(['long', 'info', 'gist', 'utter', 'quick'].map((t) => typeOf(t, 'N3').mondai)).toEqual(['もんだい6', 'もんだい7', 'もんだい3', 'もんだい4', 'もんだい5']);
+    expect(typeOf('info', 'N5').mondai).toBe('もんだい6');
+    // The mini mock: a few of each, untimed, every scored section present.
+    const mini = buildMock({ level: 'N3', format: 'mini', rand: seeded(5) });
+    expect(mini.timed).toBe(false);
+    expect(new Set(mini.sections.flatMap((s) => s.questions.map((q) => q.part)))).toEqual(new Set(['vocab', 'grammar', 'reading', 'listening']));
+    expect(mini.sections.flatMap((s) => s.questions).some((q) => q.type === 'gist')).toBe(true);
+    expect(FORMATS_N3.full.sections.map((s) => s.minutes)).toEqual([30, 70, 40]);
+  });
+
+  test('a 概要理解 item: the talk first, then the question; a 長文 text has several questions', () => {
+    const m = buildMock({ level: 'N3', format: 'full', rand: seeded(3) });
+    const qs = m.sections.flatMap((s) => s.questions);
+    const g = qs.find((q) => q.type === 'gist');
+    const it = N3_LISTEN.N3_GIST.find((x) => `gist:${x.id}` === g.id);
+    expect(g.afterTalk).toBe(true);
+    expect(g.say.map((l) => l.text)).toEqual([...it.lines.map((l) => l.jp), it.question.jp]);
+    expect(g.talk).toHaveLength(it.lines.length);
+    const long = qs.filter((q) => q.type === 'long');
+    expect(long).toHaveLength(4);
+    expect(long[0].doc.text.length).toBeGreaterThan(500);
+    expect(long.map((q) => q.qid)).toEqual(long.map((_, i) => `${long[0].id}:${i}`));
+  });
+
+  test('scored in three sections of 60 (pass at 95, at least 19 in each): 100 in total with 18 in one is not a pass', () => {
+    expect(SCORING.N3).toEqual({ lv: { max: 60, min: 19 }, rd: { max: 60, min: 19 }, li: { max: 60, min: 19 }, total: 180, pass: 95 });
+    expect(scoreSections('N3').map((x) => x.id)).toEqual(['lv', 'rd', 'li']);
+    expect(scoreSections('N4').map((x) => [x.id, x.max, x.min])).toEqual([['lk', 120, 38], ['li', 60, 19]]);
+    // 60 questions in each section (one type each, so every question weighs the same within its section).
+    const q = (part, type, i) => ({ id: `${type}:${i}`, part, type, options: ['a', 'b', 'c', 'd'], answer: 'a' });
+    const mock = { level: 'N3', sections: [
+      { id: 'vocab', questions: Array.from({ length: 60 }, (_, i) => q('vocab', 'read', i)) },
+      { id: 'grammar', questions: Array.from({ length: 60 }, (_, i) => q('reading', 'short', i)) },
+      { id: 'listening', questions: Array.from({ length: 60 }, (_, i) => q('listening', 'quick', i)) },
+    ] };
+    const answers = (lv, rd, li) => [...Array(60)].map((_, i) => (i < lv ? 'a' : 'b'))
+      .concat([...Array(60)].map((_, i) => (i < rd ? 'a' : 'b')), [...Array(60)].map((_, i) => (i < li ? 'a' : 'b')));
+    const under = scoreMock(mock, answers(60, 18, 22));
+    expect(under).toMatchObject({ lv: 60, rd: 18, li: 22, total: 100, pass: false });
+    expect(under.sections.map((x) => x.met)).toEqual([true, false, true]);
+    expect(scoreMock(mock, answers(60, 19, 21))).toMatchObject({ total: 100, pass: true });
+    expect(scoreMock(mock, answers(40, 30, 24))).toMatchObject({ total: 94, pass: false });   // every floor met, under 95
+    expect(scoreMock(mock, answers(40, 30, 25))).toMatchObject({ total: 95, pass: true });
+    // A real mock: all right is 60 + 60 + 60; no listening at all fails whatever the rest.
+    const real = buildMock({ level: 'N3', format: 'full', rand: seeded(4) });
+    const rq = real.sections.flatMap((s) => s.questions);
+    expect(scoreMock(real, rq.map((x) => x.answer))).toMatchObject({ lv: 60, rd: 60, li: 60, total: 180, pass: true });
+    expect(scoreMock(real, rq.map((x) => (x.part === 'listening' ? null : x.answer)))).toMatchObject({ li: 0, total: 120, pass: false });
+    // N5 still scores in two sections.
+    const n5 = buildMock({ format: 'mini', rand: seeded(1) });
+    expect(Object.keys(scoreMock(n5, {}))).toEqual(expect.arrayContaining(['lk', 'li']));
+  });
+
+  test('the N3 bank: pool sizes, kanji the app teaches up to N3, and two full mocks in a row share little', () => {
+    const b = BANKS.N3;
+    for (const [t, n] of Object.entries({ para: 16, usage: 16, textgram: 5, short: 12, mid: 5, long: 3, info: 3, task: 12, point: 12, gist: 8, utter: 8, quick: 18 })) expect(b[t], t).toBe(n);
+    for (const [t, n] of Object.entries({ read: 8, spell: 6, context: 11, grammar: 13, star: 5 })) expect(b[t], t).toBeGreaterThanOrEqual(3 * n);
+    // N3 kanji include N5, N4 and the N3 lessons.
+    for (const c of '日食通考取') expect(N3_KANJI.has(c), c).toBe(true);
+    expect(N3_KANJI.size).toBeGreaterThan(600);
+    const a = buildMock({ level: 'N3', format: 'full', rand: seeded(21) });
+    const c = buildMock({ level: 'N3', format: 'full', rand: seeded(22), seen: mockIds(a) });
+    const qids = (m) => m.sections.flatMap((s) => s.questions.map((q) => q.qid || q.id));
+    const [x, y] = [qids(a), qids(c)];
+    expect(y.filter((q) => x.includes(q)).length / y.length).toBeLessThan(0.2);
+    // No emoji anywhere in the N3 bank.
+    const text = JSON.stringify([N3_READING, N3_LISTEN]);
+    expect(text).not.toMatch(/\p{Extended_Pictographic}/u);
+  });
+});
+
+test.describe('mock N3 on screen', () => {
+  test('locked until N4 is done, with the usual line', async ({ page }) => {
+    await page.goto('./#/exam');
+    const v = view(page);
+    await expect(v.getByRole('radio', { name: /Mock N3/ })).toBeDisabled();
+    await expect(v).toContainText('N3: Unlocks when you pass a full mock N4, or mark the real N4 as passed.');
+  });
+
+  test('once N4 is done: Mock N3 is offered first; a long text shows; 概要理解 shows nothing until the talk ends; three sections scored', async ({ page }) => {
+    await seed(page, n3Open());
+    await page.goto('./#/exam');
+    const v = view(page);
+    await expect(v.getByRole('heading', { name: 'Mock JLPT N3' })).toBeVisible();
+    await expect(v).toContainText('at least 19 in language knowledge, 19 in reading and 19 in listening');
+    await expectNoHorizontalScroll(page);
+    // A voice that only moves on when told to (each line "ends" when released), and short pauses.
+    await page.evaluate(async () => {
+      const { speaker } = await import('./js/audio.js');
+      const { TAPE } = await import('./js/exam.js');
+      TAPE.scale = 0.002;
+      window.__said = [];
+      window.__pending = null;
+      speaker.speak = (text, o = {}) => { window.__said.push(text); window.__pending = o.onend || null; };
+      speaker.stop = () => {};
+      window.__release = () => { const f = window.__pending; window.__pending = null; if (f) f(); return !!f; };
+    });
+    await v.getByRole('button', { name: 'Start the mini mock' }).click();
+    await expect(v.locator('.section-title')).toContainText('文字・語彙');
+    await finishAll(page, 1);
+    // Grammar and reading: open the 長文 text (after grammar 2, star 1, textgram 5, short 1).
+    await v.locator('[data-act=begin]').click();
+    await v.locator('[data-act=sheet]').click();
+    await v.locator('.exam-cell').nth(9).click();
+    const long = v.locator('.exam[data-type=long]');
+    await expect(long).toBeVisible();
+    await expect(long.locator('.exam-mondai')).toContainText('もんだい6');
+    await expect(long.locator('.exam-doc.exam-longtext .exam-text')).toBeVisible();
+    expect((await long.locator('.exam-text').innerText()).replace(/\s/g, '').length).toBeGreaterThan(500);
+    await expect(long.locator('.exam-ask')).toBeVisible();
+    await expect(long.locator('.exam-opt')).toHaveCount(4);
+    await expectNoHorizontalScroll(page);
+    await v.locator('[data-act=sheet]').click();
+    await v.locator('[data-act=finishpart]').click();
+    await v.locator('[data-act=finishpart]').click();
+    // Listening: go to the 概要理解 item (after task 2, point 1).
+    await expect(v.locator('.section-title')).toContainText('聴解');
+    await v.locator('[data-act=begin]').click();
+    await v.locator('[data-act=sheet]').click();
+    await v.locator('.exam-cell').nth(3).click();
+    const gist = v.locator('.exam[data-type=gist]');
+    await expect(gist).toBeVisible();
+    const qid = await gist.getAttribute('data-qid');
+    const it = N3_LISTEN.N3_GIST.find((x) => `gist:${x.id}` === qid);
+    await expect.poll(() => page.evaluate(() => window.__said.length)).toBeGreaterThan(0);
+    // While the talk plays: no options, no question; only the note to listen.
+    await expect(gist.locator('.exam-opt')).toHaveCount(0);
+    await expect(gist.locator('.exam-wait')).toBeVisible();
+    await expect(gist).not.toContainText(it.question.jp);
+    for (let k = 0; k < it.lines.length - 1; k++) {
+      await expect.poll(() => page.evaluate(() => window.__pending != null)).toBe(true);
+      await expect(gist.locator('.exam-opt')).toHaveCount(0);
+      await page.evaluate(() => window.__release());
+    }
+    // The last line of the talk ends: now the options show, and the question is heard.
+    await expect.poll(() => page.evaluate(() => window.__pending != null)).toBe(true);
+    await expect(gist.locator('.exam-opt')).toHaveCount(0);
+    await page.evaluate(() => window.__release());
+    await expect(gist.locator('.exam-opt')).toHaveCount(4);
+    await expect(gist.locator('.exam-wait')).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => window.__said[window.__said.length - 1])).toBe(it.question.jp);
+    const said = await page.evaluate(() => window.__said);
+    const from = said.lastIndexOf(it.lines[0].jp);
+    expect(said.slice(from)).toEqual([...it.lines.map((l) => l.jp), it.question.jp]);
+    await expectNoHorizontalScroll(page);
+    // Finish: three scored sections, each with its minimum.
+    await v.locator('[data-act=sheet]').click();
+    await v.locator('[data-act=finishpart]').click();
+    await v.locator('[data-act=finishpart]').click();
+    await expect(v.locator('.exam-result')).toBeVisible();
+    await expect(v.locator('.exam-sec')).toHaveCount(3);
+    await expect(v.locator('.exam-sec[data-sec=lv]')).toContainText('need 19');
+    await expect(v.locator('.exam-sec[data-sec=rd]')).toContainText('Reading');
+    await expect(v.locator('.exam-sec[data-sec=li]')).toContainText('/ 60');
+    await expect(v.getByText('The pass line is 95.')).toBeVisible();
+    await expectNoHorizontalScroll(page);
+    const s = await saved(page);
+    expect(s.exam.history.at(-1)).toMatchObject({ level: 'N3', format: 'mini', lv: 0, rd: 0, li: 0, total: 0, pass: false });
+  });
+
+  test('the road to N3 on Progress: the N3 areas and targets, and the three section floors', async ({ page }) => {
+    await seed(page, n3Open());
+    await page.goto('./#/progress');
+    const road = view(page).locator('.road');
+    await expect(view(page).getByRole('heading', { name: 'Road to JLPT N3' })).toBeVisible();
+    await expect(road).toContainText('of the way to a mock N3');
+    await expect(road).toContainText('N3 deck known');
+    await expect(road).toContainText('7 chapters of the N3 Story arc');
+    await expect(road).toContainText('at least 19 in language knowledge, 19 in reading, 19 in listening');
+    await expect(road.locator('svg.chart')).toHaveAttribute('aria-label', /Vocabulary 0\/\d+/);
+    const r = await page.evaluate(async () => {
+      const { readiness, n3Areas, n4Areas, n5Areas } = await import('./js/readiness.js');
+      const x = readiness();
+      return { level: x.level, mock: x.mock, ids: x.areas.map((a) => a.id), n3: n3Areas(new Date()).length, n4: n4Areas(new Date()).length, n5: n5Areas(new Date()).length };
+    });
+    expect(r).toEqual({ level: 'N3', mock: true, ids: ['vocab', 'kanji', 'grammar', 'listening', 'reading'], n3: 5, n4: 5, n5: 5 });
+    await expectNoHorizontalScroll(page);
   });
 });
