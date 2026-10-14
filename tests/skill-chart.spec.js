@@ -67,6 +67,20 @@ test.describe('skill chart', () => {
     await expectNoHorizontalScroll(page);
   });
 
+  test('once N4 is done the chart aims at N3, with N4 as the outline, and both done tabs look back', async ({ page }) => {
+    await seed(page, base({ exam: { history: [pass('N5'), pass('N4')], real: {}, seen: [], later: {} } }));
+    await page.goto('./#/progress');
+    const c = page.locator('.skill-chart');
+    await expect(c).toHaveAttribute('data-level', 'N3');
+    await expect(c.locator('.sc-ghost')).toHaveCount(1);
+    await expect(c.getByText('The faint outline is N4.')).toBeVisible();
+    await expect(c.locator('.sc-locked')).toHaveCount(0);
+    await c.getByRole('tab', { name: /N4/ }).click();
+    await expect(c).toHaveAttribute('data-level', 'N4');
+    await expect(c.getByText('N4 is done: this is where you finished it.')).toBeVisible();
+    await expectNoHorizontalScroll(page);
+  });
+
   test('the list is the precise version of the chart, and an axis opens its Foundations panel', async ({ page }) => {
     await seed(page, base({ engine: { tally: {}, mastery: well('counters', 10), recent: { counters: '11111110' }, placement: null, placementSkip: true, checkin: '' } }));
     await page.goto('./#/progress');

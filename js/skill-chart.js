@@ -250,7 +250,7 @@ export function mountSkillChart(el, { level = null } = {}) {
         <div class="seg sc-tabs" role="tablist" aria-label="Level">${APP_LEVELS.map((lv) => `<button class="seg-btn ${lv === shown ? 'on' : ''}" role="tab" aria-selected="${lv === shown}"
           data-act="sc-level" data-lv="${lv}" data-state="${st(lv)}" ${st(lv) === 'locked' ? 'disabled' : ''}>${st(lv) === 'locked' ? '🔒 ' : st(lv) === 'done' ? '✓ ' : ''}${lv}</button>`).join('')}</div></div>
       <p class="small dim">${shown === current ? `Each axis fills toward what ${shown} asks for.` : st(shown) === 'done' ? `${shown} is done: this is where you finished it.` : `A look ahead at ${shown}: you're working toward ${current} now.`}${ghost ? ` The faint outline is ${before}.` : ''}</p>
-      ${APP_LEVELS.filter((lv) => st(lv) === 'locked').map((lv) => `<p class="small dim sc-locked">🔒 ${lv}: ${esc(lockLine(lv))}</p>`).join('')}
+      ${APP_LEVELS.filter((lv) => st(lv) === 'locked').slice(0, 1).map((lv) => `<p class="small dim sc-locked">🔒 ${lv}: ${esc(lockLine(lv))}</p>`).join('')}
       <div class="sc-figure">${radarSVG(axes, { values: axes.map((a) => a.value), ghost, label: chartLabel(shown, axes) })}</div>
       <p class="sc-summary">Strongest: <span class="strong">${esc(strong.label)}</span> <span lang="ja">${esc(strong.rank.jp)}</span> (${pct(strong.value)}). Next to grow: <span class="strong">${esc(weak.label)}</span> <span lang="ja">${esc(weak.rank.jp)}</span> (${pct(weak.value)}).</p>
       ${shown === current ? `<a class="btn primary wide" href="${best[0]}" data-act="sc-train">Train ${esc(weak.label.toLowerCase())} in ${esc(best[1])}</a>` : ''}
