@@ -226,7 +226,7 @@ test.describe('Rival Battle', () => {
       }
       return out;
     });
-    expect(lengths.length).toBe(32);
+    expect(lengths.length).toBe(60);   // 8 rivals (4 N5, 4 N4) × 7 lines, 3 finishers and the montage line
     for (const d of lengths) expect(d).toBeGreaterThan(0.8);
   });
 

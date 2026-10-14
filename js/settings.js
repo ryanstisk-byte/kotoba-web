@@ -2,7 +2,7 @@
 import { store } from './store.js';
 import { speaker, recognitionSupported, micSupported, PitchTracker, audioContext, click, micHelp, isIOS } from './audio.js';
 import { esc, delegate, toast } from './ui.js';
-import { CLIPS } from './clips.js';
+import { CLIPS, LATER_CLIPS } from './clips.js';
 import { median } from './modes/rhythm.js';
 import * as fx from './fx.js';
 import * as sync from './sync.js';
@@ -199,7 +199,9 @@ export function mount(el, ctx) {
       if (!('caches' in window) || !navigator.serviceWorker?.controller) {
         text = 'Offline: not set up yet. Open the site once while online, then reload.';
       } else {
-        const files = new Set(Object.values(CLIPS));
+        // The clips this device should have: all but those of levels still locked (cached once they open).
+        const waiting = new Set(lockedLevels().flatMap((lv) => LATER_CLIPS[lv] || []));
+        const files = new Set(Object.values(CLIPS).filter((f) => !waiting.has(f)));
         const saved = new Set();
         for (const key of await caches.keys()) {
           if (!key.startsWith('kotoba-beat-')) continue;

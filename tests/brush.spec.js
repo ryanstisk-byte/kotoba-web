@@ -52,6 +52,7 @@ async function startRound(page) {
 
 test.describe('stroke checker', () => {
   test('every kana passes as itself, sloppily drawn, and never as a different-looking kana', async ({ page }) => {
+    test.setTimeout(120_000);   // ~19,000 drawings checked: close to 30 s even on an idle machine
     await page.goto('./');
     const r = await page.evaluate(async () => {
       const { STROKES } = await import('./js/kana-strokes.js');
