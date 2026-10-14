@@ -51,9 +51,9 @@ Phone-style chats with the story cast: Ren, then Kaito (after story chapter 2), 
 
 - **Switching who you message.** A row of contacts at the top of the inbox; people not met yet show a lock and the chapter where you meet them. Each chat is its own thread (a message's sender is in its data, so saved progress didn't change).
 - **Speech levels.** Each person keeps their own way of talking: Sora (a kid) and Kaito text casually, Granny Kiku politely, the Master in a teacher's short plain style, and Ren politely at tier 1, then casually. The chat header says how they talk and which level fits when you write back.
-- **Messaging someone first.** When a person has nothing waiting and hasn't written today, you start the chat by picking an opener: one polite, one casual. The fitting one is marked right; a miss names the level that fits, and they still write back (graded as `grammar`, `reg:<person>`). The first time, they say hello first (messages marked `intro`). Each person can write once a day this way, on top of the one that can arrive when the app opens.
+- **Messaging someone first.** When a person has nothing waiting and hasn't written today, you start the chat by picking an opener: one polite, one casual. The fitting one is marked right; a miss names the level that fits, and they still write back (graded as `grammar`, `reg:<person>`). The first time, they say hello first (messages marked `intro`). There's no daily limit: a reply that carries the conversation on is answered right away, and when a conversation ends a new one can start, as long as that person has messages at the learner's level left.
 
-- **Arriving.** Opening the app (Today) can bring one new message a day, and messaging someone first brings theirs. Nothing expires: unanswered messages stay, and skipped days lose nothing.
+- **Arriving.** Opening the app (Today) can bring one new message a day; chatting in the inbox has no limit. Nothing expires: unanswered messages stay, and skipped days lose nothing.
 - **Welcome back.** After 4 or more days away the next message is a warm 久しぶり！ note, never a guilt trip.
 - **Levels** (`learnerTier`; tiers 4 and 5 are N4 and N3 chat):
   - Tier 1: kana-only polite messages.

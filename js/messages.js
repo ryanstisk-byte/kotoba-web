@@ -1,7 +1,8 @@
 // Ren's Messages: phone-style chats with Ren and the rest of the story cast (Kaito, the Master, Sora and Granny Kiku join
 // as the story goes on). The learner switches between them; each person keeps their own speech level (casual or
 // polite), and starting a chat means picking the opener in the level that fits them. Opening the app can bring one new
-// message a day, and each person can also write once a day when the learner messages them first. Each one is pitched at the learner's level (tier from the course, the Reading Dojo and
+// message a day; beyond that the learner can chat with anyone as much as they like: a reply that carries the
+// conversation on is answered right away, and a finished conversation can be followed by a new one. Each one is pitched at the learner's level (tier from the course, the Reading Dojo and
 // known Garden words), uses known words plus at most one new one (tap it to plant it), shows kanji only once every
 // kanji in it is known, and is voiced in the sender's voice. A "what did they mean?" tap checks comprehension lightly,
 // and the reply chosen picks the next message. After time away the next note is a warm 久しぶり！, never a guilt trip.
@@ -116,15 +117,12 @@ export function deliver(now = Date.now(), away = store.previousSession ? now - s
 /** Messages not replied to yet (from one person, or from everyone). */
 export const unread = (from = null) => (from ? threadOf(from) : store.messages).filter((e) => e.reply == null).length;
 
-/** Whether this person has already written today. */
-export const wroteToday = (from, now = Date.now()) => threadOf(from).some((e) => e.day === dateKey(new Date(now)));
-
 /**
- * Whether the learner can message this person first now: met in the story, nothing of theirs waiting for a reply,
- * not written today, and they have something at the learner's level to say.
+ * Whether the learner can message this person now: met in the story, nothing of theirs waiting for a reply, and they
+ * have something at the learner's level to say. There's no daily limit: chat as much as the messages allow.
  */
-export function canStart(from, now = Date.now()) {
-  return contactOpen(from) && !unread(from) && !wroteToday(from, now) && !!pickNext(from);
+export function canStart(from) {
+  return contactOpen(from) && !unread(from) && !!pickNext(from);
 }
 
 /** The speech level that fits when writing to this person ('polite' or 'casual'). */
@@ -132,7 +130,7 @@ export const registerFor = (from, tier = learnerTier()) => SENDERS[from].answer(
 
 /** The learner messages this person first: their next message arrives. Returns it, or null. */
 export function startChat(from, now = Date.now()) {
-  if (!canStart(from, now)) return null;
+  if (!canStart(from)) return null;
   const m = pickNext(from);
   store.deliverMessage(m.id, now);
   return m;
@@ -258,11 +256,10 @@ export function mount(el) {
         greet = { from: id, opts: shuffle(['polite', 'casual'].map((reg) => ({ jp: s.open[reg][0], en: s.open[reg][1], reg, right: reg === right }))) };
       }
       return `<div class="panel msg-start stack-sm">
-          <p class="small strong">Message ${esc(s.name)}: which opener fits?</p>
+          <p class="small strong">${list.length ? 'Start a new chat with' : 'Message'} ${esc(s.name)}: which opener fits?</p>
           <div class="msg-opts">${greet.opts.map((o, k) => `<button class="btn msg-reply" data-act="greet" data-k="${k}"><span lang="ja">${esc(o.jp)}</span><span class="small dim">${esc(o.en)}</span></button>`).join('')}</div>
         </div>`;
     }
-    if (wroteToday(id)) return `<p class="small dim center-text">${esc(s.name)} will write back another day.</p>`;
     return `<p class="small dim center-text">${list.length ? `${esc(s.name)} has nothing new at your level yet.` : `${esc(s.name)} has nothing to say at your level yet.`} Plant more words in the Garden and check back.</p>`;
   }
 
@@ -270,7 +267,7 @@ export function mount(el) {
     const list = threadOf(current);
     el.innerHTML = `
       <div class="stack msgs">
-        <p class="small dim">Text Ren and friends at your level. Each person talks their own way, so match how you write back. Anyone can write once a day; nothing expires, so skip days freely.</p>
+        <p class="small dim">Text Ren and friends at your level, as much as you like. Each person talks their own way, so match how you write back. Nothing expires, so skip days freely.</p>
         ${contacts()}
         ${about(current)}
         ${list.length ? `<div class="msg-thread">${list.map((e, i) => bubble(e, i, list)).join('')}</div>` : ''}
@@ -324,9 +321,15 @@ export function mount(el) {
       if (!o.right) say(m);
     },
     reply: (b) => {
+      const m = MESSAGE_BY_ID[b.dataset.id];
       store.replyMessage(b.dataset.id, +b.dataset.k);
+      // A reply that carries the conversation on gets its answer right away.
+      const want = m?.replies[+b.dataset.k]?.next;
+      const next = want && pickNext(m.from)?.id === want ? startChat(m.from) : null;
       render();
-      el.querySelectorAll('.msg-row.mine')[el.querySelectorAll('.msg-row.mine').length - 1]?.scrollIntoView({ block: 'nearest' });
+      const mine = el.querySelectorAll('.msg-row.mine');
+      (next ? el.querySelector('.msg-thread > .msg-row:last-child') : mine[mine.length - 1])?.scrollIntoView({ block: 'nearest' });
+      if (next) setTimeout(() => say(next), 300);
     },
   });
 

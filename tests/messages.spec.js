@@ -70,7 +70,6 @@ test.describe("Ren's Messages", () => {
     expect(s.messages.thread[0].ok).toBe(false);
     await v.locator('[data-act=reply]').first().click();
     await expect(v.locator('.msg-bubble.mine')).toContainText('はじめまして');
-    await expect(v).toContainText('Ren will write back another day');
     s = await saved(page);
     expect(s.messages.thread[0].reply).toBe(0);
     await expectNoHorizontalScroll(page);
@@ -240,7 +239,7 @@ test.describe('switching who you message', () => {
 
   // Granny Kiku is written to politely, Sora casually. One opener in the wrong speech level, one in the right one.
   for (const [who, pick, ok] of [['kiku', 'Hey Kiku', false], ['sora', 'Hey Sora', true]]) {
-    test(`messaging ${who} first: pick the opener (${ok ? 'right' : 'wrong'} speech level), they say hello, once a day`, async ({ page }) => {
+    test(`messaging ${who} first: pick the opener (${ok ? 'right' : 'wrong'} speech level), they say hello, and the chat keeps going`, async ({ page }) => {
       await page.clock.setFixedTime(T('2026-10-13'));
       const thread = [{ id: 'r1', day: '2026-10-13', at: T('2026-10-13').getTime(), reply: 0, ok: true }];
       await seed(page, await learner(page, { thread, words: 700, dojo: HIRAGANA, chapters: STORY, lastSession: T('2026-10-13').getTime() }));
@@ -254,21 +253,24 @@ test.describe('switching who you message', () => {
       await expect(v.locator('.msg-bubble.mine').first()).toContainText(pick);
       let s = await saved(page);
       expect(s.messages.thread.map((e) => e.id)).toEqual(['r1', who === 'kiku' ? 'q1' : 's1']);   // someone new says hello first
-      // Answer and reply: nothing more from them today.
+      // Answer and reply: the reply carries the chat on, so their answer comes right away, no waiting for tomorrow.
       await v.locator('[data-act=mean]').first().click();
       await v.locator('[data-act=reply]').first().click();
-      await expect(v).toContainText('will write back another day');
-      await expect(v.locator('[data-act=greet]')).toHaveCount(0);
+      const second = who === 'kiku' ? 'q2' : 's2';
+      await expect(v.locator(`.msg-row[data-msg=${second}]`)).toBeVisible();
+      s = await saved(page);
+      expect(s.messages.thread.map((e) => e.id)).toEqual(['r1', who === 'kiku' ? 'q1' : 's1', second]);
+      // That conversation ends with the next reply; a new chat can start straight away, the same day.
+      await v.locator('[data-act=mean]').first().click();
+      await v.locator('[data-act=reply]').first().click();
+      await expect(v.locator('.msg-start')).toContainText('Start a new chat');
+      await v.locator('[data-act=greet]').first().click();
+      s = await saved(page);
+      expect(s.messages.thread).toHaveLength(4);
       // Back to Ren: his chat is untouched.
       await v.locator('[data-act=who][data-who=ren]').click();
       await expect(v.locator('.msg-row:not(.mine)')).toHaveCount(1);
       await expectNoHorizontalScroll(page);
-      // The next day, the reply chosen brings their next message when the app opens.
-      await page.clock.setFixedTime(T('2026-10-14'));
-      await page.reload();
-      s = await saved(page);
-      expect(s.messages.thread.map((e) => e.id)).toEqual(['r1', ...(who === 'kiku' ? ['q1', 'q2'] : ['s1', 's2'])]);
-      await expect(v.locator('[data-act=who][aria-pressed=true]')).toHaveAttribute('data-who', who);
     });
   }
 
