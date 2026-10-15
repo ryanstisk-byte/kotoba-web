@@ -506,6 +506,8 @@ export const MODES = [
     body: 'Hear a word and pick its pitch melody.' },
   { id: 'slice', title: 'Speak Slice', jp: 'スピーク斬り', group: 'Speak & listen', icon: '⚔️', mic: true,
     body: 'Say the word out loud to slice it.' },
+  { id: 'meet', title: 'Encounters', jp: '出会い', group: 'Speak & listen', icon: '💬', mic: false,
+    body: 'Talk your way through real moments with people you meet.' },
   { id: 'shop', title: 'Shopkeeper', jp: 'お店', group: 'Speak & listen', icon: '🛒', mic: false,
     body: 'Serve customers with the right counter.' },
   { id: 'listen', title: 'Listening Lab', jp: '聞き取りラボ', group: 'Speak & listen', icon: '🎧', mic: false,

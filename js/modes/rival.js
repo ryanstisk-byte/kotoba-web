@@ -70,7 +70,7 @@ function savedFighter() {
 }
 
 /** How alike two strings are (shared character pairs), 0..1. Generous: recognition is imperfect. */
-function likeness(a, b) {
+export function likeness(a, b) {
   const pairs = (s) => { const out = []; for (let i = 0; i < s.length - 1; i++) out.push(s.slice(i, i + 2)); return out.length ? out : [s]; };
   const pa = pairs(a);
   const pool = [...pairs(b)];

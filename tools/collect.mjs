@@ -17,6 +17,7 @@ import { PARAPHRASE, TEXT_GRAMMAR, SHORT, MID, INFO } from '../js/exam-bank-read
 import { ALL_MESSAGES, SENDERS } from '../js/messages-data.js';
 import { READERS } from '../js/library-data.js';
 import { rivalLines } from '../js/rival-data.js';
+import { encounterLines, SCENES as MEET_SCENES } from '../js/encounter-data.js';
 import { DIALOGUES, NUMBER_SCENES, KATA_WORDS, CONJ_WORDS, VERB_FORMS, ADJ_FORMS, VERB_FORMS_N4, ADJ_FORMS_N4, VERB_FORMS_N3, formsFor, conjugate, conjPrompt, BUILD_SENTENCES } from '../js/practice-data.js';
 
 // Every clip records the easiest level that uses it (LV while it's added): N5 clips are precached when the app
@@ -113,6 +114,10 @@ for (const m of ALL_MESSAGES) { add(m.jp, SENDERS[m.from].voice, null, lv(m)); p
 for (const r of READERS) for (const l of r.lines) { add(l.jp, l.speaker.voice, null, lv(r)); pairs.push([l.jp, l.reading]); }
 // Rival Battle: each rival's taunts, counters and endings in their own voice, and Ren's finisher shouts.
 for (const [l, voice, level] of rivalLines()) { add(l.jp, voice, null, level); pairs.push([l.jp, l.reading]); }
+// Encounters: each person's lines in their own voice, every reply in the narrator's voice (the model to copy), and
+// readings for the wrong replies too (they're shown with furigana, never spoken).
+for (const [l, voice, level] of encounterLines()) { add(l.jp, voice, null, level); pairs.push([l.jp, l.reading]); }
+for (const s of MEET_SCENES) for (const t of s.turns) for (const l of t.wrong) pairs.push([l.jp, l.reading]);
 // Kana Brush words (N4, N3): each word said whole, before it's written kana by kana.
 for (const w of BRUSH_WORDS) add(w.kana, 0, null, lv(w));
 

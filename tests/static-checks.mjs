@@ -75,7 +75,7 @@ if (noClip.length) {
 // ---- everything the site needs offline is precached ----
 const walk = (dir) => readdirSync(join(ROOT, dir), { withFileTypes: true })
   .flatMap((d) => (d.isDirectory() ? walk(join(dir, d.name)) : [join(dir, d.name)]));
-const required = ['index.html', 'styles.css', 'manifest.webmanifest', 'audio/silence.mp3', ...walk('js'), ...walk('icons')];
+const required = ['index.html', 'styles.css', 'manifest.webmanifest', 'audio/silence.mp3', ...walk('js'), ...walk('icons'), ...walk('img')];
 for (const f of required) {
   const rel = './' + relative(ROOT, join(ROOT, f)).split('\\').join('/');
   if (!seen.has(rel)) errors.push(`${rel} is part of the site but missing from the sw.js precache list`);
