@@ -13,6 +13,8 @@ import { esc, delegate } from './ui.js';
 import { readiness, mockLine, N5_TARGETS, N4_TARGETS, N3_TARGETS, READY_AVERAGE, READY_FLOOR } from './readiness.js';
 import { SCORING, scoreSections } from './exam-data.js';
 import { N3_WORDS } from './data.js';
+import { READERS } from './library-data.js';
+import { wordsRead } from './modes/library.js';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const MON = MONTHS.map((m) => m.slice(0, 3));
@@ -178,7 +180,7 @@ export function render(view) {
     <section class="panel stack-sm" aria-labelledby="read-h">
       <h2 class="section-title" id="read-h">Kana and kanji</h2>
       ${barChart(readRows, { label: `Characters learned: ${readRows.map((r) => `${r.label} ${r.text}`).join(', ')}.` })}
-      <p class="small dim">Reading Dojo lessons: ${TRACKS.map((t) => `${esc(t.title)} ${lessonsDone(t.id)}/${ALL_LESSONS.filter((l) => l.track === t.id).length}`).join(' · ')}. Story chapters: ${store.clearedChapters.size}/${CHAPTERS.length}.</p>
+      <p class="small dim">Reading Dojo lessons: ${TRACKS.map((t) => `${esc(t.title)} ${lessonsDone(t.id)}/${ALL_LESSONS.filter((l) => l.track === t.id).length}`).join(' · ')}. Story chapters: ${store.clearedChapters.size}/${CHAPTERS.length}. Library: ${READERS.filter((r) => store.readerResult(r.id)).length}/${READERS.length} readers, ${wordsRead().toLocaleString()} words read.</p>
     </section>
 
     ${roadSection(road, d)}

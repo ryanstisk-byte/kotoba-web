@@ -11,7 +11,7 @@ test('home leads with Today and its next step', async ({ page }) => {
 
 test('the Modes screen lists every mode', async ({ page }) => {
   await page.goto('./#/modes');
-  await expect(view(page).locator('.mode-card')).toHaveCount(16);
+  await expect(view(page).locator('.mode-card')).toHaveCount(19);
   await expectNoHorizontalScroll(page);
 });
 
@@ -26,7 +26,7 @@ for (const hash of ['#/', '#/modes', '#/garden', '#/progress', '#/settings']) {
 }
 
 for (const hash of ['#/check', '#/play/dojo', '#/play/garden', '#/play/story', '#/play/particle',
-  '#/play/forge', '#/play/rhythm', '#/play/duel', '#/play/slice', '#/play/shop']) {
+  '#/play/forge', '#/play/rhythm', '#/play/duel', '#/play/slice', '#/play/shop', '#/play/library', '#/play/walk', '#/play/type']) {
   test(`${hash} has a back button and no horizontal scroll`, async ({ page }) => {
     await page.goto('./' + hash);
     await expect(page.locator('#back')).toBeVisible();

@@ -28,6 +28,7 @@ export const EMOJI_ICONS = {
   "💧": "drop",
   "🐱": "cat",
   "🐶": "dog",
+  "⌨": "keyboard",
   "🥢": "chopsticks",
   "🌉": "bridge",
   "☔": "umbrella",
