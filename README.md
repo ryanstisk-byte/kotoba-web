@@ -47,11 +47,15 @@ The migration plants grammar cards for lessons already read and conjugation form
 
 ## Ren's Messages
 
-A phone-style thread from Ren, with Kaito (after story chapter 2) and the Master (after chapter 4) joining later. Engine in `js/messages.js`, messages in `js/messages-data.js`, inbox at `#/messages`, card on Today.
+Phone-style chats with the story cast: Ren, then Kaito (after story chapter 2), the Master (after chapter 4), and Sora and Granny Kiku (after chapter 6). Engine in `js/messages.js`, messages in `js/messages-data.js` and `js/messages-cast.js`, inbox at `#/messages`, card on Today.
 
-- **One a day at most.** Opening the app (Today) can bring one new message. Nothing expires: unanswered messages stay, and skipped days lose nothing.
+- **Switching who you message.** A row of contacts at the top of the inbox; people not met yet show a lock and the chapter where you meet them. Each chat is its own thread (a message's sender is in its data, so saved progress didn't change).
+- **Speech levels.** Each person keeps their own way of talking: Sora (a kid) and Kaito text casually, Granny Kiku politely, the Master in a teacher's short plain style, and Ren politely at tier 1, then casually. The chat header says how they talk and which level fits when you write back.
+- **Messaging someone first.** When a person has nothing waiting and hasn't written today, you start the chat by picking an opener: one polite, one casual. The fitting one is marked right; a miss names the level that fits, and they still write back (graded as `grammar`, `reg:<person>`). The first time, they say hello first (messages marked `intro`). There's no daily limit: a reply that carries the conversation on is answered right away, and when a conversation ends a new one can start, as long as that person has messages at the learner's level left.
+
+- **Arriving.** Opening the app (Today) can bring one new message a day; chatting in the inbox has no limit. Nothing expires: unanswered messages stay, and skipped days lose nothing.
 - **Welcome back.** After 4 or more days away the next message is a warm 久しぶり！ note, never a guilt trip.
-- **Levels** (`learnerTier`):
+- **Levels** (`learnerTier`; tiers 4 and 5 are N4 and N3 chat):
   - Tier 1: kana-only polite messages.
   - Tier 2: casual speech, once hiragana is done and 4 course units (or 60 Garden words) are.
   - Tier 3: N4 grammar (～たら, ～てしまう, ～なければならない, ～そうだ, ～かもしれない, ～ようと思う), once unit p1-10 is done (or 200 words).
@@ -59,7 +63,7 @@ A phone-style thread from Ren, with Kaito (after story chapter 2) and the Master
 - **Words.** Each message lists its Garden words. It can arrive only when at most one of them is new, and that word has a "＋ New word" chip that plants it.
 - **Reading it.** Each message is voiced in its sender's VOICEVOX voice, with the usual reading help. A "what did they mean?" tap checks comprehension lightly: a miss shows the answer, nothing else. The tap is graded as `vocab` (`msg:<id>`).
 - **Replies.** 2-3 Japanese replies with English under each. The reply picks the next message (short conversations over days). Otherwise the next one is a fresh conversation: story moments first (the latest chapter reached), then the learner's tier.
-- **Pool.** 45 messages plus 3 welcome-back notes, original writing. 14 are tied to story chapters.
+- **Pool.** Original writing at every tier for every person, plus welcome-back notes from Ren.
 - **Saved progress v11** adds `messages.thread` (`{ id, day, at, reply, ok }`, oldest first). The sync merge keeps every message from both devices once, and a copy with a reply or answer wins.
 ## Rival Battle
 

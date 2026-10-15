@@ -70,7 +70,6 @@ test.describe("Ren's Messages", () => {
     expect(s.messages.thread[0].ok).toBe(false);
     await v.locator('[data-act=reply]').first().click();
     await expect(v.locator('.msg-bubble.mine')).toContainText('はじめまして');
-    await expect(v).toContainText('Ren will write back another day');
     s = await saved(page);
     expect(s.messages.thread[0].reply).toBe(0);
     await expectNoHorizontalScroll(page);
@@ -176,7 +175,7 @@ test.describe("Ren's Messages", () => {
     expect(r.n).toBeGreaterThanOrEqual(40);
     expect(r.bad).toEqual([]);
     for (const n of r.tiers) expect(n).toBeGreaterThanOrEqual(8);
-    expect(r.senders).toEqual(['kaito', 'master', 'ren']);
+    expect(r.senders).toEqual(['kaito', 'kiku', 'master', 'ren', 'sora']);
     expect(r.story).toBeGreaterThanOrEqual(10);
   });
 
@@ -207,6 +206,96 @@ test.describe("Ren's Messages", () => {
     expect(r.missing).toEqual([]);
     expect(r.short).toBe(0);
     expect(r.wrong).toEqual([]);
+  });
+});
+
+test.describe('switching who you message', () => {
+  const STORY = ['ch1', 'ch2', 'ch3', 'ch4', 'ch5', 'ch6'];
+
+  test('everyone met has messages at every tier, so switching always has someone to talk to', async ({ page }) => {
+    await page.goto('./');
+    const r = await page.evaluate(async () => {
+      const { MESSAGES, CONTACTS } = await import('./js/messages-data.js');
+      return CONTACTS.map((id) => [id, [1, 2, 3, 4, 5].filter((t) => !MESSAGES.some((m) => m.from === id && m.tier === t))]);
+    });
+    for (const [id, missing] of r) expect(missing, id).toEqual([]);
+  });
+
+  test('the contact row: Ren to start, the others locked until met in the story', async ({ page }) => {
+    await page.clock.setFixedTime(T('2026-10-13'));
+    await seed(page, await learner(page));
+    await page.goto('./#/messages');
+    const v = view(page);
+    await expect(v.locator('[data-act=who]')).toHaveCount(5);
+    await expect(v.locator('[data-act=who][aria-pressed=true]')).toHaveAttribute('data-who', 'ren');
+    await expect(v.locator('.msg-contact.locked')).toHaveCount(4);
+    await v.locator('[data-act=who][data-who=sora]').click();
+    await expect(v).toContainText("You'll meet Sora in Story chapter 6");
+    await expect(v.locator('.msg-row')).toHaveCount(0);
+    await v.locator('[data-act=who][data-who=ren]').click();
+    await expect(v.locator('.msg-text').first()).toContainText('レンです');
+    await expectNoHorizontalScroll(page);
+  });
+
+  // Granny Kiku is written to politely, Sora casually. One opener in the wrong speech level, one in the right one.
+  for (const [who, pick, ok] of [['kiku', 'Hey Kiku', false], ['sora', 'Hey Sora', true]]) {
+    test(`messaging ${who} first: pick the opener (${ok ? 'right' : 'wrong'} speech level), they say hello, and the chat keeps going`, async ({ page }) => {
+      await page.clock.setFixedTime(T('2026-10-13'));
+      const thread = [{ id: 'r1', day: '2026-10-13', at: T('2026-10-13').getTime(), reply: 0, ok: true }];
+      await seed(page, await learner(page, { thread, words: 700, dojo: HIRAGANA, chapters: STORY, lastSession: T('2026-10-13').getTime() }));
+      await page.goto('./#/messages');
+      const v = view(page);
+      await v.locator(`[data-act=who][data-who=${who}]`).click();
+      await expect(v.locator('.msg-about')).toContainText(who === 'kiku' ? 'Polite' : 'Casual');
+      await v.locator('[data-act=greet]').filter({ hasText: pick }).click();
+      // A miss names the speech level that fits, and they still write back.
+      await expect(v.locator(`.msg-fit.${ok ? 'good-c' : 'miss-c'}`)).toContainText(ok ? 'Right' : 'fits better');
+      await expect(v.locator('.msg-bubble.mine').first()).toContainText(pick);
+      let s = await saved(page);
+      expect(s.messages.thread.map((e) => e.id)).toEqual(['r1', who === 'kiku' ? 'q1' : 's1']);   // someone new says hello first
+      // Answer and reply: the reply carries the chat on, so their answer comes right away, no waiting for tomorrow.
+      await v.locator('[data-act=mean]').first().click();
+      await v.locator('[data-act=reply]').first().click();
+      const second = who === 'kiku' ? 'q2' : 's2';
+      await expect(v.locator(`.msg-row[data-msg=${second}]`)).toBeVisible();
+      s = await saved(page);
+      expect(s.messages.thread.map((e) => e.id)).toEqual(['r1', who === 'kiku' ? 'q1' : 's1', second]);
+      // That conversation ends with the next reply; a new chat can start straight away, the same day.
+      await v.locator('[data-act=mean]').first().click();
+      await v.locator('[data-act=reply]').first().click();
+      await expect(v.locator('.msg-start')).toContainText('Start a new chat');
+      await v.locator('[data-act=greet]').first().click();
+      s = await saved(page);
+      expect(s.messages.thread).toHaveLength(4);
+      // Back to Ren: his chat is untouched.
+      await v.locator('[data-act=who][data-who=ren]').click();
+      await expect(v.locator('.msg-row:not(.mine)')).toHaveCount(1);
+      await expectNoHorizontalScroll(page);
+    });
+  }
+
+  test("a reply's follow-up comes from the same person, even after someone else wrote", async ({ page }) => {
+    await page.clock.setFixedTime(T('2026-10-14'));
+    const thread = [
+      { id: 's1', day: '2026-10-12', at: T('2026-10-12').getTime(), reply: 0, ok: true },
+      { id: 'r1', day: '2026-10-13', at: T('2026-10-13').getTime(), reply: 0, ok: true },
+    ];
+    await seed(page, await learner(page, { thread, words: 700, dojo: HIRAGANA, chapters: STORY }));
+    await page.goto('./#/progress');
+    const r = await page.evaluate(async () => (await import('./js/messages.js')).pickNext('sora')?.id);
+    expect(r).toBe('s2');
+  });
+
+  test('Kaito and the Master have kana-only notes for beginners once met', async ({ page }) => {
+    await seed(page, await learner(page, { chapters: ['ch1', 'ch2', 'ch3', 'ch4'] }));
+    await page.goto('./#/progress');
+    const r = await page.evaluate(async () => {
+      const { pickNext, learnerTier } = await import('./js/messages.js');
+      return { tier: learnerTier(), kaito: pickNext('kaito')?.id, master: pickNext('master')?.id };
+    });
+    expect(r.tier).toBe(1);
+    expect(r.kaito).toMatch(/^k1\d$/);
+    expect(r.master).toMatch(/^m1\d$/);
   });
 });
 
