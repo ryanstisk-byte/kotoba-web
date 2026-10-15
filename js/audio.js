@@ -300,6 +300,8 @@ export class Recognizer {
     this.failures = [];
     this.hints = hints;
     this.want = true;
+    this.startedAt = Date.now();
+    this.everStarted = false;
     this.begin();
   }
 
@@ -335,6 +337,7 @@ export class Recognizer {
     rec.onstart = () => {
       if (gen !== this.gen) return;
       this.listening = true;
+      this.everStarted = true;
       this.status = 'Listening';
       this.emit();
     };
@@ -371,6 +374,9 @@ export class Recognizer {
       if (!this.want) return;
       // Give up gracefully if it keeps ending instantly (broken service).
       const now = Date.now();
+      // The first time, the browser's "allow the microphone?" question can end a few windows before you answer it;
+      // those don't count as the service failing.
+      if (!this.everStarted && now - this.startedAt < 15000) { setTimeout(() => { if (gen === this.gen) this.begin(); }, 400); return; }
       this.failures = this.failures.filter((t) => now - t < 5000);
       this.failures.push(now);
       if (this.failures.length > 6) { this.fail('Speech recognition keeps stopping on this device.'); return; }

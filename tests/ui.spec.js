@@ -180,7 +180,7 @@ test.describe('readability', () => {
     await page.goto('./#/modes');
     const r = await page.evaluate(async () => {
       const out = {};
-      for (const text of ['よろしくおねがいします', 'わたしはがくせいです', 'ありがとうございます']) {
+      for (const text of ['よろしくおねがいします', 'わたしはがくせいです', 'ありがとうございます', 'よろしくお願いします', 'レンです']) {
         const p = document.createElement('p');
         p.style.width = '120px';
         p.lang = 'ja';
@@ -192,8 +192,11 @@ test.describe('readability', () => {
       return out;
     });
     expect(r['よろしくおねがいします'].rts).toEqual(['yoroshiku', 'onegaishimasu']);
-    expect(r['わたしはがくせいです'].rts).toEqual(['watashi wa', 'gakuseidesu']);
+    expect(r['わたしはがくせいです'].rts).toEqual(['watashi wa', 'gakusei desu']);
     expect(r['ありがとうございます'].rts).toEqual(['arigatou', 'gozaimasu']);
+    expect(r['よろしくお願いします'].rts).toEqual(['yoroshiku', 'onegaishimasu']);   // a する verb stays one word
+    expect(r['レンです'].rts).toEqual(['ren desu']);   // です gets its own romaji word, with no gap in the Japanese
+    expect(r['レンです'].gaps).toBe(0);
     for (const v of Object.values(r)) expect(v.gaps).toBe(v.rts.length - 1);
     expect(r['よろしくおねがいします'].plain).toBe('よろしくyoroshikuおねがいしますonegaishimasu');   // the gap adds no text
   });
