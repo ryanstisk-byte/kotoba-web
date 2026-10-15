@@ -1,6 +1,6 @@
 # Kotoba Beat (web)
 
-A personal Japanese study game for PC and phone. It has a Reading Dojo (hiragana, katakana, starter kanji) and fifteen game modes (Kana Brush, Rival Battle, Garden, Story, Particle Train, Kanji Forge, Conjugation Dojo, Sentence Builder, Katakana Rush, Rhythm, Pitch Duel, Speak Slice, Shopkeeper, Listening Lab and Numbers & Time) and a guided **Today** session.
+A personal Japanese study game for PC and phone. It has a Reading Dojo (hiragana, katakana, starter kanji), eighteen game modes (Kana Brush, Rival Battle, Garden, Type It, Story, Library, Particle Train, Kanji Forge, Conjugation Dojo, Sentence Builder, Katakana Rush, Rhythm, Pitch Duel, Speak Slice, Shopkeeper, Listening Lab, Numbers & Time and Walk Mode) and a guided **Today** session.
 
 Live site: https://rykoha.github.io/kotoba-web/
 
@@ -65,6 +65,51 @@ Phone-style chats with the story cast: Ren, then Kaito (after story chapter 2), 
 - **Replies.** 2-3 Japanese replies with English under each. The reply picks the next message (short conversations over days). Otherwise the next one is a fresh conversation: story moments first (the latest chapter reached), then the learner's tier.
 - **Pool.** Original writing at every tier for every person, plus welcome-back notes from Ren.
 - **Saved progress v11** adds `messages.thread` (`{ id, day, at, reply, ok }`, oldest first). The sync merge keeps every message from both devices once, and a copy with a reply or answer wins.
+## Library and tap to look up
+
+**Library** (`#/play/library`, `js/modes/library.js`): short graded readers for reading a lot of easy Japanese. They're
+original side stories of the story cast and everyday pieces (a diary, a letter, a notice, a menu), 12-18 lines each, in
+`js/library-n5.js`, `js/library-n4.js` and `js/library-n3.js` (assembled in `js/library-data.js`).
+- Written almost entirely in the words the decks up to their level teach. `python3 tools/build_lookup.py --check N4`
+  lists, per reader, the words beyond the decks (for writing new readers).
+- A shelf per level (locked levels show their lock line). Each reader shows how many of its words are already in the
+  Garden ("% met"); the suggested next read is the unread one with the most words met. Around 90% or more reads smoothly.
+- Reading: the whole text on one page, every line voiced in its speaker's voice (or "Play all"), English hidden per line
+  until asked for, then 2-3 light questions (a miss just shows the answer). The end screen offers the story's Garden
+  words not planted yet; nothing is planted for you.
+- **Words read** (each finished reader's words, times read) shows on the shelf, on Today's Library card and on Progress.
+- Saved progress v13 adds `library.read` (`id -> { n, at, q, qt }`). The sync merge keeps each reader's larger count,
+  latest time and best score.
+
+**Tap to look up** (`js/lookup.js`): every word in a Story line, one of Ren's Messages or a Library reader can be tapped.
+A card at the bottom shows the word, its reading and romaji, its meaning, a Hear button, and "Plant in Garden" when it's
+a Garden card not planted yet. Particles and endings get a short note; numbers name their counter. Words are worked out
+ahead of time: `tools/build_lookup.py` (run by `tools/build_assets.py`) splits each line with Open JTalk, joins
+conjugation endings to their verb (たべました is たべる), and matches the dictionary form to the line's tagged words,
+then the Garden cards, then JMdict (EDRDG, CC BY-SA 4.0) for anything else. It writes `js/lookup-data.js`; the JMdict
+meanings it used are kept in `tools/jmdict-glosses.tsv`, so a rebuild without the dictionary keeps them. To refresh
+them, set `JMDICT_DB` to a jamdict SQLite file (the `jamdict-data` package ships one). Looked-up words without a Garden
+card get their own clip.
+
+## Walk Mode and Type It
+
+**Walk Mode** (`#/play/walk`, `js/modes/walk.js`): eyes-free review for walks and commutes. It says the English (the
+device's English voice; without one it shows on screen), pauses for you to say the Japanese out loud, then plays the
+answer twice; every third word its example sentence gets the same treatment. Words come from the Garden, due and shaky
+ones first; with fewer than 8 planted, the first deck words come in as listen-and-repeat. 5, 10 or 15 minutes, pause,
+skip, a "more time" option, and the words on screen or not. Nothing is graded, so reviews are never changed. The screen
+stays awake while it plays (Wake Lock) and lock-screen media keys can pause it. Today links to it on Short days. Its
+choices are kept on the device (`kotobaBeat.walk`), not in progress.
+
+**Type It** (`#/play/type`, `js/modes/type.js`, checks in `js/kana-input.js`): type the answer from memory, three ways
+round: see the word and type its English **meaning**, see it and type its **reading** in romaji (or kana), or see the
+English and type the **Japanese** (Japanese keyboard, or romaji that turns into kana as you type). Words written in
+hiragana, katakana, kanji or all. Garden words first (due ones first), topped up with the decks' first words and
+Katakana Rush words. Scoring is generous: any listed meaning, typos, plurals, a long vowel or small っ left out counts
+("close enough"), and "I was right" counts a miss that was fine. A miss shows the answer, brings the word back three
+words later and makes a Garden word due by tomorrow. Graded as vocab (reading: kana or kanji). Its choices stay on the
+device (`kotobaBeat.type`).
+
 ## Rival Battle
 
 A boss fight built entirely from review (`js/modes/rival.js`, attacks in `js/rival-items.js`, lines in `js/rival-data.js`).
@@ -335,6 +380,7 @@ Actions (`.github/workflows/tests.yml`).
 - `tests/messages.spec.js`: Ren's Messages. One a day, the inbox check and replies, replies picking the next message, welcome back, levels and kanji display, story-tied messages, the pool, every message voiced and playable with matching furigana, and the v10 → v11 migration (`tests/fixtures/progress-v10.json`).
 - `tests/rival.spec.js`: Rival Battle. Rivals unlocking, attacks only from what was learned, combos and the finisher, counters and comebacks, the training montage, Quiet mode, a spoken answer (fake recognizer), every line voiced and playable, and the optional weekend block.
 - `tests/brush.spec.js`: Kana Brush. The checker on every kana (sloppy redraws pass, other kana don't), joins, splits, order and look-alikes, drawing with the mouse and with touch (no page scroll), misses and retries, the guide fading, only Dojo kana, the Today block, and the v9 → v10 migration (`tests/fixtures/progress-v9.json`) with the sync merge.
+- `tests/library.spec.js`: the Library (readers' data, the shelf, reading through to the questions, words read), tap to look up (Library, Story, Messages, planting), Walk Mode, Type It (the checks and a round each way round), and the v12 -> v13 migration and sync merge.
 - `tests/sync.spec.js`: the sync merge (phone-vs-PC conflict, idempotence, mined-line clashes), and syncing against a mocked api.github.com (connect, find the gist, the automatic syncs, offline, bad token, Disconnect, the token never leaking).
 - `tests/offline.spec.js`: the service worker precaches everything and the app works with no network.
 - `tests/smoke.spec.js` and `tests/store.spec.js`: settings, the `#/check` screen, layout and store bookkeeping.

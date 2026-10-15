@@ -483,8 +483,12 @@ export const MODES = [
     body: 'Read katakana loanwords against a gentle clock.' },
   { id: 'garden', title: 'Garden', jp: '庭', group: 'Review', icon: '🌱', mic: false,
     body: "Review your words. Nothing dies while you're away." },
+  { id: 'type', title: 'Type It', jp: 'タイピング', group: 'Review', icon: '⌨', mic: false,
+    body: 'Type the meaning, the reading or the Japanese from memory.' },
   { id: 'story', title: 'Story', jp: '物語', group: 'Understand', icon: '📖', mic: false,
     body: 'An original shōnen story at your level.' },
+  { id: 'library', title: 'Library', jp: '図書室', group: 'Understand', icon: '📕', mic: false,
+    body: 'Short stories to read a lot. Tap any word to look it up.' },
   { id: 'particle', title: 'Particle Train', jp: '助詞列車', group: 'Understand', icon: '🚃', mic: false,
     body: 'Couple word cars with the right particle.' },
   { id: 'forge', title: 'Kanji Forge', jp: '漢字鍛冶', group: 'Understand', icon: '🔨', mic: false,
@@ -507,5 +511,7 @@ export const MODES = [
     body: 'Short audio scenes, then questions.' },
   { id: 'numbers', title: 'Numbers & Time', jp: '数と時間', group: 'Speak & listen', icon: '🔢', mic: false,
     body: 'Times, prices and dates by ear.' },
+  { id: 'walk', title: 'Walk Mode', jp: '散歩', group: 'Speak & listen', icon: '👟', mic: false,
+    body: 'Eyes-free: hear the English, say the Japanese.' },
 ];
 export const MODE_BY_ID = Object.fromEntries(MODES.map((x) => [x.id, x]));

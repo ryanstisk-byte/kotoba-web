@@ -182,7 +182,11 @@ def build_clips(clips):
                 level_of[name] = level
             path = os.path.join(AUDIO, name)
             if not os.path.exists(path):
-                synth(text, voice, speed, path, opts)
+                try:
+                    synth(text, voice, speed, path, opts)
+                except Exception:
+                    print(f'  could not voice {text!r} ({voice}, {speed})', flush=True)
+                    raise
                 made += 1
                 if made % 100 == 0:
                     print(f'  {made} clips made...', flush=True)
@@ -307,7 +311,7 @@ def source_texts():
     texts = set()
     for dirpath, _, files in os.walk(os.path.join(ROOT, 'js')):
         for f in files:
-            if not f.endswith('.js') or f in ('readings.js', 'clips.js', 'n5.js', 'n4.js', 'n3.js', 'words.js'):
+            if not f.endswith('.js') or f in ('readings.js', 'clips.js', 'n5.js', 'n4.js', 'n3.js', 'words.js', 'lookup-data.js'):
                 continue
             src = open(os.path.join(dirpath, f), encoding='utf-8').read()
             # Lists of look-alike characters (js/word-help.js) are not text: reading 右石 as a word would give 石 the
@@ -453,7 +457,7 @@ def build_words():
     segs = set()
     for dirpath, _, files in os.walk(os.path.join(ROOT, 'js')):
         for f in files:
-            if not f.endswith('.js') or f in ('readings.js', 'words.js'):
+            if not f.endswith('.js') or f in ('readings.js', 'words.js', 'lookup-data.js', 'clips.js'):
                 continue
             src = open(os.path.join(dirpath, f), encoding='utf-8').read()
             segs.update(SEG_RE.findall(src))
@@ -543,7 +547,15 @@ def build_n5():
 def main():
     build_n5()
     data = json.loads(subprocess.run(['node', os.path.join(ROOT, 'tools', 'collect.mjs')], capture_output=True, check=True, text=True).stdout)
-    level_of = build_clips([(c[0], c[1], c[2] if len(c) > 2 else None, c[3] if len(c) > 3 else None, c[4] if len(c) > 4 else 'N5') for c in data['clips']])
+    extra = []
+    if pyopenjtalk:
+        # Tap a word to look it up (js/lookup-data.js), and a clip for each looked-up word that has no Garden card.
+        import build_lookup
+        tokens, entries, unknown = build_lookup.build(data['lookup'])
+        build_lookup.write(tokens, entries)
+        have = {(c[0], c[1]) for c in data['clips']}
+        extra = [c for c in build_lookup.extra_clips(entries, build_lookup.build.level_of) if (c[0], c[1]) not in have]
+    level_of = build_clips([(c[0], c[1], c[2] if len(c) > 2 else None, c[3] if len(c) > 3 else None, c[4] if len(c) > 4 else 'N5') for c in data['clips'] + extra])
     if pyopenjtalk:
         build_readings(data['pairs'])
         build_words()
