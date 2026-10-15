@@ -112,9 +112,12 @@ device (`kotobaBeat.type`).
 
 ## Rival Battle
 
-A boss fight built entirely from review (`js/modes/rival.js`, attacks in `js/rival-items.js`, lines in `js/rival-data.js`).
+A monster-battle-style fight built entirely from review (`js/modes/rival.js`, attacks in `js/rival-items.js`, lines and fighters in `js/rival-data.js`, drawings in `js/rival-art.js`).
 
-- **Rivals.** Kaito challenges you from the start. Master joins after story chapter 4, Sora after chapter 6 and Granny Kiku after chapter 8. Each speaks in their story voice. Later rivals have a little more stamina.
+- **The arena.** The rival's name card and stamina bar sit top left with the rival drawn top right; your fighter is drawn from behind bottom left with their card, stamina bar and numbers bottom right. Stamina bars run green, yellow under half, red under a fifth, and drain visibly; a knocked-out character sinks away before the end screen.
+- **Rivals.** Kaito challenges you from the start. Master joins after story chapter 4, Sora after chapter 6 and Granny Kiku after chapter 8. Each speaks in their story voice. Later rivals have a little more stamina. N4 and N3 rematches are drawn with a power aura.
+- **Your fighter.** Ren or Aoi from the start, and each story character once they've challenged you. The pick stays on the device (`kotobaBeat.fighter`), and finisher shouts use the fighter's own voice. Character drawings are inline SVG; finished artwork can replace any of them through `ART_IMAGES` in `js/rival-art.js`.
+- **The attack bubble.** Each attack flies at you as a speech bubble with a fuse. Answer before it lands to counter and hit the rival. It takes 8 to 13 seconds (longer for sentences and listening), longer while the fight's accuracy is under 80%, a little shorter over 90%, and longer with slow speech. Saying it out loud pauses the bubble, and so does leaving the tab. Reduced motion keeps the bubble still and shows only the fuse.
 - **Attacks** come only from what you've already met, mixed together in one fight:
   - Garden words you've reviewed: meaning from the Japanese, or the Japanese from the meaning. Each word always asks the same way round. Due words come first.
   - Reading Dojo kana you've reviewed.
@@ -122,8 +125,8 @@ A boss fight built entirely from review (`js/modes/rival.js`, attacks in `js/riv
   - With fewer than 6 attacks available, the rivals wait.
 - **Answers.** Tap, or press Say it and answer out loud (speech recognition, same lenient matching as the Garden). Quiet mode is tap only.
 - **Combo.** 4 right in a row is a finisher: a short slash animation and a voiced shout from Ren. It hits 3 times. Reduced motion skips the animation.
-- **Misses cost nothing.** The rival says a counter line in their voice, then the answer is played, and the attack comes back 3 turns later.
-- **No losing.** 3 misses in a row, or under 60% after 6 attacks, turns the fight into a training montage. Each missed item is shown and heard, then drilled once. Then the rival bows with a line of respect. A fight ends when the rival is down, or after 16 attacks with a respect ending.
+- **Misses.** A wrong answer or a bubble that lands takes 5 of your 20 stamina (a finisher wins 5 back). The rival says a counter line in their voice, then the answer is played, and the attack comes back 3 turns later. Nothing in your saved progress is knocked down.
+- **No losing.** Running out of stamina turns the fight into a training montage. Each missed item is shown and heard, then drilled once. Then the rival bows with a line of respect. A fight ends when the rival is down, or after 16 attacks with a respect ending.
 - **About 85%.** Options drop from 4 to 3 while a skill's recent accuracy is under ~80%. While the fight's own accuracy is under 80% the next attack is a well-known one; over 90%, a due or less-known one.
 - **Grading.** Everything goes through the store: due Garden words with `store.reviewCard`, due kana with `recordDojo`, due conjugation cards with `reviewGrammar`, and every first try with `store.grade`. Reviews, accuracy and Progress update as in the other modes. Nothing new is saved: no wins, no counters.
 - **Today.** On Saturdays and Sundays an **optional** Rival Battle block appears, once there's enough to fight with. Optional blocks never count toward finishing the day or the day's minutes.
