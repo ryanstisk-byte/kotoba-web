@@ -9,6 +9,7 @@ import { readingOf } from '../furigana.js';
 import { esc, shuffle, delegate } from '../ui.js';
 import * as fx from '../fx.js';
 import { content, mixed, levelBar } from '../levels.js';
+import { levelOf } from '../level-tag.js';
 
 const GOAL = 5;
 const WORDS = BUILD_SENTENCES.map((x) => wordsInTiles(x.tiles));
@@ -30,6 +31,19 @@ function likeness(a, b) {
   let hit = 0;
   for (const p of pa) { const j = pool.indexOf(p); if (j >= 0) { hit++; pool.splice(j, 1); } }
   return (2 * hit) / (pa.length + pb.length);
+}
+
+// Decoys: particles that don't belong, so you have to know which connector the sentence needs, not just the
+// order. More of them at higher levels. Pairs that can swap in a real sentence (は/が/も, に/へ) are never decoys
+// for each other, so a decoy is always plainly wrong.
+const DECOY_POOL = ['を', 'に', 'で', 'へ', 'と', 'の', 'から', 'まで', 'が', 'は', 'も'];
+const DECOYS = { N5: 1, N4: 2, N3: 3 };
+export function decoysFor(sentence) {
+  const has = new Set(sentence.tiles);
+  const clash = (p) => has.has(p)
+    || (['は', 'が', 'も'].includes(p) && ['は', 'が', 'も'].some((q) => has.has(q)))
+    || (p === 'へ' && has.has('に')) || (p === 'に' && has.has('へ'));
+  return shuffle(DECOY_POOL.filter((p) => !clash(p))).slice(0, DECOYS[levelOf(sentence)] || 1);
 }
 
 export function mount(el, ctx) {
@@ -55,7 +69,8 @@ export function mount(el, ctx) {
     s = BUILD_SENTENCES[order[pos % order.length]];
     meet = newWords(order[pos % order.length]);
     const tiles = s.tiles.map((text, id) => ({ id, text }));
-    bank = shuffle(tiles);
+    const decoys = decoysFor(s).map((text, k) => ({ id: s.tiles.length + k, text, decoy: true }));
+    bank = shuffle([...tiles, ...decoys]);
     // Never start in the right order already.
     if (bank.length > 1 && bank.every((t, k) => t.id === k)) bank.push(bank.shift());
     placed = [];
@@ -110,7 +125,7 @@ export function mount(el, ctx) {
         </div>
         <div class="tile-row answer-row ${step !== 'build' ? (ok ? 'is-right' : 'is-wrong') : ''}" aria-label="Your sentence">
           ${placed.length ? placed.map((t, k) => `<button class="word-tile placed" data-act="untile" data-k="${k}" lang="ja" ${step !== 'build' ? 'disabled' : ''}>${esc(t.text)}</button>`).join('')
-            : '<span class="small dim">Tap the tiles in order.</span>'}
+            : `<span class="small dim">Tap the tiles in order. ${bank.some((t) => t.decoy) ? 'Not every tile belongs.' : ''}</span>`}
         </div>
         ${step === 'build' ? `
           <div class="tile-row bank" aria-label="Tiles">
@@ -119,7 +134,7 @@ export function mount(el, ctx) {
           <div class="row3">
             <button class="btn" data-act="hint">💡 Hint</button>
             <button class="btn" data-act="clear" ${placed.length ? '' : 'disabled'}>Clear</button>
-            <button class="btn primary" data-act="check" ${bank.length ? 'disabled' : ''}>Check</button>
+            <button class="btn primary" data-act="check" ${placed.length ? '' : 'disabled'}>Check</button>
           </div>` : result()}
       </div>`;
   }
@@ -150,7 +165,7 @@ export function mount(el, ctx) {
   }
 
   function check() {
-    if (bank.length || step !== 'build') return;
+    if (!placed.length || step !== 'build') return;
     ok = accepted().includes(builtText());
     built++;
     if (ok) right++;

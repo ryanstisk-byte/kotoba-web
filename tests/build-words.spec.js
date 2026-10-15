@@ -131,3 +131,35 @@ test('the Settings switch turns the auto-start mic on and off', async ({ page })
   await sw.uncheck();
   expect(await page.evaluate(async () => (await import('./js/store.js')).store.settings.autoMic)).toBe(false);
 });
+
+test('decoy particles: more at higher levels, never one that could also be right', async ({ page }) => {
+  await page.goto('./');
+  const r = await page.evaluate(async () => {
+    const { decoysFor } = await import('./js/modes/build.js');
+    const { BUILD_SENTENCES } = await import('./js/practice-data.js');
+    const out = { counts: {}, clashes: [] };
+    for (const s of BUILD_SENTENCES) {
+      const d = decoysFor(s);
+      const lv = s.level || 'N5';
+      out.counts[lv] = Math.max(out.counts[lv] || 0, d.length);
+      const has = new Set(s.tiles);
+      for (const p of d) {
+        if (has.has(p) || (['は', 'が', 'も'].includes(p) && s.tiles.some((t) => ['は', 'が', 'も'].includes(t)))) out.clashes.push(`${s.id}: ${p}`);
+      }
+    }
+    return out;
+  });
+  expect(r.counts.N5).toBe(1);
+  if (r.counts.N4 != null) expect(r.counts.N4).toBe(2);
+  expect(r.clashes).toEqual([]);
+});
+
+test('a sentence can be checked with a decoy tile left over', async ({ page }) => {
+  await page.goto('./#/play/build');
+  const v = view(page);
+  if (await v.locator('[data-act=learnnew]').count()) await v.locator('[data-act=learnnew]').click();
+  for (let i = 0; i < 9; i++) await v.locator('[data-act=hint]').click();
+  await expect(v.locator('.bank [data-act=tile]')).toHaveCount(1);   // the decoy
+  await v.locator('[data-act=check]').click();
+  await expect(v.getByText(/Built \(with a hint\)/)).toBeVisible();
+});
