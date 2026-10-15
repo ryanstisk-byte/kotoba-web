@@ -341,7 +341,8 @@ export function mount(el, ctx) {
         ${selectedWord ? `<p>${esc(selectedWord.jp)}${challenge ? '' : ` (${esc(selectedWord.reading)})`}: ${esc(selectedWord.en)}</p>` : ''}
         ${b.note ? `<div class="panel note">💡 ${esc(b.note)}</div>` : ''}
         ${b.choice && !choiceSolved ? `
-          <div class="stack-sm">
+          <div class="stack-sm story-choice">
+            <p class="section-label">YOUR TURN · pick Ren's reply</p>
             <p class="strong">${esc(b.choice.prompt)}</p>
             ${wrongReply ? `<p class="miss-c">${esc(wrongReply)}</p>` : ''}
             ${b.choice.options.map((o, i) => `<button class="btn left" data-act="choice" data-i="${i}" lang="ja">${esc(o)}</button>`).join('')}
