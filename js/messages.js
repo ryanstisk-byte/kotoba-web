@@ -14,6 +14,7 @@ import { WELCOME_BACK, MESSAGE_BY_ID, SENDERS, CONTACTS } from './messages-data.
 import { content, isUnlocked, itemOpen } from './levels.js';
 import { esc, shuffle, delegate, toast } from './ui.js';
 import * as fx from './fx.js';
+import * as ai from './ai-chat.js';
 
 const DAY = 86_400_000;
 /** Days away after which the next message is a welcome back. */
@@ -153,8 +154,9 @@ export function inboxCard() {
 }
 
 // ---------- the inbox screen ----------
-/** The person whose chat is open (kept while the app is open). */
+/** The person whose chat is open, and which side: the written story texts or free chat (kept while the app is open). */
 let current = null;
+let mode = 'story';
 /** The opener the learner sent to start a chat, by the message it brought: { jp, en, ok, reg } (kept while the app is open). */
 const openers = new Map();
 
@@ -171,6 +173,10 @@ const REGISTER = { polite: 'Polite (です・ます)', casual: 'Casual (plain fo
 export function mount(el) {
   deliver();   // opened straight from a bookmark or the Home Screen: today's message comes here too
   if (!current || !SENDERS[current]) current = firstContact();
+  let alive = true;
+  let aiBusy = false;   // waiting for a free-chat reply
+  let aiError = null;   // { from, kind, detail } after a failed free-chat call
+  let draft = '';   // the free-chat box, kept across redraws
   const quizzes = new Map();   // message id -> [{ text, right }] in the order shown
   let greet = null;   // { from, opts: [{ jp, en, reg }], picked: -1 } while choosing how to start a chat
   const say = (m) => speaker.speak(m.jp, { voice: SENDERS[m.from].voice, mps: 4 });
@@ -270,15 +276,123 @@ export function mount(el) {
         <p class="small dim">Text Ren and friends at your level, as much as you like. Each person talks their own way, so match how you write back. Nothing expires, so skip days freely.</p>
         ${contacts()}
         ${about(current)}
+        ${contactOpen(current) ? modes() : ''}
+        ${mode === 'free' && contactOpen(current) ? freeChat(current) : `
         ${list.length ? `<div class="msg-thread">${list.map((e, i) => bubble(e, i, list)).join('')}</div>` : ''}
-        ${footer(current, list)}
+        ${footer(current, list)}`}
       </div>`;
+    if (mode === 'free') {
+      const box = el.querySelector('#ai-text');
+      if (box) box.value = draft;
+    }
+  }
+
+  /** Written story texts, or free chat where you type your own Japanese. */
+  function modes() {
+    return `<div class="msg-modes" role="group" aria-label="Kind of chat">
+        <button class="btn small-btn" data-act="mode" data-mode="story" aria-pressed="${mode === 'story'}">Story texts</button>
+        <button class="btn small-btn" data-act="mode" data-mode="free" aria-pressed="${mode === 'free'}">Free chat</button>
+      </div>`;
+  }
+
+  /** Free chat: type your own Japanese, and an AI playing this person writes back (js/ai-chat.js). */
+  function freeChat(id) {
+    const s = SENDERS[id];
+    if (!ai.status().on) {
+      return `<div class="panel note stack-sm">
+          <p>Free chat lets you type your own Japanese to ${esc(s.name)}. An AI plays ${esc(s.name)}, writes back at your level, and suggests a more natural way to say what you wrote.</p>
+          <p class="small dim">It's optional and off until you paste your own Claude API key in Settings. The key is paid for separately from a Claude subscription.</p>
+          <a class="btn" href="#/settings">Open Settings</a>
+        </div>`;
+    }
+    const lines = ai.chatOf(id);
+    const known = knownKanji();
+    const show = (l) => ([...l.jp].some((c) => /[一-鿿々]/.test(c)) && ![...l.jp].filter((c) => /[一-鿿々]/.test(c)).every((c) => known.has(c)) ? l.kana : l.jp);
+    const rows = lines.map((l, i) => (l.who === 'me'
+      ? `<div class="msg-row mine"><div class="msg-bubble mine"><p class="msg-text" lang="ja">${esc(l.text)}</p></div></div>
+        ${l.check ? `<div class="msg-fit small ${l.check.ok ? 'good-c' : 'note-c'}">${l.check.ok && !l.check.better ? '✓ ' : ''}${esc(l.check.note)}${l.check.better ? `<br><span class="dim">More natural:</span> <span lang="ja">${esc(l.check.better)}</span>` : ''}</div>` : ''}`
+      : `<div class="msg-row">
+          <span class="msg-face" lang="ja" data-noruby aria-hidden="true" style="--who:${s.color}">${esc(s.jpName.slice(0, 1))}</span>
+          <div class="msg-bubble" style="--who:${s.color}">
+            <p class="msg-text" lang="ja">${esc(show(l))}</p>
+            <div class="row-gap wrap-gap"><button class="btn small-btn" data-act="aihear" data-i="${i}">🔊 Hear it</button></div>
+            <details class="small"><summary>What did ${esc(s.name)} say?</summary><p class="dim">${esc(l.en)}</p></details>
+          </div>
+        </div>`)).join('');
+    const err = aiError && aiError.from === id ? aiError : null;
+    const waiting = lines.length && lines[lines.length - 1].who === 'me';
+    const hint = s.open[registerFor(id)][0];
+    return `<div class="stack-sm ai-chat">
+        ${lines.length ? `<div class="msg-thread">${rows}</div>` : `<p class="small dim">Say anything to ${esc(s.name)}: kana, kanji or romaji all work. Try: <span lang="ja">${esc(hint)}</span></p>`}
+        ${aiBusy ? `<p class="small dim" role="status">${esc(s.name)} is typing…</p>` : ''}
+        ${err ? `<p class="small note-c" role="status">${esc(ai.NOTES[err.kind] || ai.NOTES.request)}${err.detail ? ` ${esc(err.detail)}` : ''}</p>` : ''}
+        ${!aiBusy && waiting ? '<button class="btn small-btn" data-act="airetry">Ask for the reply again</button>' : ''}
+        <div class="ai-compose">
+          <textarea id="ai-text" rows="2" maxlength="400" lang="ja" class="text-input" placeholder="Write to ${esc(s.name)} in Japanese" aria-label="Your message to ${esc(s.name)}" ${aiBusy ? 'disabled' : ''}></textarea>
+          <button class="btn primary" data-act="aisend" ${aiBusy ? 'disabled' : ''}>Send</button>
+        </div>
+        <p class="tiny dim">AI replies can contain mistakes. What you type here goes to Anthropic to get a reply; it is kept on this device only, not in your progress.${lines.length ? ' <button class="linkish" data-act="aiclear">Clear this chat</button>' : ''}</p>
+      </div>`;
+  }
+
+  async function aiAsk(from, text) {
+    aiBusy = true;
+    aiError = null;
+    render();
+    const s = SENDERS[from];
+    let line = null;
+    try {
+      line = text == null ? await ai.reply(from, s, learnerTier()) : await ai.send(from, s, learnerTier(), text);
+    } catch (e) {
+      aiError = { from, kind: e.kind || 'bad', detail: e.kind === 'request' ? e.detail : '' };
+    }
+    aiBusy = false;
+    if (!alive) return;
+    if (line) {
+      const lines = ai.chatOf(from);
+      const mine = lines[lines.length - 2];
+      if (mine && mine.check) store.grade({ skill: 'grammar', id: 'ai:' + from, ok: mine.check.ok });
+      store.markStudied();
+    }
+    render();
+    el.querySelector('.ai-compose')?.scrollIntoView({ block: 'nearest' });
+    if (line && current === from && mode === 'free') say({ jp: line.jp, from });
+    else el.querySelector('#ai-text')?.focus();
   }
 
   /** Brings the newest row of the open chat into view. */
   const toEnd = () => el.querySelector('.msg-thread > .msg-row:last-child, .msg-start')?.scrollIntoView({ block: 'nearest' });
 
+  const onKey = (ev) => {
+    if (ev.target.id === 'ai-text' && ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing) {
+      ev.preventDefault();
+      el.querySelector('[data-act=aisend]')?.click();
+    }
+  };
+  const onInput = (ev) => { if (ev.target.id === 'ai-text') draft = ev.target.value; };
+  el.addEventListener('keydown', onKey);
+  el.addEventListener('input', onInput);
+
   const off = delegate(el, {
+    mode: (b) => {
+      if (b.dataset.mode === mode) return;
+      speaker.stop();
+      mode = b.dataset.mode === 'free' ? 'free' : 'story';
+      render();
+      el.querySelector(`[data-act=mode][data-mode=${mode}]`)?.focus();
+    },
+    aisend: () => {
+      const text = (el.querySelector('#ai-text')?.value || '').trim();
+      if (!text || aiBusy) return;
+      draft = '';
+      aiAsk(current, text);
+    },
+    airetry: () => { if (!aiBusy) aiAsk(current, null); },
+    aihear: (b) => {
+      const l = ai.chatOf(current)[+b.dataset.i];
+      if (l && l.jp) say({ jp: l.jp, from: current });
+    },
+    aiclear: () => { ai.clearChat(current); aiError = null; render(); },
     hear: (b) => { const m = MESSAGE_BY_ID[b.dataset.id]; if (m) say(m); },
     plant: (b) => {
       const it = GARDEN_CATALOG[b.dataset.id];
@@ -337,8 +451,8 @@ export function mount(el) {
   // The open chat's newest message plays once when the inbox opens, if it hasn't been answered yet.
   const list = threadOf(current);
   const last = list[list.length - 1];
-  const m = last && last.reply == null && MESSAGE_BY_ID[last.id];
+  const m = mode === 'story' && last && last.reply == null && MESSAGE_BY_ID[last.id];
   const t = m ? setTimeout(() => say(m), 300) : 0;
   el.querySelector('.msg-thread > .msg-row:last-child')?.scrollIntoView({ block: 'nearest' });
-  return () => { off(); clearTimeout(t); speaker.stop(); };
+  return () => { alive = false; off(); el.removeEventListener('keydown', onKey); el.removeEventListener('input', onInput); clearTimeout(t); speaker.stop(); };
 }

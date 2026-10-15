@@ -1199,6 +1199,14 @@ body.has-tabs #update-ready { bottom: calc(var(--tabbar-h) + var(--sp-3) + env(s
 .msg-about { border-left: 4px solid var(--who); display: grid; gap: var(--sp-1); }
 .msg-reg { font-weight: 700; }
 .msg-fit { text-align: right; }
+.msg-modes { display: flex; gap: var(--sp-2); }
+.msg-modes .btn[aria-pressed=true] { border-color: var(--accent); background: var(--accent-soft); }
+.ai-compose { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--sp-2); align-items: end; }
+.ai-compose textarea { min-width: 0; resize: vertical; font-family: var(--font-jp); }
+.ai-chat .msg-fit.note-c { text-align: left; margin-left: auto; max-width: 85%; }
+.ai-model { display: grid; justify-items: start; text-align: left; gap: 2px; }
+.ai-model[aria-pressed=true] { border-color: var(--accent); background: var(--accent-soft); }
+.linkish { background: none; border: 0; padding: 0; color: var(--electric); text-decoration: underline; font: inherit; cursor: pointer; }
 /* ---------- Rival Battle ---------- */
 .rival { --rival: var(--trace); }
 .rival-list { display: grid; gap: var(--sp-2); }
