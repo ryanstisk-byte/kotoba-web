@@ -41,6 +41,9 @@ VOICES = [
     ('4.vvm', 11, '玄野武宏'),      # 3 Kaito, office worker
     ('21.vvm', 109, '東北イタコ'),  # 4 older customer
     ('0.vvm', 3, 'ずんだもん'),     # 5 kid
+    ('0.vvm', 8, '春日部つむぎ'),   # 6 Mika, the konbini clerk (Encounters)
+    ('21.vvm', 107, '東北ずん子'),  # 7 Chef Hana (Encounters)
+    ('4.vvm', 21, '剣崎雌雄'),      # 8 Kenta, the classmate (Encounters)
 ]
 # Two recordings of every line: natural speed, and a slow one for the 🐢 setting (slowing at synthesis
 # sounds far cleaner than stretching in the browser).
@@ -51,9 +54,10 @@ SPEEDS = {'': 1.0, 'slow': 0.6}
 RUN_OVERRIDE = {'十時': 'じゅうじ', '働': 'どう', '出発進行': 'しゅっぱつしんこう', '進行': 'しんこう', '学': 'がく', '間': 'あいだ', '一': 'いち', '二': 'に', '三': 'さん', '四': 'よん', '五': 'ご', '明': 'めい', '鍛冶': 'かじ', '生': 'せい',
                 '土': 'つち', '日': 'ひ', '時': 'とき', '組': 'くみ', '六': 'ろく',
                 # N3 kanji shown alone: the on reading, not an old or long kun reading (造 is not みやつこ).
-                '古': 'こ', '必': 'ひつ', '改': 'かい', '最': 'さい', '訪': 'ほう', '造': 'ぞう'}
+                '足': 'あし', '器': 'うつわ', '戦': 'せん', '古': 'こ', '必': 'ひつ', '改': 'かい', '最': 'さい', '訪': 'ほう', '造': 'ぞう'}
 # Sentences whose automatic split goes wrong, fixed by hand (a rebuild keeps them).
 SEGMENT_OVERRIDE = {
+    '入れます': [['入', 'い'], ['れます', None]],
     '毎日六時に帰ります': [['毎日', 'まいにち'], ['六時', 'ろくじ'], ['に', None], ['帰', 'かえ'], ['ります', None]],
     '十二月に入り': [['十二月', 'じゅうにがつ'], ['に', None], ['入', 'はい'], ['り', None]],
     '姉は国際電話で友だちと話している': [['姉', 'あね'], ['は', None], ['国際電話', 'こくさいでんわ'], ['で', None], ['友', 'とも'], ['だちと', None], ['話', 'はな'], ['している', None]],
@@ -182,7 +186,11 @@ def build_clips(clips):
                 level_of[name] = level
             path = os.path.join(AUDIO, name)
             if not os.path.exists(path):
-                synth(text, voice, speed, path, opts)
+                try:
+                    synth(text, voice, speed, path, opts)
+                except Exception:
+                    print(f'  could not voice {text!r} ({voice}, {speed})', flush=True)
+                    raise
                 made += 1
                 if made % 100 == 0:
                     print(f'  {made} clips made...', flush=True)
@@ -307,7 +315,7 @@ def source_texts():
     texts = set()
     for dirpath, _, files in os.walk(os.path.join(ROOT, 'js')):
         for f in files:
-            if not f.endswith('.js') or f in ('readings.js', 'clips.js', 'n5.js', 'n4.js', 'n3.js', 'words.js'):
+            if not f.endswith('.js') or f in ('readings.js', 'clips.js', 'n5.js', 'n4.js', 'n3.js', 'words.js', 'lookup-data.js'):
                 continue
             src = open(os.path.join(dirpath, f), encoding='utf-8').read()
             # Lists of look-alike characters (js/word-help.js) are not text: reading 右石 as a word would give 石 the
@@ -404,14 +412,18 @@ PHRASE_SPLITS = {
 
 def word_cuts(seg):
     """Cut positions between words in a Japanese segment, grouped the way the app spaces its own Japanese (particles
-    and endings stay on their word: わたしは がくせいです, たべて ください, わかりました)."""
+    and endings stay on their word: わたしは がくせいです, たべて ください, わかりました).
+    A negative number is a soft cut: no gap in the Japanese, but a space in the romaji (れんです → "ren desu")."""
     if seg in PHRASE_SPLITS:
         return PHRASE_SPLITS[seg]
     nodes = pyopenjtalk.run_frontend(seg)
     if ''.join(n['string'] for n in nodes) != seg:
         return []
     words = []
+    soft = []
+    at = 0
     prefix = False
+    prev_g1 = None
     for n in nodes:
         t, pos, g1 = n['string'], n['pos'], n['pos_group1']
         sub = PHRASE_SPLITS.get(t)
@@ -420,19 +432,26 @@ def word_cuts(seg):
             or pos in ('助動詞', '助詞')
             or g1 == '接尾'
             or (pos == '動詞' and g1 == '接尾')
-            or t in ('ー', 'っ'))
+            or t in ('ー', 'っ')
+            # する verbs stay one word: お願い|します → お願いします, 勉強|しました → 勉強しました
+            or (prev_g1 == 'サ変接続' and (n['orig'] == 'する' or t in ('しない', 'しなかった'))))
         if sub:
             pieces, last = [], 0
             for c in sub + [len(t)]:
                 pieces.append(t[last:c]); last = c
         else:
             pieces = [t]
+        # Particles and です read as their own romaji word: "ren ga", "ren desu", "tabemasu ka".
+        if attach and ((pos == '助詞' and not (g1 == '接続助詞' and t in ('て', 'で'))) or (pos == '助動詞' and n['orig'] in ('です', 'だ'))):
+            soft.append(at)
         for k, piece in enumerate(pieces):
             if attach and k == 0:
                 words[-1] += piece
             else:
                 words.append(piece)
+            at += len(piece)
         prefix = pos == '接頭詞'
+        prev_g1 = g1
     # A lone kana is usually Open JTalk misreading kana-only text (あ|には for あには): keep it with the next word.
     merged = []
     for w in words:
@@ -445,7 +464,8 @@ def word_cuts(seg):
     for w in words[:-1]:
         at += len(w)
         cuts.append(at)
-    return cuts
+    hard = set(cuts)
+    return sorted(cuts + [-c for c in soft if c not in hard and 0 < c < len(seg)], key=abs)
 
 
 def build_words():
@@ -453,7 +473,7 @@ def build_words():
     segs = set()
     for dirpath, _, files in os.walk(os.path.join(ROOT, 'js')):
         for f in files:
-            if not f.endswith('.js') or f in ('readings.js', 'words.js'):
+            if not f.endswith('.js') or f in ('readings.js', 'words.js', 'lookup-data.js', 'clips.js'):
                 continue
             src = open(os.path.join(dirpath, f), encoding='utf-8').read()
             segs.update(SEG_RE.findall(src))
@@ -467,7 +487,7 @@ def build_words():
     with open(os.path.join(ROOT, 'js', 'words.js'), 'w', encoding='utf-8') as f:
         f.write('// Generated by tools/build_assets.py (Open JTalk). Where romaji puts spaces: segment -> cut positions,\n')
         f.write('// so よろしくおねがいします reads "yoroshiku onegaishimasu" and long lines wrap between words.\n')
-        f.write('export const WORD_BREAKS = ' + json.dumps(out, ensure_ascii=False, sort_keys=True) + ';\n')
+        f.write('export const WORD_BREAKS = ' + json.dumps(out, ensure_ascii=False, sort_keys=True, separators=(',', ':')) + ';\n')
     print(f'words: {len(out)} segments with word breaks')
 
 
@@ -489,7 +509,7 @@ def build_sw(level_of=None):
                     level_of[n.split('/')[-1]] = lv
     files = ['./', './index.html', './styles.css', './manifest.webmanifest']
     later = {}
-    for sub in ('js', 'icons', 'audio'):
+    for sub in ('js', 'icons', 'img', 'audio'):
         for dirpath, _, names in os.walk(os.path.join(ROOT, sub)):
             for n in sorted(names):
                 f = './' + os.path.relpath(os.path.join(dirpath, n), ROOT).replace(os.sep, '/')
@@ -543,7 +563,15 @@ def build_n5():
 def main():
     build_n5()
     data = json.loads(subprocess.run(['node', os.path.join(ROOT, 'tools', 'collect.mjs')], capture_output=True, check=True, text=True).stdout)
-    level_of = build_clips([(c[0], c[1], c[2] if len(c) > 2 else None, c[3] if len(c) > 3 else None, c[4] if len(c) > 4 else 'N5') for c in data['clips']])
+    extra = []
+    if pyopenjtalk:
+        # Tap a word to look it up (js/lookup-data.js), and a clip for each looked-up word that has no Garden card.
+        import build_lookup
+        tokens, entries, unknown = build_lookup.build(data['lookup'])
+        build_lookup.write(tokens, entries)
+        have = {(c[0], c[1]) for c in data['clips']}
+        extra = [c for c in build_lookup.extra_clips(entries, build_lookup.build.level_of) if (c[0], c[1]) not in have]
+    level_of = build_clips([(c[0], c[1], c[2] if len(c) > 2 else None, c[3] if len(c) > 3 else None, c[4] if len(c) > 4 else 'N5') for c in data['clips'] + extra])
     if pyopenjtalk:
         build_readings(data['pairs'])
         build_words()

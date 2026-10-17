@@ -12,6 +12,7 @@ import { romaji } from '../romaji.js';
 import { mountMine } from './story-mine.js';
 import { content, itemOpen, lockLine, levelOf, levelBar } from '../levels.js';
 import { pronButton, pronAvailable, wordTarget } from '../pron.js';
+import { lookupHTML, mountLookup } from '../lookup.js';
 
 const HAS_JP = /[ぁ-ゖァ-ヺ一-鿿]/;
 
@@ -323,11 +324,12 @@ export function mount(el, ctx) {
             ? '<span class="tag saga-challenge-tag" title="Reading help is off for this replay">🙈 Challenge</span>'
             : `<button class="chip-toggle ${showReading ? 'on' : ''}" data-act="furi" aria-pressed="${showReading}">ふりがな</button>`}
         </div>
-        <button class="panel line-card" data-act="meaning" aria-label="Tap to show meaning">
+        <div class="panel line-card">
           ${showReading && !challenge ? `<span class="reading dim">${esc(b.reading)}</span>` : ''}
-          <span class="line-jp" lang="ja">${esc(b.jp)}</span>
-          ${showEnglish ? `<span class="trace-c">${esc(b.en)}</span>` : '<span class="small dim">Tap for meaning</span>'}
-        </button>
+          <span class="line-jp" lang="ja">${lookupHTML(b.jp)}</span>
+          ${showEnglish ? `<span class="trace-c">${esc(b.en)}</span>` : '<button class="linkbtn small" data-act="meaning">Tap for meaning</button>'}
+        </div>
+        <p class="tiny dim lk-hint">Tap any word to look it up.</p>
         ${beatTail(b)}
       </div>`;
   }
@@ -339,7 +341,8 @@ export function mount(el, ctx) {
         ${selectedWord ? `<p>${esc(selectedWord.jp)}${challenge ? '' : ` (${esc(selectedWord.reading)})`}: ${esc(selectedWord.en)}</p>` : ''}
         ${b.note ? `<div class="panel note">💡 ${esc(b.note)}</div>` : ''}
         ${b.choice && !choiceSolved ? `
-          <div class="stack-sm">
+          <div class="stack-sm story-choice">
+            <p class="section-label">YOUR TURN · pick Ren's reply</p>
             <p class="strong">${esc(b.choice.prompt)}</p>
             ${wrongReply ? `<p class="miss-c">${esc(wrongReply)}</p>` : ''}
             ${b.choice.options.map((o, i) => `<button class="btn left" data-act="choice" data-i="${i}" lang="ja">${esc(o)}</button>`).join('')}
@@ -366,7 +369,7 @@ export function mount(el, ctx) {
     const para = (jp, i) => {
       const last = i === lines.length - 1;
       const cls = /へ。$/.test(jp) && i === 0 ? 'doc-salute' : !/[。」』]$/.test(jp) && last && i > 0 ? 'doc-sign' : /^[一二三四五六七八九十]+、/.test(jp) ? 'doc-item' : '';
-      return `<p class="doc-p ${cls}">${help && perLine ? `<span class="reading doc-reading dim" lang="ja" data-noruby>${esc(readings[i])}</span>` : ''}<span class="doc-jp">${esc(jp)}</span></p>`;
+      return `<p class="doc-p ${cls}">${help && perLine ? `<span class="reading doc-reading dim" lang="ja" data-noruby>${esc(readings[i])}</span>` : ''}<span class="doc-jp">${lookupHTML(jp)}</span></p>`;
     };
     el.innerHTML = `
       <div class="stack doc-beat"${noRuby()}>
@@ -547,11 +550,12 @@ export function mount(el, ctx) {
     },
   });
 
+  const offLookup = mountLookup(el);
   if (ctx.chapterId) {
     open(byId(ctx.chapterId) || CHAPTERS[0]);
     if (ctx.today) ctx.today.report(`1/${sceneLen()}`);
   } else {
     render();
   }
-  return () => { off(); closeMine(); if (recapOff) recapOff(); speaker.stop(); };
+  return () => { off(); offLookup(); closeMine(); if (recapOff) recapOff(); speaker.stop(); };
 }

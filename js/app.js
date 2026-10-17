@@ -23,6 +23,10 @@ import * as build from './modes/build.js';
 import * as kata from './modes/kata.js';
 import * as numbers from './modes/numbers.js';
 import * as rival from './modes/rival.js';
+import * as meet from './modes/meet.js';
+import * as library from './modes/library.js';
+import * as walk from './modes/walk.js';
+import * as type from './modes/type.js';
 import * as settings from './settings.js';
 import * as soundcheck from './soundcheck.js';
 import * as placement from './placement.js';
@@ -40,13 +44,13 @@ import { initPron, closePron } from './pron.js';
 import { closeCoach } from './pitch-coach.js';
 import { initIcons } from './icons.js';
 
-const MOUNTS = { dojo, brush, garden, story, particle, forge, rhythm, duel, slice, shop, listen, conj, build, kata, numbers, rival };
+const MOUNTS = { dojo, brush, garden, story, particle, forge, rhythm, duel, slice, shop, listen, conj, build, kata, numbers, rival, meet, library, walk, type };
 /** Screens the Today plan can open that aren't modes (the course lesson). */
 const TODAY_MOUNTS = { ...MOUNTS, lesson: { mount: course.mountLesson } };
 const modeTitle = (id) => MODE_BY_ID[id]?.title || 'Lesson';
 /** A one-glyph badge per mode (decorative; the English title is the label). */
 const MODE_GLYPH = { dojo: '読', brush: '書', garden: '庭', story: '話', particle: 'は', forge: '漢', rhythm: '拍', duel: '音', slice: '斬', shop: '店',
-  listen: '耳', conj: '活', build: '組', kata: 'カ', numbers: '数', rival: '戦' };
+  listen: '耳', conj: '活', build: '組', kata: 'カ', numbers: '数', rival: '戦', meet: '会', library: '本', walk: '歩', type: '打' };
 const TABS = { '': 'today', modes: 'modes', garden: 'garden', progress: 'progress', settings: 'settings' };
 
 const view = document.getElementById('view');
@@ -363,6 +367,17 @@ const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frida
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 // ---------- home ----------
+/** The Library's next read (the unread story with the most words already met), on Today's side column. */
+function libraryCard() {
+  const r = library.nextReader();
+  const read = library.wordsRead();
+  if (!r) return '';
+  return `<a class="panel link-panel lib-today" href="#/play/library">
+    <span class="grow small">📕 <span class="strong">Library</span>: next read <span lang="ja" class="strong">${esc(r.title)}</span> (${esc(r.en)}),
+      ${library.readerStats(r).pct}% of its words met.${read ? ` ${read.toLocaleString()} words read so far.` : ' Short stories at your level; tap any word.'}</span>
+    <span class="dim chev" aria-hidden="true">›</span></a>`;
+}
+
 function renderHome() {
   messages.deliver();   // opening the app can bring one new message a day (js/messages.js)
   const plan = todayPlan();
@@ -417,6 +432,7 @@ function renderHome() {
           <label class="switch-row small"><span>🤫 Quiet mode (no speaking: trains, planes)</span><input type="checkbox" role="switch" data-act="quiet" ${quiet ? 'checked' : ''}></label>
           ${plan.blocks.map(blockRow).join('')}
           ${plan.sunday ? '<p class="small dim">Sunday: review only. 休む ことも 修行だ (resting is part of training too).</p>' : ''}
+          ${plan.short ? '<a class="small linkbtn inline" href="#/play/walk">👟 Out and about? Walk mode reviews your words by ear, eyes free.</a>' : ''}
           <p class="tiny dim">Skip anything. Nothing is lost by skipping blocks or days.</p>
         </section>
 
@@ -437,6 +453,7 @@ function renderHome() {
         ${course.courseCard()}
         ${readinessCard()}
         ${skillMini()}
+        ${libraryCard()}
         ${!placementShown && !store.trackDone('hiragana') && !store.clearedLessons.size ? `<a class="panel hint link-panel" href="#/play/dojo"><span class="grow small">🔤 <span class="strong">New to reading Japanese?</span> Start in the Reading Dojo: hiragana, katakana, then kanji. Until then, every game shows romaji (tap ふa at the top to change it).</span><span class="dim chev" aria-hidden="true">›</span></a>` : ''}
         ${showHint ? `<div class="panel hint"><span class="grow small">📱 On iPhone: <span class="strong">Share › Add to Home Screen</span> keeps your progress safe (Safari may clear website data after ~7 days unused).</span>
           <button class="iconbtn" data-act="hidehint" aria-label="Dismiss">✕</button></div>` : ''}

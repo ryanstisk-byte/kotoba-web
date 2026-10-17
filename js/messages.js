@@ -15,6 +15,7 @@ import { content, isUnlocked, itemOpen } from './levels.js';
 import { esc, shuffle, delegate, toast } from './ui.js';
 import * as fx from './fx.js';
 import * as ai from './ai-chat.js';
+import { lookupHTML, mountLookup } from './lookup.js';
 
 const DAY = 86_400_000;
 /** Days away after which the next message is a welcome back. */
@@ -215,7 +216,7 @@ export function mount(el) {
         <span class="msg-face" lang="ja" data-noruby aria-hidden="true" style="--who:${s.color}">${esc(s.jpName.slice(0, 1))}</span>
         <div class="msg-bubble" style="--who:${s.color}">
           <p class="tiny dim">${esc(s.name)} · ${esc(e.day)}</p>
-          <p class="msg-text" lang="ja">${esc(shownText(m))}</p>
+          <p class="msg-text" lang="ja">${lookupHTML(shownText(m))}</p>
           <div class="row-gap wrap-gap">
             <button class="btn small-btn" data-act="hear" data-id="${esc(e.id)}">🔊 Hear it</button>
             ${word && latest ? `<button class="btn small-btn msg-new" data-act="plant" data-id="${esc(word.id)}">＋ New word: <span lang="ja">${esc(word.jp)}</span> · ${esc(word.en)}</button>` : ''}
@@ -454,5 +455,6 @@ export function mount(el) {
   const m = mode === 'story' && last && last.reply == null && MESSAGE_BY_ID[last.id];
   const t = m ? setTimeout(() => say(m), 300) : 0;
   el.querySelector('.msg-thread > .msg-row:last-child')?.scrollIntoView({ block: 'nearest' });
-  return () => { alive = false; off(); el.removeEventListener('keydown', onKey); el.removeEventListener('input', onInput); clearTimeout(t); speaker.stop(); };
+  const offLookup = mountLookup(el);
+  return () => { alive = false; off(); offLookup(); el.removeEventListener('keydown', onKey); el.removeEventListener('input', onInput); clearTimeout(t); speaker.stop(); };
 }

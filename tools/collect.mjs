@@ -15,7 +15,9 @@ import { POINT, QUICK } from '../js/exam-bank-listen1.js';
 import { TASK, UTTER } from '../js/exam-bank-listen2.js';
 import { PARAPHRASE, TEXT_GRAMMAR, SHORT, MID, INFO } from '../js/exam-bank-reading.js';
 import { ALL_MESSAGES, SENDERS } from '../js/messages-data.js';
+import { READERS } from '../js/library-data.js';
 import { rivalLines } from '../js/rival-data.js';
+import { encounterLines, SCENES as MEET_SCENES } from '../js/encounter-data.js';
 import { DIALOGUES, NUMBER_SCENES, KATA_WORDS, CONJ_WORDS, VERB_FORMS, ADJ_FORMS, VERB_FORMS_N4, ADJ_FORMS_N4, VERB_FORMS_N3, formsFor, conjugate, conjPrompt, BUILD_SENTENCES } from '../js/practice-data.js';
 
 // Every clip records the easiest level that uses it (LV while it's added): N5 clips are precached when the app
@@ -108,8 +110,14 @@ for (const [bank, level] of [[[...TASK, ...POINT, ...UTTER, ...QUICK], 'N5'], [[
 }
 // Ren's Messages: each message in its sender's voice.
 for (const m of ALL_MESSAGES) { add(m.jp, SENDERS[m.from].voice, null, lv(m)); pairs.push([m.jp, m.kana]); }
+// Library readers: each line in its speaker's voice.
+for (const r of READERS) for (const l of r.lines) { add(l.jp, l.speaker.voice, null, lv(r)); pairs.push([l.jp, l.reading]); }
 // Rival Battle: each rival's taunts, counters and endings in their own voice, and Ren's finisher shouts.
 for (const [l, voice, level] of rivalLines()) { add(l.jp, voice, null, level); pairs.push([l.jp, l.reading]); }
+// Encounters: each person's lines in their own voice, every reply in the narrator's voice (the model to copy), and
+// readings for the wrong replies too (they're shown with furigana, never spoken).
+for (const [l, voice, level] of encounterLines()) { add(l.jp, voice, null, level); pairs.push([l.jp, l.reading]); }
+for (const s of MEET_SCENES) for (const t of s.turns) for (const l of t.wrong) pairs.push([l.jp, l.reading]);
 // Kana Brush words (N4, N3): each word said whole, before it's written kana by kana.
 for (const w of BRUSH_WORDS) add(w.kana, 0, null, lv(w));
 
@@ -167,4 +175,36 @@ N5_WORDS.forEach((w, i) => {
 
 // Each clip: [text, voice, opts, speeds, level].
 const out = [...clips.entries()].map(([k, [text, voice, opts = null, speeds = null]]) => [text, voice, opts, speeds, levels.get(k) || 'N5']);
-process.stdout.write(JSON.stringify({ clips: out, pairs }));
+// Tap a word to look it up (tools/build_lookup.py): every line shown for reading, with the words tagged on it.
+const NAMES = [['レン', 'れん', 'Ren (a name)'], ['カイト', 'かいと', 'Kaito (a name)'], ['ソラ', 'そら', 'Sora (a name)'], ['キク', 'きく', 'Kiku (a name)'],
+  ['田中', 'たなか', 'Tanaka (a family name)'], ['クロダ', 'くろだ', 'Kuroda (a family name)'], ['黒田', 'くろだ', 'Kuroda (a family name)'],
+  ['師匠', 'ししょう', 'master, teacher (of a martial art); Ren calls his teacher this']].map(([jp, reading, en]) => ({ jp, reading, en }));
+const card = (id) => (GARDEN_CATALOG[id] ? { jp: GARDEN_CATALOG[id].jp, reading: GARDEN_CATALOG[id].reading, en: GARDEN_CATALOG[id].en, id } : null);
+const lookup = [];
+// A reading passage (a story beat with `doc`) shows one sentence per line (js/modes/story.js docSentences).
+const sentences = (text) => {
+  const out = [];
+  let cur = '', depth = 0;
+  for (const ch of text) {
+    cur += ch;
+    if (ch === '「' || ch === '『') depth++;
+    else if ((ch === '」' || ch === '』') && depth > 0) depth--;
+    else if (ch === '。' && depth === 0) { out.push(cur.trim()); cur = ''; }
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out.filter(Boolean);
+};
+for (const ch of CHAPTERS) {
+  for (const b of ch.beats) {
+    const hints = [...b.words.map((w) => ({ jp: w.jp, reading: w.reading, en: w.en, id: GARDEN_CATALOG[w.gardenID] ? w.gardenID : null })), ...NAMES];
+    for (const t of b.doc ? sentences(b.jp) : [b.jp]) lookup.push([t, hints, lv(ch)]);
+  }
+}
+for (const m of ALL_MESSAGES) {
+  const hints = [...(m.words || []).map(card).filter(Boolean), ...NAMES];
+  lookup.push([m.jp, hints, lv(m)]);
+  if (m.kana && m.kana !== m.jp) lookup.push([m.kana, hints, lv(m)]);
+}
+for (const r of READERS) for (const l of r.lines) lookup.push([l.jp, NAMES, lv(r)]);
+
+process.stdout.write(JSON.stringify({ clips: out, pairs, lookup }));

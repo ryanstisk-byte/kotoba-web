@@ -18,7 +18,9 @@ import { ALL_LESSONS, TRACKS } from './dojo-data.js';
 import { STUDY_UNITS } from './course-data.js';
 import { BRUSH_KANA, BRUSH_WORDS } from './brush-data.js';
 import { RIVALS } from './rival-data.js';
+import { SCENES as MEET_SCENES } from './encounter-data.js';
 import { MESSAGES } from './messages-data.js';
+import { READERS } from './library-data.js';
 
 export { APP_LEVELS, levelOf, prevLevel, nextLevel, tagLevel };
 
@@ -72,7 +74,11 @@ export const SOURCES = {
   course: () => STUDY_UNITS,
   brush: () => [...BRUSH_KANA, ...BRUSH_WORDS],             // single kana (N5), whole words (N4, N3)
   rival: () => RIVALS,
+  meet: () => MEET_SCENES,                                  // Encounters scenes (one person, one moment)
   messages: () => MESSAGES,
+  library: () => READERS,                                   // graded readers (js/library-*.js)
+  walk: () => [...N5_WORDS, ...N4_WORDS, ...N3_WORDS],       // words to recall out loud (Garden words first)
+  type: () => [...N5_WORDS, ...N4_WORDS, ...N3_WORDS],       // words to type from memory (Garden words first)
 };
 
 /** Every item of a source, whatever its level (for lookups and counts). */

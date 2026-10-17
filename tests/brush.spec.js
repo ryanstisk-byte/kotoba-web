@@ -130,6 +130,49 @@ test.describe('stroke checker', () => {
     expect(r.empty).toMatchObject({ verdict: 'miss', why: 'empty' });
   });
 
+  test('a stroke drawn backwards is "close" and named; a look-alike pair has its own tip', async ({ page }) => {
+    await page.goto('./');
+    const r = await page.evaluate(async () => {
+      const { STROKES } = await import('./js/kana-strokes.js');
+      const { BRUSH_KANA, lookalikeTip } = await import('./js/brush-data.js');
+      const { modelPoints, checkDrawing, length } = await import('./js/brush-check.js');
+      const P = Object.fromEntries(BRUSH_KANA.map((x) => [x.k, STROKES[x.k].map((s) => s[0])]));
+      const m = (k) => modelPoints(P[k]);
+      const check = (drawn, k) => checkDrawing(drawn, P[k], { others: P, self: k });
+      const ke = m('け');
+      const ta = m('た');
+      // Every kana with each single stroke reversed: only dots and ticks (they read the same both ways) pass as is.
+      const passed = [];
+      let flagged = 0;
+      for (const k of Object.keys(P)) {
+        m(k).forEach((s, i) => {
+          const why = check(m(k).map((t, j) => (j === i ? t.slice().reverse() : t)), k).why;
+          if (why === 'ok' && length(s) >= 20) passed.push(`${k}${i + 1}`);
+          if (why === 'backwards') flagged++;
+        });
+      }
+      return {
+        ke: check([ke[0], ke[1].slice().reverse(), ke[2]], 'け'),
+        ta: check([ta[0].slice().reverse(), ta[1], ta[2], ta[3].slice().reverse()], 'た'),
+        // ン drawn for ソ is ン, not ソ backwards.
+        nAsSo: check(m('ン'), 'ソ'),
+        passed,
+        flagged,
+        tip: lookalikeTip('ツ', 'シ'),
+        same: lookalikeTip('シ', 'ツ'),
+        general: lookalikeTip('あ', 'お'),
+      };
+    });
+    expect(r.ke).toMatchObject({ verdict: 'close', why: 'backwards', strokes: [2] });
+    expect(r.ta).toMatchObject({ verdict: 'close', why: 'backwards', strokes: [1, 4] });
+    expect(r.nAsSo).toMatchObject({ verdict: 'miss', why: 'like', like: 'ン' });
+    expect(r.passed).toEqual([]);
+    expect(r.flagged).toBeGreaterThan(300);
+    expect(r.tip).toContain('sweeping UP');
+    expect(r.same).toBe(r.tip);
+    expect(r.general).toMatch(/starts/);
+  });
+
   test('each brush kana has stroke data and its own writing mnemonic; sound-alikes are left out', async ({ page }) => {
     await page.goto('./');
     const r = await page.evaluate(async () => {
@@ -215,6 +258,75 @@ test.describe('Kana Brush mode', () => {
     expect(s.items['kana:' + k].dirs.draw.r).toBe(1);   // the retry is practice: only the first try is graded
   });
 
+  test('a new kana plays its strokes first; touching the pad skips ahead; a drawn kana does not', async ({ page }) => {
+    const now = Date.now();
+    const st = learner();
+    st.items = { 'kana:あ': st.items['kana:あ'], 'kana:い': { ...st.items['kana:い'], dirs: { draw: { due: now - 1000, s: 2, d: 5, lr: now - 2 * DAY, r: 2, pl: now - 5 * DAY } } } };
+    await seed(page, st);
+    await page.goto('./#/play/brush');
+    await startRound(page);
+    for (let n = 0; n < 2; n++) {
+      const k = await currentKana(page);
+      if (k === 'あ') {
+        await expect(view(page).locator('.brush-pad.demo')).toHaveCount(1);
+        await expect(view(page).locator('.brush-model')).toHaveCount(3);
+        await expect(view(page).locator('.brush-instr')).toContainText('New one: watch the strokes');
+        // The demo clears on its own once the strokes have played…
+        await expect(view(page).locator('.brush-model')).toHaveCount(0, { timeout: 6000 });
+        await expect(view(page).locator('.brush-pad.demo')).toHaveCount(0);
+        await expect(view(page).locator('.brush-guide')).toHaveCount(1);
+      } else {
+        await expect(view(page).locator('.brush-pad.demo')).toHaveCount(0);
+        await expect(view(page).locator('.brush-model')).toHaveCount(0);
+      }
+      await drawStrokes(page, await modelStrokes(page, k));
+      await view(page).locator('[data-act=check]').click();
+      await expect(view(page).locator('.brush-feedback')).toContainText(/Great|Right/);
+      await view(page).locator('[data-act=next]').click();
+    }
+    // …or as soon as the learner starts drawing.
+    await view(page).locator('[data-act=start]').click();
+    await expect(view(page).locator('.brush-canvas')).toBeVisible();
+    while ((await currentKana(page)) !== 'あ') {
+      await drawStrokes(page, await modelStrokes(page, await currentKana(page)));
+      await view(page).locator('[data-act=check]').click();
+      await view(page).locator('[data-act=next]').click();
+    }
+    // あ has been drawn now, so no demo the second time round.
+    await expect(view(page).locator('.brush-pad.demo')).toHaveCount(0);
+  });
+
+  test('a demo is skipped by drawing; a look-alike shows both kana with a tip; an off stroke is marked', async ({ page }) => {
+    const st = learner();
+    for (const k of 'ぬめ') st.items['kana:' + k] = { ...st.items['kana:あ'] };
+    st.items = { 'kana:ぬ': st.items['kana:ぬ'], 'kana:め': st.items['kana:め'] };
+    await seed(page, st);
+    await page.goto('./#/play/brush');
+    await startRound(page);
+    const k = await currentKana(page);
+    const other = k === 'ぬ' ? 'め' : 'ぬ';
+    await expect(view(page).locator('.brush-pad.demo')).toHaveCount(1);
+    await drawStrokes(page, await modelStrokes(page, other, { wobble: 0.5 }));
+    await expect(view(page).locator('.brush-pad.demo')).toHaveCount(0);
+    await view(page).locator('[data-act=check]').click();
+    await expect(view(page).locator('.brush-pair-k')).toHaveCount(2);
+    await expect(view(page).locator('.brush-pair-k.asked')).toContainText(k);
+    await expect(view(page).locator('.brush-pair-k.other')).toContainText(other);
+    await expect(view(page).locator('.brush-pair-tip')).toContainText('little loop');
+    await expect(view(page).locator('.brush-feedback')).toContainText('comes back at the end of this round');
+    await expectNoHorizontalScroll(page);
+    await view(page).locator('[data-act=retry]').click();
+    await expect(view(page).locator('.brush-pad.demo')).toHaveCount(0);   // the demo is once per kana
+    // A drawing with the right stroke count but one stroke way off marks that stroke.
+    const strokes = await modelStrokes(page, k);
+    strokes[0] = strokes[0].map(([x, y]) => [x * 0.3 + 70, y * 0.3 + 70]);
+    await drawStrokes(page, strokes);
+    await view(page).locator('[data-act=check]').click();
+    await expect(view(page).locator('.brush-feedback')).toContainText('Close, but stroke 1 is off');
+    await expect(view(page).locator('.brush-model.mark')).toHaveCount(1);
+    await expect(view(page).locator('.brush-feedback')).not.toContainText('comes back at the end');   // said once
+  });
+
   test('"show me" reveals the answer without drawing; Undo and Clear work', async ({ page }) => {
     await seed(page, learner());
     await page.goto('./#/play/brush');
@@ -246,6 +358,7 @@ test.describe('Kana Brush mode', () => {
   });
 
   test('only kana met in the Dojo come up, due ones first; a whole round finishes', async ({ page }) => {
+    test.setTimeout(90_000);   // 8 drawings, then 8 comebacks
     const now = Date.now();
     const st = learner();
     st.items['kana:え'].dirs = { draw: { due: now - DAY, s: 2, d: 5, lr: now - 3 * DAY, r: 2, pl: now - 5 * DAY } };
@@ -263,12 +376,33 @@ test.describe('Kana Brush mode', () => {
       await view(page).locator('[data-act=check]').click();
       await view(page).locator('[data-act=next]').click();
     }
+    // Each miss comes back once at the end of the round, from memory (no guide), and isn't graded again.
+    for (let n = 0; n < 8; n++) {
+      const k = await currentKana(page);
+      expect(seen).toContain(k);
+      await expect(view(page).locator('.brush-guide')).toHaveCount(0);
+      await expect(view(page).locator('.brush-guide-word')).toHaveText('Comeback: from memory');
+      if (n < 3) await drawStrokes(page, await modelStrokes(page, k));
+      else await drawStrokes(page, [[[20, 90], [40, 90]]]);
+      await view(page).locator('[data-act=check]').click();
+      if (n >= 3) {
+        await expect(view(page).locator('.brush-feedback')).not.toContainText('comes back at the end');
+        await view(page).locator('[data-act=retry]').click();
+        await drawStrokes(page, await modelStrokes(page, k));
+        await view(page).locator('[data-act=check]').click();
+      }
+      await view(page).locator('[data-act=next]').click();
+    }
     await expect(view(page).locator('.score-huge')).toHaveText('0/8');
+    await expect(view(page).locator('.brush-comeback-sum')).toHaveText('Comeback: 3 of 8 missed kana drawn from memory.');
+    await expect(view(page).locator('.chips .chip')).toHaveCount(5);
     expect(seen).toContain('え');
     for (const k of seen) expect('あいうえおかきくけこ').toContain(k);
     expect(new Set(seen).size).toBe(8);
     const s = await saved(page);
     expect(Object.keys(s.items).filter((id) => s.items[id].dirs?.draw).length).toBe(8);
+    // Comebacks are practice, not graded: one review each (え had two before this round).
+    for (const k of seen) expect(s.items['kana:' + k].dirs.draw.r).toBe(k === 'え' ? 3 : 1);
     const order = await page.evaluate(async () => {
       const { pickRound } = await import('./js/modes/brush.js');
       return pickRound(3);
@@ -381,7 +515,7 @@ test.describe('saved progress v9 → v10', () => {
     await seed(page, FIXTURE_V9);
     await page.goto('./');
     const s = await saved(page);
-    expect(s.v).toBe(12);
+    expect(s.v).toBe(13);
     expect(s.items).toEqual(FIXTURE_V9.items);
     expect(s.settings).toEqual({ ...FIXTURE_V9.settings, showAllLevels: false });
     expect(s.coach).toEqual(FIXTURE_V9.coach);
