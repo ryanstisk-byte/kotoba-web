@@ -57,9 +57,11 @@ test('back button returns home from any screen', async ({ page }) => {
   await expect(page.locator('#back')).toBeHidden();
 });
 
-test('settings keep the VOICEVOX credits', async ({ page }) => {
+test('settings keep the VOICEVOX, JMdict and Open JTalk credits', async ({ page }) => {
   await page.goto('./#/settings');
   for (const name of ['四国めたん', '白上虎太郎', '青山龍星', '玄野武宏', '東北イタコ', 'ずんだもん', '春日部つむぎ', '東北ずん子', '剣崎雌雄']) {
     await expect(view(page).getByText(`VOICEVOX:${name}`, { exact: false })).toBeVisible();
   }
+  await expect(view(page).getByText('JMdict, © EDRDG, CC BY-SA 4.0', { exact: false })).toBeVisible();
+  await expect(view(page).getByText('Open JTalk', { exact: false })).toBeVisible();
 });

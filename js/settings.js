@@ -161,6 +161,7 @@ export function mount(el, ctx) {
           <p class="tiny dim center-text" lang="ja" data-noruby>Voices: VOICEVOX:四国めたん · VOICEVOX:白上虎太郎 · VOICEVOX:青山龍星 · VOICEVOX:玄野武宏 · VOICEVOX:東北イタコ · VOICEVOX:ずんだもん · VOICEVOX:春日部つむぎ · VOICEVOX:東北ずん子 · VOICEVOX:剣崎雌雄</p>
           <p class="tiny dim center-text">Deck readings checked against JMdict, and word lookup meanings beyond the decks from JMdict, © EDRDG, CC BY-SA 4.0.</p>
           <p class="tiny dim center-text">Kana Brush strokes from KanjiVG (kanjivg.tagaini.net), © Ulrich Apel and contributors, CC BY-SA 3.0.</p>
+          <p class="tiny dim center-text">Furigana and romaji made with Open JTalk.</p>
         </div>
       </div>`;
     checkOffline();

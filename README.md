@@ -1,10 +1,44 @@
 # Kotoba Beat (web)
 
-A personal Japanese study game for PC and phone. It has a Reading Dojo (hiragana, katakana, starter kanji), nineteen game modes (Kana Brush, Rival Battle, Encounters, Garden, Type It, Story, Library, Particle Train, Kanji Forge, Conjugation Dojo, Sentence Builder, Katakana Rush, Rhythm, Pitch Duel, Speak Slice, Shopkeeper, Listening Lab, Numbers & Time and Walk Mode) and a guided **Today** session.
+A Japanese study game for PC and phone that I built for my own learning. It turns the research on how people learn languages fast (recall practice, spaced review, lots of listening and speaking) into short game modes, with an original shōnen-style story to read along the way.
 
-Live site: https://rykoha.github.io/kotoba-web/
+**Live site:** https://rykoha.github.io/kotoba-web/
 
-- Plain HTML, CSS and JS with no build step. It works offline as a home-screen web app.
+<p>
+  <img src="docs/screenshots/ui/phone-home.jpg" alt="Home screen on a phone" width="220">
+  <img src="docs/screenshots/ui/phone-story.jpg" alt="A story scene with furigana" width="220">
+  <img src="docs/screenshots/pitch-coach/phone-2-hum-great.png" alt="Pitch Coach drawing the learner's pitch over the target" width="220">
+</p>
+
+## What's in it
+
+- **Today:** a guided daily session of review, story input, speaking and a skill that rotates by weekday, with a 10-minute short day and a quiet mode.
+- **Reading Dojo:** hiragana, katakana and starter kanji.
+- **Nineteen game modes:** Kana Brush, Rival Battle, Encounters, Garden (spaced review of voiced JLPT N5 to N3 decks), Type It, Story, Library, Particle Train, Kanji Forge, Conjugation Dojo, Sentence Builder, Katakana Rush, Rhythm, Pitch Duel, Speak Slice, Shopkeeper, Listening Lab, Numbers & Time and Walk Mode.
+- **Road to the JLPT:** content tagged N5, N4 and N3, a readiness meter and original mock tests scored like the real one.
+- **Speaking feedback on the device:** a pronunciation check for sounds, pitch accent and rhythm, and a Pitch Coach that draws your pitch live.
+- **Gentle by design:** generous scoring, the answer shown on a miss instead of a lost life, and no streaks.
+
+## How it's built
+
+- Plain HTML, CSS and JavaScript with no build step and no framework. It works offline as an installable web app (service worker). There are no accounts and no server of its own; the only network use is opt-in (sync and the AI chat partner, below).
+- Spaced review uses a small implementation of the FSRS algorithm (`js/srs.js`).
+- Pitch tracking, speech recognition and the mora-by-mora scoring all run in the browser (Web Audio and the Web Speech API).
+- Voice clips are generated ahead of time with VOICEVOX and shipped as small MP3s, so audio works on every device.
+- Optional sync across devices through one private GitHub gist, using a token that stays on the device.
+- Playwright tests at phone and desktop size run on every pull request.
+
+## Credits
+
+- **Voices:** VOICEVOX:四国めたん, VOICEVOX:白上虎太郎, VOICEVOX:青山龍星, VOICEVOX:玄野武宏, VOICEVOX:東北イタコ, VOICEVOX:ずんだもん, VOICEVOX:春日部つむぎ, VOICEVOX:東北ずん子, VOICEVOX:剣崎雌雄. Generated with [VOICEVOX](https://voicevox.hiroshiba.jp/) and used under each character's terms. The credits are also shown in the app's Settings.
+- **Readings and lookup:** deck readings were checked against, and tap-to-look-up meanings beyond the decks come from, [JMdict](https://www.edrdg.org/wiki/index.php/JMdict-EDICT_Dictionary_Project), © the [Electronic Dictionary Research and Development Group](https://www.edrdg.org/), used under the [Creative Commons Attribution-ShareAlike 4.0 licence](https://www.edrdg.org/edrdg/licence.html).
+- **Kana strokes:** Kana Brush strokes from [KanjiVG](https://kanjivg.tagaini.net/), © Ulrich Apel and contributors, CC BY-SA 3.0.
+- **Furigana and romaji:** generated at build time with [Open JTalk](https://open-jtalk.sourceforge.net/) (Modified BSD licence) through [pyopenjtalk-plus](https://github.com/tsukumijima/pyopenjtalk-plus).
+- **Spaced review:** the FSRS v4 algorithm and default weights from the [open-spaced-repetition](https://github.com/open-spaced-repetition) project.
+- Story, example sentences, mnemonics and icons are original to this project.
+
+## Working on it
+
 - Progress is saved in the browser on each device. To keep devices in step, turn on Settings > Sync across devices (optional, below). Export / Import still works as a manual backup.
 - When you change any file, bump `CACHE_VERSION` in `sw.js` so installed copies update.
 
