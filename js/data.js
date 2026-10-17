@@ -512,6 +512,8 @@ export const MODES = [
     body: 'Serve customers with the right counter.' },
   { id: 'listen', title: 'Listening Lab', jp: '聞き取りラボ', group: 'Speak & listen', icon: '🎧', mic: false,
     body: 'Short audio scenes, then questions.' },
+  { id: 'dictation', title: 'Dictation Drops', jp: '書き取り', group: 'Speak & listen', icon: '💧', mic: false,
+    body: 'Hear a word or sentence and type it in kana.' },
   { id: 'numbers', title: 'Numbers & Time', jp: '数と時間', group: 'Speak & listen', icon: '🔢', mic: false,
     body: 'Times, prices and dates by ear.' },
   { id: 'walk', title: 'Walk Mode', jp: '散歩', group: 'Speak & listen', icon: '👟', mic: false,

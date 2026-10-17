@@ -79,6 +79,7 @@ export const SOURCES = {
   library: () => READERS,                                   // graded readers (js/library-*.js)
   walk: () => [...N5_WORDS, ...N4_WORDS, ...N3_WORDS],       // words to recall out loud (Garden words first)
   type: () => [...N5_WORDS, ...N4_WORDS, ...N3_WORDS],       // words to type from memory (Garden words first)
+  dictation: () => [...N5_WORDS, ...N4_WORDS, ...N3_WORDS],  // words and their example sentences to hear and type in kana
 };
 
 /** Every item of a source, whatever its level (for lookups and counts). */
