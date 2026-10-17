@@ -1516,3 +1516,14 @@ body.has-tabs .lk-sheet { bottom: calc(var(--tabbar-h) + var(--sp-3) + env(safe-
 .type-preview { min-height: 1.5em; margin: 0; text-align: center; }
 .type-answer { font-family: var(--font-jp); font-size: var(--fs-jp-md); margin: 0; display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: baseline; }
 .lib-reader, .library { max-width: 720px; margin-inline: auto; width: 100%; }
+
+/* Dictation Drops (js/modes/dictation.js) */
+.dict-play { font-size: var(--fs-xl); min-width: 9rem; margin: 0 auto; }
+.dict-hint { min-height: 2.2em; display: flex; flex-wrap: wrap; gap: var(--sp-2); justify-content: center; align-items: center; }
+.dict-slots { display: inline-flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
+.dict-slot { width: 1.6em; height: 1.6em; border: 1.5px solid var(--border-strong); border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-jp); }
+.dict-line { margin: 0; display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: baseline; }
+.dict-morae { font-family: var(--font-jp); font-size: var(--fs-jp-md); display: inline-flex; flex-wrap: wrap; gap: 1px; word-break: break-all; }
+.dict-mora { padding: 0 1px; border-radius: 4px; }
+.dict-mora.off { background: var(--miss-soft); color: var(--miss); text-decoration: underline wavy; text-underline-offset: 4px; font-weight: 800; }
+.dict-morae.key .dict-mora.off { background: var(--accent-soft); color: var(--accent); }

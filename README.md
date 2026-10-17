@@ -14,7 +14,7 @@ A Japanese study game for PC and phone that I built for my own learning. It turn
 
 - **Today:** a guided daily session of review, story input, speaking and a skill that rotates by weekday, with a 10-minute short day and a quiet mode.
 - **Reading Dojo:** hiragana, katakana and starter kanji.
-- **Nineteen game modes:** Kana Brush, Rival Battle, Encounters, Garden (spaced review of voiced JLPT N5 to N3 decks), Type It, Story, Library, Particle Train, Kanji Forge, Conjugation Dojo, Sentence Builder, Katakana Rush, Rhythm, Pitch Duel, Speak Slice, Shopkeeper, Listening Lab, Numbers & Time and Walk Mode.
+- **Twenty game modes:** Kana Brush, Rival Battle, Encounters, Garden (spaced review of voiced JLPT N5 to N3 decks), Type It, Story, Library, Particle Train, Kanji Forge, Conjugation Dojo, Sentence Builder, Katakana Rush, Rhythm, Pitch Duel, Speak Slice, Shopkeeper, Listening Lab, Dictation Drops, Numbers & Time and Walk Mode.
 - **Road to the JLPT:** content tagged N5, N4 and N3, a readiness meter and original mock tests scored like the real one.
 - **Speaking feedback on the device:** a pronunciation check for sounds, pitch accent and rhythm, and a Pitch Coach that draws your pitch live.
 - **Gentle by design:** generous scoring, the answer shown on a miss instead of a lost life, and no streaks.

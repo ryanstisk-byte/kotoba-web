@@ -4,7 +4,7 @@ import { test, expect, view } from './helpers.js';
 
 const ROUTES = ['#/', '#/modes', '#/garden', '#/progress', '#/settings', '#/check', '#/course', '#/course/p0-1', '#/course/p0-1/lesson',
   '#/play/dojo', '#/play/story', '#/play/particle', '#/play/forge', '#/play/rhythm', '#/play/duel', '#/play/slice', '#/play/shop',
-  '#/play/listen', '#/play/conj', '#/play/build', '#/play/kata', '#/play/numbers', '#/play/library', '#/play/walk', '#/play/type'];
+  '#/play/listen', '#/play/conj', '#/play/build', '#/play/kata', '#/play/numbers', '#/play/library', '#/play/walk', '#/play/type', '#/play/dictation'];
 
 /** Text on the page that is still an emoji (the © in the dictionary credit is ordinary text). */
 const leftovers = (page) => page.evaluate(() => {

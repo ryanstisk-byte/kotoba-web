@@ -75,7 +75,7 @@ export const PARTS = {
   vocab: { title: 'Vocabulary', group: 'lk', practice: [['garden', 'Garden'], ['forge', 'Kanji Forge'], ['dojo', 'Reading Dojo']] },
   grammar: { title: 'Grammar', group: 'lk', practice: [['particle', 'Particle Train'], ['build', 'Sentence Builder'], ['conj', 'Conjugation Dojo']] },
   reading: { title: 'Reading', group: 'lk', practice: [['story', 'Story']] },
-  listening: { title: 'Listening', group: 'li', practice: [['listen', 'Listening Lab'], ['numbers', 'Numbers & Time']] },
+  listening: { title: 'Listening', group: 'li', practice: [['listen', 'Listening Lab'], ['dictation', 'Dictation Drops'], ['numbers', 'Numbers & Time']] },
 };
 
 /**
