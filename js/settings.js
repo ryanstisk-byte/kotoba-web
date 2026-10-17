@@ -6,6 +6,7 @@ import { CLIPS, LATER_CLIPS } from './clips.js';
 import { median } from './modes/rhythm.js';
 import * as fx from './fx.js';
 import * as sync from './sync.js';
+import * as ai from './ai-chat.js';
 import { unlockedLevels, lockedLevels, lockLine } from './levels.js';
 
 export function mount(el, ctx) {
@@ -134,6 +135,8 @@ export function mount(el, ctx) {
 
         <section class="panel stack-sm full" id="sync-panel" aria-labelledby="sync-h">${syncHTML()}</section>
 
+        <section class="panel stack-sm full" id="ai-panel" aria-labelledby="ai-h">${aiHTML()}</section>
+
         <section class="panel stack-sm full">
           <h2 class="section-title">Move progress between devices</h2>
           <p class="small dim">Export here, then import on your PC or phone. Importing replaces the progress on that device.</p>
@@ -184,6 +187,40 @@ export function mount(el, ctx) {
       <p class="small dim">Settings like theme, voice and text size stay separate on each device. Disconnect forgets the token and gist on this device; the gist stays in your GitHub account. Export / Import below still works as a manual backup.</p>`;
   }
   let syncMsg = '';
+
+  // Free chat in Messages (js/ai-chat.js): optional, off until a Claude API key is pasted here.
+  let aiMsg = '';
+  function aiHTML() {
+    const st = ai.status();
+    const head = '<h2 class="section-title" id="ai-h">AI chat partner</h2>';
+    const models = `<div class="stack-sm" role="group" aria-label="Model">${Object.entries(ai.MODELS).map(([id, m]) => `
+        <button class="btn left ai-model" data-act="aimodel" data-model="${id}" aria-pressed="${st.model === id}"><span class="strong">${esc(m.name)}${id === ai.DEFAULT_MODEL ? ' (default)' : ''}</span><span class="small dim">${esc(m.note)}</span></button>`).join('')}</div>`;
+    if (!st.on) {
+      return `${head}
+        <p class="small">Optional. Adds Free chat to Messages: type your own Japanese to Ren and friends, and an AI playing them writes back at your level, with a more natural way to say what you wrote.</p>
+        <p class="small dim">It needs your own Claude API key from console.anthropic.com, with credit on it. That is paid separately from a Claude subscription.</p>
+        <label class="stack-sm"><span class="strong">Claude API key</span>
+          <input type="password" id="ai-key" class="text-input" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="sk-ant-…" aria-describedby="ai-help"></label>
+        ${models}
+        ${aiMsg ? `<p class="small note-c" role="status">${esc(aiMsg)}</p>` : ''}
+        <button class="btn primary" data-act="aiconnect">Turn on</button>
+        <p class="small dim" id="ai-help">The key stays on this device only: it is never in an export code or synced, and is only ever sent to api.anthropic.com. What you type in Free chat is sent there to get a reply.</p>`;
+    }
+    return `${head}
+      <p class="small"><span class="good-c strong">On.</span> Open Messages, pick someone, then Free chat.</p>
+      ${models}
+      <button class="btn" data-act="aioff">Turn off</button>
+      <p class="small dim">Turning off forgets the key on this device. You can set a monthly spend limit for the key at console.anthropic.com.</p>`;
+  }
+  function drawAi() {
+    const p = el.querySelector('#ai-panel');
+    if (!p) return;
+    const typed = p.querySelector('#ai-key')?.value || '';
+    p.innerHTML = aiHTML();
+    const input = p.querySelector('#ai-key');
+    if (input) input.value = typed;
+  }
+
   function drawSync() {
     const p = el.querySelector('#sync-panel');
     if (!p) return;
@@ -384,6 +421,29 @@ export function mount(el, ctx) {
       const ok = await sync.connect(token);
       if (ok) toast('Sync is on.');
     },
+    aiconnect: () => {
+      const input = el.querySelector('#ai-key');
+      const key = (input?.value || '').trim();
+      if (!ai.looksLikeKey(key)) {
+        aiMsg = key ? 'That doesn\'t look like a Claude API key. It should start with sk-ant-. Copy the whole key and try again.' : 'Paste your Claude API key first.';
+        drawAi();
+        return;
+      }
+      aiMsg = '';
+      if (input) input.value = '';
+      ai.connect(key);
+      drawAi();
+      toast('Free chat is on.');
+    },
+    aimodel: (b) => {
+      const typed = el.querySelector('#ai-key')?.value || '';
+      ai.setModel(b.dataset.model);
+      drawAi();
+      const input = el.querySelector('#ai-key');
+      if (input) input.value = typed;
+      el.querySelector(`[data-act=aimodel][data-model="${b.dataset.model}"]`)?.focus();
+    },
+    aioff: () => { ai.disconnect(); aiMsg = ''; drawAi(); toast('Free chat is off on this device.'); },
     syncnow: async () => { if (await sync.sync({ force: true })) toast('Synced.'); },
     syncoff: () => { sync.disconnect(); syncMsg = ''; toast('Sync is off on this device.'); render(); },
     reset: () => {
