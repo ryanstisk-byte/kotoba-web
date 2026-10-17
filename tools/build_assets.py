@@ -14,6 +14,7 @@ Existing clips are reused, so reruns only synthesize new lines. Without pyopenjt
 """
 import hashlib
 import json
+import math
 import os
 import re
 import subprocess
@@ -122,6 +123,58 @@ def shape_pitch(moras, accent):
         m.pitch = base + (0.09 if high else -0.09) - 0.012 * i   # ~3 semitones apart, with a gentle fall
 
 
+def accent_phrase(text, voice, opts):
+    """The single accent phrase VOICEVOX makes for a word with its accent set (None when it reads as more than one)."""
+    s = synthesizer()
+    style = VOICES[voice][1]
+    say = opts.get('say') or SAY_AS.get(text, text)
+    phrases = s.create_accent_phrases(say, style)
+    if len(phrases) != 1:
+        return None
+    ph = phrases[0]
+    n = len(ph.moras)
+    want = opts['accent'] or n
+    if 1 <= want <= n and want != ph.accent:
+        ph.accent = want
+        phrases = s.replace_mora_pitch(phrases, style)
+    return phrases[0]
+
+
+def melody_fits(moras, accent):
+    """Whether VOICEVOX's own pitch already says the accent the way the pronunciation check scores it
+    (js/pitch-score.js scorePitch): each step between beats goes the right way, high beats stay about level, and the
+    first clear fall is the drop. Whispered beats are left out. Pitch is log Hz, so 12 / ln 2 turns it into semitones."""
+    st = 12 / math.log(2)
+    p = [(i, m.pitch * st) for i, m in enumerate(moras) if m.pitch > 0]
+    n = len(moras)
+    highs = [(i == 0) if accent == 1 else (i > 0 and (accent == 0 or i < accent)) for i in range(n)]
+    drop = next((i for i in range(n - 1) if highs[i] and not highs[i + 1]), -1)
+    first_fall = None
+    for (a, pa), (b, pb) in zip(p, p[1:]):
+        d = pb - pa
+        want = 'level' if highs[a] == highs[b] else 'up' if highs[b] else 'down'
+        if want == 'level' and abs(d) >= 2.0:
+            return False
+        if want == 'up' and d <= 0.7 or want == 'down' and d >= -0.7:
+            return False
+        if d < -0.7 and first_fall is None:
+            first_fall = a
+    if drop >= 0 and not any(a <= drop < b for (a, _), (b, _) in zip(p, p[1:])):
+        return True   # the drop falls on whispered beats: nothing to hear or score there
+    return first_fall == drop if drop >= 0 else True
+
+
+def with_shape(text, voice, opts):
+    """A word clip with a set accent gets its pitch drawn beat by beat (shape) when VOICEVOX's own melody doesn't say
+    that accent, so what the learner hears is what the pronunciation check and the Pitch Coach score."""
+    if not opts or 'accent' not in opts or opts.get('shape'):
+        return opts
+    ph = accent_phrase(text, voice, opts)
+    if ph is None or len(ph.moras) < 2 or melody_fits(ph.moras, opts['accent']):
+        return opts
+    return {**opts, 'shape': 1}
+
+
 def synth(text, voice, speed, out, opts=None):
     """opts: 'say' = text to read instead (when Open JTalk misreads the written form), 'accent' = downstep
     (0 = flat) to force on a single word, so the clip matches the pitch the app shows, 'shape' = also set every
@@ -179,6 +232,7 @@ def build_clips(clips):
     level_of = {}   # file name -> the easiest level that uses it (N5 files are precached; the rest after unlock)
     order = ['N5', 'N4', 'N3', 'N2', 'N1']
     for text, voice, opts, speeds, level in clips:
+        opts = with_shape(text, voice, opts)
         for speed in speeds or SPEEDS:
             name = clip_name(text, voice, speed, opts)
             keep.add(name)

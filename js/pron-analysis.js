@@ -22,7 +22,8 @@ const ROWS = {
 const VOWEL_KANA = { あ: 'a', い: 'i', う: 'u', え: 'e', お: 'o' };
 /** The vowel a mora ends in (null for ん and っ). */
 export function vowelOf(mora) {
-  const last = mora.slice(-1);
+  const last = String(mora || '').slice(-1);
+  if (!last) return null;   // ''.includes('') is true, which made a word's first あ look like a held vowel
   for (const [v, list] of Object.entries(ROWS)) if (list.includes(last)) return v;
   return null;
 }

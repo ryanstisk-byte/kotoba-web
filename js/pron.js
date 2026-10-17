@@ -5,9 +5,9 @@
 import { store } from './store.js';
 import { speaker, PitchTracker, Recognizer, recognitionSupported, noRecognitionReason, micSupported, micHelp, normalizeJa } from './audio.js';
 import { analyze, moraInfo, targetPitch } from './pron-analysis.js';
-import { modelFrames } from './model-clip.js';
+import { modelFrames, modelClip, beatTimes } from './model-clip.js';
 import { tipFor } from './pron-tips.js';
-import { yFor } from './pitch-score.js';
+import { yFor, semitones, medianFilter, STEP_ST } from './pitch-score.js';
 import { openCoach, coachAvailable } from './pitch-coach.js';
 import { readingOf } from './furigana.js';
 import { esc } from './ui.js';
@@ -45,6 +45,7 @@ export function pronButton(target, { compact = false, cls = 'btn ghost small-btn
 
 // ---------- the panel ----------
 let panel = null;     // { el, target, state, ... } while open
+const COUNTDOWN = 3;  // seconds counted down once the mic is live, before it listens
 
 const VERDICT = {
   great: { title: 'Great!', line: 'That sounded natural. Nice work.', cls: 'good-c' },
@@ -132,9 +133,16 @@ function render() {
       <div class="row2">${listen}</div>
       <button class="btn primary wide" data-pact="start">🎤 Start</button>
       ${coachButton()}`;
+  } else if (state === 'arming') {
+    body = `<p class="lead" role="status">Turning the mic on…</p>
+      ${liveHTML()}`;
+  } else if (state === 'countdown') {
+    body = `<p class="lead strong" role="status">Mic on. Say <span lang="ja">${esc(target.jp || target.reading)}</span> in <span class="pron-count mono" id="pron-count">${panel.count}</span></p>
+      ${liveHTML()}
+      <p class="small dim">Get ready; it listens when the count reaches zero.</p>`;
   } else if (state === 'recording') {
-    body = `<p class="lead strong" role="status">🎤 Listening… say <span lang="ja">${esc(target.jp || target.reading)}</span></p>
-      <div class="meter" aria-hidden="true"><span id="pron-level" style="width:0%"></span></div>
+    body = `<p class="lead strong" role="status">🎤 Go! Say <span lang="ja">${esc(target.jp || target.reading)}</span></p>
+      ${liveHTML()}
       <button class="btn wide" data-pact="stop">■ Done</button>`;
   } else if (state === 'checking') {
     body = '<p class="lead" role="status">Checking…</p>';
@@ -159,6 +167,97 @@ function render() {
   el.querySelector('.pron-body').innerHTML = head + body;
 }
 
+// ---------- the live pitch line (while you speak) ----------
+function liveHTML() {
+  return `<div class="coach-line-wrap pron-live-wrap"><canvas class="pron-live" height="150" aria-hidden="true"></canvas></div>
+    <p class="tiny dim coach-key"><span><span class="pron-key pron-key-t"></span> the word's melody</span> <span><span class="pron-key pron-key-u"></span> your pitch, live</span></p>
+    <div class="meter" aria-hidden="true"><span id="pron-level" style="width:0%"></span></div>`;
+}
+
+/**
+ * Draws the target's high and low beats, timed like the app's clip and starting where you start, with your pitch on
+ * top as you speak. A fixed scale in semitones around your middle pitch (the Pitch Coach's, else your voice so far),
+ * so a small wobble stays small and a real step looks like one.
+ */
+function drawLive() {
+  const p = panel;
+  const canvas = p && p.el.querySelector('canvas.pron-live');
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth || 320, h = 150;
+  if (canvas.width !== Math.round(w * dpr)) { canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr); }
+  const g = canvas.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  const cs = getComputedStyle(document.body);
+  const col = (k, d) => cs.getPropertyValue('--' + k).trim() || d;
+  const accent = col('accent', '#c4300c'), good = col('good', '#1a7f4b'), dim = col('dim', '#777'), line = col('border', '#ddd'), ink = col('ink', '#222');
+  const morae = moraInfo(p.target.reading);
+  const highs = p.liveHighs;
+  const times = p.liveTimes || beatTimes(null, morae.length);
+  const total = times.length ? times[times.length - 1].to : 1;
+  const tr = p.tracker;
+  const frames = tr && p.goIndex != null ? tr.samples.slice(p.goIndex) : [];
+  const thr = tr ? Math.max(tr.noiseFloor * 3, 0.008) : 0.008;
+  const onsetF = frames.find((f) => f.level >= thr && f.hz);
+  const onset = onsetF ? onsetF.time : null;
+  const t0 = frames.length ? frames[0].time : 0;
+  const lead = onset != null ? onset - t0 : 0;   // the melody starts where you start
+  const lastT = frames.length ? frames[frames.length - 1].time - t0 : 0;
+  // The view starts just before you start talking, so the word fills the width instead of the wait before it.
+  const from = Math.max(0, lead - 0.25);
+  const axis = Math.max(lead - from + total * 1.5, lastT - from + 0.2, 1.2);
+  const left = 8, right = w - 8, plotH = h - 26;
+  const x = (t) => left + ((t - from) / axis) * (right - left);
+  const y = (st) => yFor(st, plotH, 10);
+  g.strokeStyle = line; g.lineWidth = 1; g.setLineDash([3, 4]);
+  g.beginPath(); g.moveTo(left, y(0)); g.lineTo(right, y(0)); g.stroke(); g.setLineDash([]);
+  morae.forEach((m, i) => {
+    const t = times[i];
+    if (!t) return;
+    const skip = m.devoice || m.type === 'sokuon';
+    const xa = x(lead + t.from), xb = x(lead + t.to);
+    if (highs) {
+      const yy = y(highs[i] ? STEP_ST : -STEP_ST);
+      g.lineCap = 'round';
+      if (skip) { g.strokeStyle = dim; g.lineWidth = 2; g.setLineDash([2, 5]); g.beginPath(); g.moveTo(xa + 4, yy); g.lineTo(xb - 4, yy); g.stroke(); g.setLineDash([]); }
+      else { g.strokeStyle = accent; g.globalAlpha = 0.35; g.lineWidth = 10; g.beginPath(); g.moveTo(xa + 5, yy); g.lineTo(xb - 5, yy); g.stroke(); g.globalAlpha = 1; }
+    }
+    g.fillStyle = skip ? dim : ink;
+    g.font = `700 14px ${col('font-jp', 'sans-serif')}`;
+    g.textAlign = 'center';
+    g.fillText(m.kana, (xa + xb) / 2, h - 7);
+  });
+  if (!frames.length) return;
+  // Your middle: the coach's saved voice, else the median of what you've said so far (settles after a beat or two).
+  const hzs = frames.filter((f) => f.hz && f.level >= thr).map((f) => f.hz).sort((a, b) => a - b);
+  const mid = (store.voice && store.voice.mid) || (hzs.length ? hzs[Math.floor(hzs.length / 2)] : 160);
+  const raw = frames.map((f) => (f.hz && f.level >= thr ? semitones(f.hz, mid) : null));
+  const sm = medianFilter(raw, 5);
+  g.strokeStyle = good; g.lineWidth = 3.5; g.lineJoin = 'round';
+  g.beginPath();
+  let pen = false, prev = -1;
+  frames.forEach((f, i) => {
+    if (sm[i] == null) { pen = false; return; }
+    const t = f.time - t0;
+    if (t < from) return;
+    if (!pen || t - prev > 0.12) g.moveTo(x(t), y(sm[i])); else g.lineTo(x(t), y(sm[i]));
+    pen = true; prev = t;
+  });
+  g.stroke();
+  const lastI = sm.map((v, i) => (v == null ? -1 : i)).filter((i) => i >= 0).pop();
+  if (lastI != null && p.state === 'recording') { g.fillStyle = good; g.beginPath(); g.arc(x(frames[lastI].time - t0), y(sm[lastI]), 5, 0, Math.PI * 2); g.fill(); }
+}
+
+function liveLoop() {
+  const p = panel;
+  if (!p || !['arming', 'countdown', 'recording'].includes(p.state)) return;
+  const meter = p.el.querySelector('#pron-level');
+  if (meter && p.tracker) meter.style.width = Math.min(100, p.tracker.liveLevel * 600).toFixed(0) + '%';
+  drawLive();
+  p.raf = requestAnimationFrame(liveLoop);
+}
+
 function playModel(slow = false, onend = null) {
   const t = panel.target;
   speaker.speak(t.say || t.jp, { mps: slow ? 2.5 : 3.5, voice: t.voice || 0, speed: slow ? 'slow' : 'normal', onend });
@@ -167,6 +266,8 @@ function playModel(slow = false, onend = null) {
 function stopAll() {
   if (!panel) return;
   clearInterval(panel.poll);
+  clearInterval(panel.countTimer);
+  cancelAnimationFrame(panel.raf);
   if (panel.tracker) { try { panel.tracker.stop(); } catch (e) { /* ignore */ } }
   if (panel.rec) { try { panel.rec.stop(); } catch (e) { /* ignore */ } }
   if (panel.mediaRec && panel.mediaRec.state !== 'inactive') { try { panel.mediaRec.stop(); } catch (e) { /* ignore */ } }
@@ -181,8 +282,9 @@ async function startAttempt() {
   p.notes = [];
   p.transcripts = [];
   p.recognition = recognitionSupported;
+  p.goIndex = null;
   if (p.recording) { URL.revokeObjectURL(p.recording); p.recording = null; }
-  p.state = 'recording';
+  p.state = 'arming';
   render();
   const tracker = new PitchTracker();
   try {
@@ -195,6 +297,41 @@ async function startAttempt() {
   }
   if (panel !== p) { tracker.stop(); return; }
   p.tracker = tracker;
+  p.raf = requestAnimationFrame(liveLoop);
+  // The melody to draw, timed like the app's clip (fetched while the mic wakes up).
+  const morae = moraInfo(p.target.reading);
+  const clipJob = modelClip(p.target).catch(() => null);
+  // Wait until the mic is really on (a phone sends silence at first), then count down from 3 so nothing said
+  // before it's listening is lost. The quiet count also measures the room's noise.
+  await tracker.whenLive();
+  if (panel !== p || p.tracker !== tracker) return;
+  const clip = await clipJob;
+  if (panel !== p || p.tracker !== tracker) return;
+  p.liveHighs = targetPitch(p.target, null);
+  p.liveTimes = beatTimes(clip, morae.length);
+  p.state = 'countdown';
+  p.count = COUNTDOWN;
+  render();
+  const countFrom = tracker.samples.length;
+  await new Promise((resolve) => {
+    p.countTimer = setInterval(() => {
+      if (panel !== p || p.tracker !== tracker) { clearInterval(p.countTimer); return; }
+      p.count--;
+      // Recognition opens its own mic: start it a moment early so it's listening by zero.
+      if (p.count === 1 && recognitionSupported) startRecognition(p);
+      const c = p.el.querySelector('#pron-count');
+      if (c) c.textContent = String(Math.max(0, p.count));
+      if (p.count <= 0) { clearInterval(p.countTimer); resolve(); }
+    }, 1000);
+  });
+  if (panel !== p || p.tracker !== tracker) return;
+  tracker.calibrateNoise(tracker.samples.slice(countFrom));
+  if (!recognitionSupported) p.recReason = noRecognitionReason();
+  else if (!p.rec) startRecognition(p);
+  p.goIndex = tracker.samples.length;
+  p.state = 'recording';
+  render();
+  p.raf = requestAnimationFrame(liveLoop);
   // A copy of the attempt, for "side by side".
   if (typeof MediaRecorder !== 'undefined' && tracker.stream) {
     try {
@@ -206,40 +343,35 @@ async function startAttempt() {
       p.mediaRec = mr;
     } catch (e) { p.mediaRec = null; }
   }
-  // What recognition hears, when this browser has it.
-  if (recognitionSupported) {
-    const rec = new Recognizer();
-    rec.onTranscript = (text, alts) => {
-      if (text) p.transcripts = [text, ...String(alts || '').split('|').filter(Boolean)];
-    };
-    rec.onUnavailable = (reason) => { p.recognition = false; p.recReason = reason; };
-    rec.start([p.target.say || p.target.jp]);
-    p.rec = rec;
-  } else {
-    p.recReason = noRecognitionReason();
-  }
   const t0 = performance.now();
-  const maxMs = 2500 + 350 * moraInfo(p.target.reading).length;
+  const maxMs = 2500 + 350 * morae.length;
   let spoke = 0, quietSince = 0;
   p.poll = setInterval(() => {
     if (panel !== p || !p.tracker) return;
     const now = performance.now() - t0;
-    if (now > 300 && !p.calibrated) { tracker.calibrateNoise(tracker.samples.slice(0, 8)); p.calibrated = true; }
-    const level = tracker.liveLevel;
-    const meter = p.el.querySelector('#pron-level');
-    if (meter) meter.style.width = Math.min(100, level * 600).toFixed(0) + '%';
-    const loud = level > Math.max(tracker.noiseFloor * 3, 0.01);
+    const loud = tracker.liveLevel > Math.max(tracker.noiseFloor * 3, 0.01);
     if (loud) { spoke = spoke || now; quietSince = 0; } else if (spoke && !quietSince) quietSince = now;
     if ((spoke && quietSince && now - quietSince > 700 && now - spoke > 300) || now > maxMs) finishAttempt();
   }, 100);
 }
 
+/** What recognition hears, when this browser has it. */
+function startRecognition(p) {
+  const rec = new Recognizer();
+  rec.onTranscript = (text, alts) => {
+    if (text) p.transcripts = [text, ...String(alts || '').split('|').filter(Boolean)];
+  };
+  rec.onUnavailable = (reason) => { p.recognition = false; p.recReason = reason; };
+  rec.start([p.target.say || p.target.jp]);
+  p.rec = rec;
+}
+
 async function finishAttempt() {
   const p = panel;
-  if (!p || !p.tracker) return;
+  if (!p || !p.tracker || p.state !== 'recording') return;
   clearInterval(p.poll);
   const tracker = p.tracker;
-  const user = { frames: tracker.samples.slice(), floor: tracker.noiseFloor };
+  const user = { frames: tracker.samples.slice(p.goIndex || 0), floor: tracker.noiseFloor };
   tracker.stop();
   p.tracker = null;
   if (p.mediaRec && p.mediaRec.state !== 'inactive') { try { p.mediaRec.stop(); } catch (e) { /* ignore */ } }
