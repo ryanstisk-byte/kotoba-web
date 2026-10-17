@@ -9,17 +9,42 @@ import { N4_MESSAGES, N4_WELCOME_BACK } from './n4-extras.js';
 import { N3_MESSAGES, N3_WELCOME_BACK } from './n3-extras.js';
 import { GARDEN_CATALOG, deckIdFor } from './data.js';
 import { tagLevel } from './level-tag.js';
+import { CAST_MESSAGES } from './messages-cast.js';
 
 /** M(id, from, tier, jp, kana, en, words, meaning [right, wrong, wrong], replies, extra) */
 const M = (id, from, tier, jp, kana, en, words, meaning, replies, extra = {}) => ({ id, from, tier, jp, kana, en, words, meaning, replies, after: null, ...extra });
 /** R(reply text, English, next message id or null) */
 const R = (jp, en, next = null) => ({ jp, en, next });
 
+/**
+ * The people you can message. `after`: the story chapter where you meet them. `talk`: how they write (each keeps
+ * their own speech level, which is what switching between them teaches). `answer(tier)`: the speech level that fits
+ * when you write to them, 'polite' (です・ます) or 'casual'. `open`: your first line to them in each speech level.
+ */
 export const SENDERS = {
-  ren: { name: 'Ren', jpName: 'レン', voice: 1, color: 'var(--accent)' },
-  kaito: { name: 'Kaito', jpName: 'カイト', voice: 3, color: 'var(--trace)', after: 'ch2' },
-  master: { name: 'Master', jpName: '師匠', voice: 2, color: 'var(--good)', after: 'ch4' },
+  ren: { name: 'Ren', jpName: 'レン', voice: 1, color: 'var(--accent)', role: 'Your friend',
+    talk: 'Polite (です・ます) while you get to know each other, then casual like a friend.',
+    answer: (tier) => (tier <= 1 ? 'polite' : 'casual'),
+    open: { polite: ['レンさん、こんにちは！ いま いいですか。', 'Hi Ren! Is now a good time?'], casual: ['レン、やあ！ いま ひま？', 'Hey Ren! Free right now?'] } },
+  kaito: { name: 'Kaito', jpName: 'カイト', voice: 3, color: 'var(--trace)', after: 'ch2', role: "Ren's rival",
+    talk: 'Rough and casual: おれ, おまえ, plain verbs, and endings like ぞ and ぜ.',
+    answer: () => 'casual',
+    open: { polite: ['カイトさん、こんにちは。おげんきですか。', 'Hello, Kaito. How are you?'], casual: ['よう、カイト！ げんき？', 'Yo, Kaito! You good?'] } },
+  master: { name: 'Master', jpName: '師匠', voice: 2, color: 'var(--good)', after: 'ch4', role: 'Your teacher',
+    talk: 'Short and firm, the way a teacher talks (だ, しろ).',
+    answer: () => 'polite',
+    open: { polite: ['ししょう、こんにちは。いま よろしいですか。', 'Hello, Master. Is now all right?'], casual: ['ししょう、やあ！ げんき？', 'Hey, Master! You good?'] } },
+  sora: { name: 'Sora', jpName: 'ソラ', voice: 5, color: 'var(--electric)', after: 'ch6', role: 'A kid from the shop',
+    talk: 'Kid talk: short plain forms with ねえ and よ.',
+    answer: () => 'casual',
+    open: { polite: ['ソラくん、こんにちは。おげんきですか。', 'Hello, Sora. How are you?'], casual: ['ソラ、やあ！ なに してる？', "Hey Sora! What's up?"] } },
+  kiku: { name: 'Granny Kiku', jpName: 'キクさん', voice: 4, color: 'var(--gold)', after: 'ch6', role: 'An old friend of the dojo',
+    talk: 'Gentle and polite: です・ます with ね and よ.',
+    answer: () => 'polite',
+    open: { polite: ['キクさん、こんにちは。おげんきですか。', 'Hello, Granny Kiku. How are you?'], casual: ['キク、やあ！ げんき？', 'Hey Kiku! You good?'] } },
 };
+/** The order people appear in the contact list. */
+export const CONTACTS = ['ren', 'kaito', 'master', 'sora', 'kiku'];
 
 export const MESSAGES = [
   // ---------- Tier 1: kana only, polite ----------
@@ -184,7 +209,7 @@ export const MESSAGES = [
   M('k1', 'kaito', 2, 'おい。レンから 聞いた。おまえも 日本語、やってるんだって？', 'おい。れんから きいた。おまえも にほんご、やってるんだって？',
     "Hey. I heard from Ren. You're doing Japanese too?", ['n5:聞く', 'n5:日本語'],
     ['Kaito heard from Ren that you study Japanese.', 'Kaito wants to learn English.', 'Kaito is angry at Ren.'],
-    [R('うん、がんばってる！', "Yeah, I'm working hard!", 'k2'), R('少しだけ……', 'Just a little…', 'k2')], { after: 'ch2' }),
+    [R('うん、がんばってる！', "Yeah, I'm working hard!", 'k2'), R('少しだけ……', 'Just a little…', 'k2')], { after: 'ch2', intro: true }),
   M('k2', 'kaito', 2, 'ふん。まあ、悪くない。毎日 やれよ。', 'ふん。まあ、わるくない。まいにち やれよ。',
     "Hmph. Well, not bad. Do it every day.", ['n5:悪い', 'n5:毎日'],
     ['Kaito says not bad and tells you to keep at it daily.', 'Kaito says you should quit.', 'Kaito wants a match now.'],
@@ -202,7 +227,7 @@ export const MESSAGES = [
   M('m1', 'master', 2, 'レンが いつも 世話に なって いるな。ありがとう。', 'れんが いつも せわに なって いるな。ありがとう。',
     'Ren is always in your care. Thank you.', ['n5:いつも', 'arigatou'],
     ['The Master thanks you for looking after Ren.', 'The Master scolds you.', 'The Master asks you to train Ren.'],
-    [R('いいえ、こちらこそ。', 'No, thank you.'), R('レンは いい ともだちです。', 'Ren is a good friend.')], { after: 'ch4' }),
+    [R('いいえ、こちらこそ。', 'No, thank you.'), R('レンは いい ともだちです。', 'Ren is a good friend.')], { after: 'ch4', intro: true }),
   M('m2', 'master', 2, 'ことばも わざと 同じだ。毎日 少しずつ。それで いい。', 'ことばも わざと おなじだ。まいにち すこしずつ。それで いい。',
     "Words are like techniques. A little every day. That's enough.", ['n5:同じ', 'n5:毎日', 'n5:少し'],
     ['The Master says language, like technique, grows a little each day.', 'The Master says study all night.', 'The Master says words are useless.'],
@@ -240,6 +265,10 @@ WELCOME_BACK.push(...tagLevel([N4_WELCOME_BACK].map(wordIds), 'N4'));
 // N3 (tier 5: N3 grammar in casual chat, わけ, はず, ように, っぽい, ちゃう) from js/n3-extras.js.
 MESSAGES.push(...tagLevel(N3_MESSAGES.map(wordIds), 'N3'));
 WELCOME_BACK.push(...tagLevel([N3_WELCOME_BACK].map(wordIds), 'N3'));
+
+// Sora, Granny Kiku, and kana-only notes from Kaito and the Master (js/messages-cast.js), at every level.
+const castAt = (tiers, level) => tagLevel(CAST_MESSAGES.filter((m) => tiers.includes(m.tier)).map(wordIds), level);
+MESSAGES.push(...castAt([1, 2, 3], 'N5'), ...castAt([4], 'N4'), ...castAt([5], 'N3'));
 
 export const ALL_MESSAGES = [...MESSAGES, ...WELCOME_BACK];
 export const MESSAGE_BY_ID = Object.fromEntries(ALL_MESSAGES.map((m) => [m.id, m]));

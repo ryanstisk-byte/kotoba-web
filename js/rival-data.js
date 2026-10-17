@@ -83,21 +83,40 @@ RIVALS.push(...tagLevel(N4_RIVALS.map((r) => ({ ...r })), 'N4'));
 RIVALS.push(...tagLevel(N3_RIVALS.map((r) => ({ ...r })), 'N3'));
 export const RIVAL_BY_ID = Object.fromEntries(RIVALS.map((r) => [r.id, r]));
 
-/** Ren (the learner's side, voice 1) shouts one of these with each finisher. */
+/** Ren (the learner's side in the story, voice 1). */
 export const REN_VOICE = 1;
+
+/**
+ * Who you can fight as, drawn from behind (js/rival-art.js). Ren and Aoi from the start; a story character once you've
+ * met them as a rival (`meet`: that rival's id). `voice`: the VOICEVOX voice of their finisher shouts.
+ */
+export const FIGHTERS = [
+  { id: 'ren', name: 'Ren', jpName: 'レン', voice: REN_VOICE, blurb: 'The hero of the dojo story. Never gives up.' },
+  { id: 'aoi', name: 'Aoi', jpName: 'アオイ', voice: 0, blurb: 'A new student at the dojo. Calm, quick and sharp.' },
+  { id: 'kaito', name: 'Kaito', jpName: 'カイト', voice: 3, meet: 'kaito', blurb: 'The proud fighter, now on your side.' },
+  { id: 'master', name: 'Master', jpName: '師匠', voice: 2, meet: 'master', blurb: 'Your teacher steps in for you.' },
+  { id: 'sora', name: 'Sora', jpName: 'ソラ', voice: 5, meet: 'sora', blurb: 'Fast and fearless, and very happy to help.' },
+  { id: 'kiku', name: 'Granny Kiku', jpName: 'キクさん', voice: 4, meet: 'kiku', blurb: 'She still has the moves.' },
+];
+export const FIGHTER_BY_ID = Object.fromEntries(FIGHTERS.map((x) => [x.id, x]));
+
+/** Your fighter shouts one of these with each finisher. */
 export const FINISHERS = [
   { name: 'Word Storm', line: L('いくぞ！ ことばの あらし！', 'いくぞ！ ことばの あらし！', 'Here I go! Storm of words!') },
   { name: 'Memory Strike', line: L('ぜんぶ おぼえて いるぞ！ とどめだ！', 'ぜんぶ おぼえて いるぞ！ とどめだ！', 'I remember all of it! This ends now!') },
   { name: 'Dojo Finisher', line: L('これで きめる！ ひっさつ わざ！', 'これで きめる！ ひっさつ わざ！', 'This settles it! Special move!') },
 ];
-/** Ren's line when the fight turns into a training montage. */
+/** Your fighter's line when the fight turns into a training montage. */
 export const MONTAGE_LINE = L('もう いちど！ とっくんだ！', 'もう いちど！ とっくんだ！', 'One more time! Training!');
 
 /** Every voiced line with its voice and level, for tools/collect.mjs. */
 export function rivalLines() {
   const out = [];
   for (const r of RIVALS) for (const l of [...r.intro, ...r.counter, r.defeat, r.respect]) out.push([l, r.voice, r.level]);
-  for (const f of FINISHERS) out.push([f.line, REN_VOICE]);
-  out.push([MONTAGE_LINE, REN_VOICE]);
+  const voices = [...new Set(FIGHTERS.map((x) => x.voice))];
+  for (const v of voices) {
+    for (const f of FINISHERS) out.push([f.line, v]);
+    out.push([MONTAGE_LINE, v]);
+  }
   return out;
 }

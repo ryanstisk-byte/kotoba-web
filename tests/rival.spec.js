@@ -134,7 +134,8 @@ test.describe('Rival Battle', () => {
     const before = await saved(page);
     await answer(page, false);
     await expect(view(page)).toContainText('Kaito counters');
-    await expect(view(page).locator('.rival-bubble')).not.toHaveClass(/quiet/);
+    await expect(view(page).locator('.rival-text')).not.toHaveClass(/quiet/);   // the rival's counter line
+    await expect(view(page).locator('.me-hp')).toHaveAttribute('aria-valuenow', '15');   // the attack took some stamina
     await expect(view(page).locator('.practice-opts .good')).toHaveCount(1);   // the answer is shown
     const after = await saved(page);
     for (const [id, p] of Object.entries(before.items)) expect(after.items[id].level).toBe(p.level);   // nothing knocked down
@@ -148,14 +149,22 @@ test.describe('Rival Battle', () => {
     expect(seen).toContain(first);
   });
 
-  test("you can't lose: a bad fight turns into a training montage, then the rival respects you", async ({ page }) => {
+  test("you can't lose: running out of stamina turns into a training montage, then the rival respects you", async ({ page }) => {
     await seed(page, await learnerState(page));
     await startFight(page);
-    for (let n = 0; n < 3; n++) { await answer(page, false); await next(page); }
+    for (let n = 0; n < 4; n++) {
+      await answer(page, false);
+      if (n === 3) {
+        await expect(view(page).locator('.me-hp')).toHaveAttribute('aria-valuenow', '0');
+        await expect(view(page).locator('.me-sprite')).toHaveClass(/ko/);
+        await expect(view(page).locator('[data-act=next]')).toContainText('Train');
+      }
+      await next(page);
+    }
     const v = view(page);
     await expect(v.locator('.montage')).toBeVisible();
     await expect(v).toContainText('TRAINING MONTAGE');
-    for (let n = 0; n < 3; n++) {
+    for (let n = 0; n < 4 && await v.locator('[data-act=drill]').count(); n++) {   // one drill per missed item
       await v.locator('[data-act=drill]').click();
       const ri = await rightIndex(page);
       await v.locator('.practice-opts button').nth(ri).click();
@@ -164,6 +173,61 @@ test.describe('Rival Battle', () => {
     await expect(v.locator('.rival-kicker')).toContainText('KAITO BOWS');
     await expect(v).toContainText("I don't hate people who don't give up");
     await expect(v).toContainText('THESE GOT THROUGH');
+    await expectNoHorizontalScroll(page);
+  });
+
+  test('an attack that lands before you answer counts as a miss: stamina drops and the answer is shown', async ({ page }) => {
+    await page.clock.install();
+    await seed(page, await learnerState(page));
+    await startFight(page);
+    await page.clock.runFor(30_000);
+    await expect(view(page)).toContainText("Too slow: Kaito's attack landed");
+    await expect(view(page).locator('.practice-opts .good')).toHaveCount(1);
+    await expect(view(page).locator('.me-hp')).toHaveAttribute('aria-valuenow', '15');
+    await expect(view(page).locator('.atk-bubble')).toHaveClass(/landed/);
+  });
+
+  test('stamina bars run green, yellow, then red, and drain all the way before the rival goes down', async ({ page }) => {
+    await page.goto('./');
+    const bands = await page.evaluate(async () => {
+      const { hpBand } = await import('./js/modes/rival.js');
+      return [100, 60, 50, 30, 20, 5, 0].map(hpBand);
+    });
+    expect(bands).toEqual(['hp-high', 'hp-high', 'hp-mid', 'hp-mid', 'hp-low', 'hp-low', 'hp-low']);
+    await seed(page, await learnerState(page));
+    await startFight(page);
+    const bar = view(page).locator('.foe-hp > span');
+    await expect(bar).toHaveClass('hp-high');
+    for (let n = 0; n < 7 && !(await view(page).locator('.foe-sprite.ko').count()); n++) {
+      await answer(page, true);
+      if (n === 4) await expect(bar).toHaveClass('hp-low');   // 8 stamina: 4 hits with a finisher (6) and one more leave 1
+      await expect(view(page).locator('.rival-finisher')).toHaveCount(0, { timeout: 4000 });
+      if (await view(page).locator('[data-act=next]', { hasText: 'Finish' }).count()) break;
+      await next(page);
+    }
+    await expect(view(page).locator('[data-act=next]')).toContainText('Finish');
+    await expect(bar).toHaveAttribute('style', /width: 0%/);
+    await expect(view(page).locator('.foe-sprite')).toHaveClass(/ko/);
+    await expect(view(page).locator('.rival-text')).toContainText('Kaito is down');
+    await expect(view(page).locator('.rival-kicker')).toHaveCount(0);   // the end screen waits for you
+    await next(page);
+    await expect(view(page).locator('.rival-kicker')).toContainText('KAITO IS DOWN');
+  });
+
+  test('pick your own fighter: Ren and Aoi from the start, story characters once met; the pick is remembered', async ({ page }) => {
+    await seed(page, await learnerState(page));
+    await page.goto('./#/play/rival');
+    const v = view(page);
+    await expect(v.locator('[data-act=fighter][data-id=ren]')).toHaveAttribute('aria-checked', 'true');
+    await expect(v.locator('[data-act=fighter][data-id=kaito]')).toBeEnabled();
+    await expect(v.locator('[data-act=fighter][data-id=master]')).toBeDisabled();
+    await v.locator('[data-act=fighter][data-id=aoi]').click();
+    await expect(v.locator('[data-act=start]')).toContainText('as Aoi');
+    await page.reload();
+    await expect(v.locator('[data-act=fighter][data-id=aoi]')).toHaveAttribute('aria-checked', 'true');
+    await v.locator('[data-act=start]').click();
+    await expect(v.locator('.me-card')).toContainText('Aoi');
+    await expect(v.locator('.foe-card')).toContainText('Kaito');
     await expectNoHorizontalScroll(page);
   });
 
@@ -226,7 +290,7 @@ test.describe('Rival Battle', () => {
       }
       return out;
     });
-    expect(lengths.length).toBe(88);   // 12 rivals (4 each at N5, N4, N3) × 7 lines, 3 finishers and the montage line
+    expect(lengths.length).toBe(108);   // 12 rivals (4 each at N5, N4, N3) × 7 lines, and 3 finishers and the montage line in 6 fighters' voices
     for (const d of lengths) expect(d).toBeGreaterThan(0.8);
   });
 
