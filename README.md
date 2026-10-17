@@ -1,6 +1,6 @@
 # Kotoba Beat (web)
 
-A personal Japanese study game for PC and phone. It has a Reading Dojo (hiragana, katakana, starter kanji), eighteen game modes (Kana Brush, Rival Battle, Garden, Type It, Story, Library, Particle Train, Kanji Forge, Conjugation Dojo, Sentence Builder, Katakana Rush, Rhythm, Pitch Duel, Speak Slice, Shopkeeper, Listening Lab, Numbers & Time and Walk Mode) and a guided **Today** session.
+A personal Japanese study game for PC and phone. It has a Reading Dojo (hiragana, katakana, starter kanji), nineteen game modes (Kana Brush, Rival Battle, Encounters, Garden, Type It, Story, Library, Particle Train, Kanji Forge, Conjugation Dojo, Sentence Builder, Katakana Rush, Rhythm, Pitch Duel, Speak Slice, Shopkeeper, Listening Lab, Numbers & Time and Walk Mode) and a guided **Today** session.
 
 Live site: https://rykoha.github.io/kotoba-web/
 
@@ -130,6 +130,17 @@ A monster-battle-style fight built entirely from review (`js/modes/rival.js`, at
 - **About 85%.** Options drop from 4 to 3 while a skill's recent accuracy is under ~80%. While the fight's own accuracy is under 80% the next attack is a well-known one; over 90%, a due or less-known one.
 - **Grading.** Everything goes through the store: due Garden words with `store.reviewCard`, due kana with `recordDojo`, due conjugation cards with `reviewGrammar`, and every first try with `store.grade`. Reviews, accuracy and Progress update as in the other modes. Nothing new is saved: no wins, no counters.
 - **Today.** On Saturdays and Sundays an **optional** Rival Battle block appears, once there's enough to fight with. Optional blocks never count toward finishing the day or the day's minutes.
+## Encounters
+
+Short real-life conversations on the Rival Battle arena (`js/modes/meet.js`, scenes in `js/encounter-data.js`, pixel art in `img/encounters/`). The first three people: Mika the konbini clerk, Chef Hana and Kenta the classmate, each with two scenes at N5, N4 and N3 (18 scenes, 5 exchanges each). Original writing.
+
+- **The talk.** Their line flies at you as a speech bubble, voiced in their own VOICEVOX voice. You read what you want to say (in English) and pick the reply that fits, or say it out loud (the bubble waits while you speak). Each reply is then played in the narrator's voice as a model. "Show English" reveals their line's meaning; Hear it again replays it.
+- **Politeness.** Each person has a natural level: です/ます with shop staff and the chef, casual with a classmate. A reply with the right meaning at the wrong level still counts; they react to it in their voice and a note says what's natural.
+- **Bars.** A bond bar for them fills with good replies (half for a tone slip). Your nerve bar (20) drops 5 when a reply doesn't fit or a bubble lands; it runs green, yellow, red. Out of nerve, you take a breath: a quick drill on the replies that slipped, then the talk goes on with half your nerve. You can't fail a scene.
+- **Timer.** 12, 14 or 16 seconds by level, adapted toward ~85% like Rival Battle, longer with slow speech. Reduced motion keeps the bubble still.
+- **What comes next.** Every reply is graded as speaking (`speaking|meet:<scene>:<turn>` in the skill model, so it syncs). The next scene with a person is the first one with a reply not yet learned (mastery 70+), so a scene with a miss comes back. You can also pick any open scene.
+- **You.** Pick how you look from Hyreign's nine pixel characters, seen from behind; it stays on the device (`kotobaBeat.meetAs`). The art was cut from Hyreign's sheet with its painted checkerboard removed.
+
 ## Kana Brush
 
 A handwriting mode for hiragana and katakana (`js/modes/brush.js`). The learner hears a kana's clip (the sound, never the printed kana, so it's recall) and draws it from memory on a square pad with a finger or the mouse.
@@ -357,7 +368,7 @@ come from `js/readings.js`. Both are generated. After changing any Japanese text
 
 `tools/build_assets.py` lists what VOICEVOX_DIR must hold (VOICEVOX CORE 0.16 wheel, its ONNX Runtime, the Open JTalk
 dictionary and the .vvm voice models) and which voices are used. Voices used: VOICEVOX:四国めたん, VOICEVOX:白上虎太郎,
-VOICEVOX:青山龍星, VOICEVOX:玄野武宏, VOICEVOX:東北イタコ, VOICEVOX:ずんだもん (credited in Settings, as their terms require).
+VOICEVOX:青山龍星, VOICEVOX:玄野武宏, VOICEVOX:東北イタコ, VOICEVOX:ずんだもん, VOICEVOX:春日部つむぎ, VOICEVOX:東北ずん子, VOICEVOX:剣崎雌雄 (credited in Settings, as their terms require).
 
 Most lines get a normal and a slow clip; the N5 words' extra voices 1 and 3 (for Pitch Coach's Ears first) are normal speed only, with pitch shaped from the accent. It synthesizes only new lines, rewrites `js/clips.js`, `js/readings.js`, `js/words.js` (where romaji puts spaces between words), `js/n5.js` and `js/n4.js` (from the decks) and the lists in `sw.js`: `FILES` (precached on install) and `LATER` (clips only a later level uses, cached in the background once that level is unlocked, so a phone doesn't download N4 audio before it's needed). Then bump `CACHE_VERSION`.
 

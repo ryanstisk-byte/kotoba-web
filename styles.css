@@ -1314,6 +1314,27 @@ body.has-tabs #update-ready { bottom: calc(var(--tabbar-h) + var(--sp-3) + env(s
   .sprite.ko { transition: opacity .3s; transform: none; }
 }
 
+/* ---------- Encounters (js/modes/meet.js): Hyreign's pixel cast on the Rival Battle arena ---------- */
+.px-sprite { display: block; width: 100%; height: auto; image-rendering: pixelated; image-rendering: crisp-edges; user-select: none; }
+.sprite.px { color: inherit; }
+.meet-arena .foe-sprite { width: min(132px, 100%); }
+.meet-arena .me-sprite { width: min(190px, 100%); margin-bottom: -64px; }
+.meet-bubble { max-width: 72%; }
+.meet-line { font-family: var(--font-jp); font-size: var(--fs-jp-md); font-weight: 800; line-height: var(--lh-ruby); }
+.meet-want { margin: 0; }
+.meet-people { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-2); }
+.meet-person { display: grid; justify-items: center; gap: 2px; padding: var(--sp-2); text-align: center; cursor: pointer; color: inherit; font: inherit; min-width: 0; }
+.meet-person.on { border: 2px solid var(--rival); box-shadow: 3px 3px 0 var(--edge); }
+.meet-person .small { line-height: 1.2; }
+.meet-pic { width: 76px; height: 76px; }
+.meet-scenes { display: grid; gap: var(--sp-1); }
+.meet-scene { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--sp-2); padding: var(--sp-2) var(--sp-3); text-align: left; border-radius: var(--r-sm);
+  background: var(--surface); border: 1.5px solid var(--border); color: inherit; font: inherit; cursor: pointer; }
+.meet-scene > .small:last-child { margin-left: auto; }
+.meet-scene.on { border: 2px solid var(--rival); }
+.fighter-pic.px { width: 64px; height: 64px; }
+.meet-end-pic { width: 120px; margin-inline: auto; }
+
 /* ---------- JLPT levels (js/levels.js) ---------- */
 .level-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1) var(--sp-2); min-width: 0; }
 .level-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px; font-family: var(--font-mono);
