@@ -1,6 +1,6 @@
 # Kotoba Beat (web)
 
-A personal Japanese study game for PC and phone. It has a Reading Dojo (hiragana, katakana, starter kanji), eighteen game modes (Kana Brush, Rival Battle, Garden, Type It, Story, Library, Particle Train, Kanji Forge, Conjugation Dojo, Sentence Builder, Katakana Rush, Rhythm, Pitch Duel, Speak Slice, Shopkeeper, Listening Lab, Numbers & Time and Walk Mode) and a guided **Today** session.
+A personal Japanese study game for PC and phone. It has a Reading Dojo (hiragana, katakana, starter kanji), nineteen game modes (Kana Brush, Rival Battle, Encounters, Garden, Type It, Story, Library, Particle Train, Kanji Forge, Conjugation Dojo, Sentence Builder, Katakana Rush, Rhythm, Pitch Duel, Speak Slice, Shopkeeper, Listening Lab, Numbers & Time and Walk Mode) and a guided **Today** session.
 
 Live site: https://rykoha.github.io/kotoba-web/
 
@@ -130,6 +130,17 @@ A monster-battle-style fight built entirely from review (`js/modes/rival.js`, at
 - **About 85%.** Options drop from 4 to 3 while a skill's recent accuracy is under ~80%. While the fight's own accuracy is under 80% the next attack is a well-known one; over 90%, a due or less-known one.
 - **Grading.** Everything goes through the store: due Garden words with `store.reviewCard`, due kana with `recordDojo`, due conjugation cards with `reviewGrammar`, and every first try with `store.grade`. Reviews, accuracy and Progress update as in the other modes. Nothing new is saved: no wins, no counters.
 - **Today.** On Saturdays and Sundays an **optional** Rival Battle block appears, once there's enough to fight with. Optional blocks never count toward finishing the day or the day's minutes.
+## Encounters
+
+Short real-life conversations on the Rival Battle arena (`js/modes/meet.js`, scenes in `js/encounter-data.js`, pixel art in `img/encounters/`). The first three people: Mika the konbini clerk, Chef Hana and Kenta the classmate, each with two scenes at N5, N4 and N3 (18 scenes, 5 exchanges each). Original writing.
+
+- **The talk.** Their line flies at you as a speech bubble, voiced in their own VOICEVOX voice. You read what you want to say (in English) and pick the reply that fits, or say it out loud (the bubble waits while you speak). Each reply is then played in the narrator's voice as a model. "Show English" reveals their line's meaning; Hear it again replays it.
+- **Politeness.** Each person has a natural level: です/ます with shop staff and the chef, casual with a classmate. A reply with the right meaning at the wrong level still counts; they react to it in their voice and a note says what's natural.
+- **Bars.** A bond bar for them fills with good replies (half for a tone slip). Your nerve bar (20) drops 5 when a reply doesn't fit or a bubble lands; it runs green, yellow, red. Out of nerve, you take a breath: a quick drill on the replies that slipped, then the talk goes on with half your nerve. You can't fail a scene.
+- **Timer.** 12, 14 or 16 seconds by level, adapted toward ~85% like Rival Battle, longer with slow speech. Reduced motion keeps the bubble still.
+- **What comes next.** Every reply is graded as speaking (`speaking|meet:<scene>:<turn>` in the skill model, so it syncs). The next scene with a person is the first one with a reply not yet learned (mastery 70+), so a scene with a miss comes back. You can also pick any open scene.
+- **You.** Pick how you look from Hyreign's nine pixel characters, seen from behind; it stays on the device (`kotobaBeat.meetAs`). The art was cut from Hyreign's sheet with its painted checkerboard removed.
+
 ## Kana Brush
 
 A handwriting mode for hiragana and katakana (`js/modes/brush.js`). The learner hears a kana's clip (the sound, never the printed kana, so it's recall) and draws it from memory on a square pad with a finger or the mouse.
@@ -138,8 +149,11 @@ A handwriting mode for hiragana and katakana (`js/modes/brush.js`). The learner 
 - **Checking** (`js/brush-check.js`, pure functions). The drawing and KanjiVG's strokes are each resampled and compared stroke by stroke, both as drawn and lined up with the model's size and position. It's generous:
   - Two neighbouring strokes joined (き, さ, り in handwriting) or one split in two still count, with a note.
   - The right strokes in a different order count, and the order is shown.
-  - A drawing that clearly looks more like another kana (め drawn as ぬ) is a miss that names it. Kana drawn the same way in both scripts (へ/ヘ) never count as each other's look-alike.
-- **Misses.** The correct strokes animate in order with their numbers, then Try again with the guide on. Only the first try is graded; nothing is lost.
+  - A stroke drawn backwards (end to start) still counts, and the reveal picks out that stroke so the direction is shown. Dots and ticks (model strokes under 20 units) read the same both ways and are never called backwards.
+  - A drawing that clearly looks more like another kana (め drawn as ぬ) is a miss that names it, and shows the two side by side with what tells them apart (`LOOKALIKES` in `js/brush-data.js`; pairs not listed get a general tip). Kana drawn the same way in both scripts (へ/ヘ) never count as each other's look-alike.
+- **Watch first.** A kana never drawn before plays its strokes in order once, then clears so the learner draws over the guide. Touching the pad skips ahead; with reduced motion the numbered strokes stay until the first touch.
+- **Misses.** The correct strokes animate in order with their numbers, with the stroke that was most off picked out (in the drawing too), then Trace it with the guide on. Only the first try is graded; nothing is lost.
+- **Comeback.** At the end of a round, each kana missed on its first try comes back once with no guide and no mnemonic, so it's recalled again a few minutes later instead of only traced. Comebacks aren't graded again (the miss already brought the card back soon); the result screen says how many came back right, and only kana missed both times are listed to practise.
 - **Guide.** The outline is full until a kana is drawn right once, then fades with its drawing card's stability, and comes back if the card needs help. New kana show their writing mnemonic first.
 - **Mnemonics.** `js/brush-data.js` has an original stroke-by-stroke picture for each kana (English only, so no clips); kana with ゛ or ゜ build on their base kana's.
 - **Schedule.** Each kana's drawing card is `items['kana:あ'].dirs.draw` (saved progress v10), scheduled like the Dojo's reading review: same scheduler, a first-time miss back in half a day, never knocked down. The Dojo screen links to it with the due count. Results feed `store.grade` with skill `'kana'`.
@@ -354,7 +368,7 @@ come from `js/readings.js`. Both are generated. After changing any Japanese text
 
 `tools/build_assets.py` lists what VOICEVOX_DIR must hold (VOICEVOX CORE 0.16 wheel, its ONNX Runtime, the Open JTalk
 dictionary and the .vvm voice models) and which voices are used. Voices used: VOICEVOX:四国めたん, VOICEVOX:白上虎太郎,
-VOICEVOX:青山龍星, VOICEVOX:玄野武宏, VOICEVOX:東北イタコ, VOICEVOX:ずんだもん (credited in Settings, as their terms require).
+VOICEVOX:青山龍星, VOICEVOX:玄野武宏, VOICEVOX:東北イタコ, VOICEVOX:ずんだもん, VOICEVOX:春日部つむぎ, VOICEVOX:東北ずん子, VOICEVOX:剣崎雌雄 (credited in Settings, as their terms require).
 
 Most lines get a normal and a slow clip; the N5 words' extra voices 1 and 3 (for Pitch Coach's Ears first) are normal speed only, with pitch shaped from the accent. It synthesizes only new lines, rewrites `js/clips.js`, `js/readings.js`, `js/words.js` (where romaji puts spaces between words), `js/n5.js` and `js/n4.js` (from the decks) and the lists in `sw.js`: `FILES` (precached on install) and `LATER` (clips only a later level uses, cached in the background once that level is unlocked, so a phone doesn't download N4 audio before it's needed). Then bump `CACHE_VERSION`.
 
@@ -382,7 +396,7 @@ Actions (`.github/workflows/tests.yml`).
 - `tests/recap.spec.js`: the recap quiz in lessons, story scenes, the Garden and Kanji Forge (misses, retries, skipping, quiet mode, reading help, earlier Garden reviews, every spoken line having a clip).
 - `tests/messages.spec.js`: Ren's Messages. One a day, the inbox check and replies, replies picking the next message, welcome back, levels and kanji display, story-tied messages, the pool, every message voiced and playable with matching furigana, and the v10 → v11 migration (`tests/fixtures/progress-v10.json`).
 - `tests/rival.spec.js`: Rival Battle. Rivals unlocking, attacks only from what was learned, combos and the finisher, counters and comebacks, the training montage, Quiet mode, a spoken answer (fake recognizer), every line voiced and playable, and the optional weekend block.
-- `tests/brush.spec.js`: Kana Brush. The checker on every kana (sloppy redraws pass, other kana don't), joins, splits, order and look-alikes, drawing with the mouse and with touch (no page scroll), misses and retries, the guide fading, only Dojo kana, the Today block, and the v9 → v10 migration (`tests/fixtures/progress-v9.json`) with the sync merge.
+- `tests/brush.spec.js`: Kana Brush. The checker on every kana (sloppy redraws pass, other kana don't), joins, splits, order and look-alikes, drawing with the mouse and with touch (no page scroll), misses and retries, backwards strokes, the watch-first demo, look-alikes side by side, end-of-round comebacks, the guide fading, only Dojo kana, the Today block, and the v9 → v10 migration (`tests/fixtures/progress-v9.json`) with the sync merge.
 - `tests/library.spec.js`: the Library (readers' data, the shelf, reading through to the questions, words read), tap to look up (Library, Story, Messages, planting), Walk Mode, Type It (the checks and a round each way round), and the v12 -> v13 migration and sync merge.
 - `tests/sync.spec.js`: the sync merge (phone-vs-PC conflict, idempotence, mined-line clashes), and syncing against a mocked api.github.com (connect, find the gist, the automatic syncs, offline, bad token, Disconnect, the token never leaking).
 - `tests/offline.spec.js`: the service worker precaches everything and the app works with no network.

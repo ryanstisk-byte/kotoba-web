@@ -1079,6 +1079,7 @@ body.has-tabs #update-ready { bottom: calc(var(--tabbar-h) + var(--sp-3) + env(s
 .brush-romaji { min-height: 1.5em; text-align: center; }
 .brush-pad {
   --brush-ink: var(--ink);
+  --brush-miss: var(--miss);
   position: relative; width: min(100%, 340px); aspect-ratio: 1; margin-inline: auto;
   border: 2px solid var(--border-strong); border-radius: var(--r-sm); background: var(--surface);
   touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; overscroll-behavior: contain;
@@ -1093,12 +1094,21 @@ body.has-tabs #update-ready { bottom: calc(var(--tabbar-h) + var(--sp-3) + env(s
 .brush-guide path { fill: none; stroke: var(--ink); stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
 .brush-model { fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 0; }
 .brush-model.anim { stroke-dashoffset: 1; animation: brush-stroke .6s ease-out forwards; }
+.brush-model.mark { stroke: var(--electric); stroke-width: 5.5; }
+.brush-pad.demo .brush-canvas { cursor: pointer; }
+.brush-pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
+.brush-pair-k { margin: 0; display: grid; gap: var(--sp-1); justify-items: center; padding: var(--sp-2); border: 1.5px solid var(--border); border-radius: var(--r-sm); background: var(--surface); }
+.brush-pair-k.asked { border-color: var(--good); }
+.brush-pair-k svg { width: min(100%, 96px); height: auto; aspect-ratio: 1; }
+.brush-pair-k figcaption { font-size: var(--fs-sm); text-align: center; }
 .brush-num { font-family: var(--font-mono); font-size: 7px; font-weight: 800; fill: var(--electric); }
 .brush-num.anim { opacity: 0; animation: brush-num .2s ease-out forwards; }
 @keyframes brush-stroke { to { stroke-dashoffset: 0; } }
 @keyframes brush-num { to { opacity: 1; } }
-.brush-answer { display: flex; align-items: baseline; gap: var(--sp-2); flex-wrap: wrap; }
-.brush-answer-k { font-family: var(--font-jp); font-size: var(--fs-3xl); font-weight: 800; line-height: 1; }
+.brush-answer { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.brush-answer-k { display: inline-block; width: 4rem; height: 4rem; align-self: center; }
+.brush-glyph { display: block; width: 100%; height: 100%; }
+.brush-glyph path { fill: none; stroke: currentColor; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
 .brush-tools.row2, .brush-tools.row3 { width: min(100%, 340px); margin-inline: auto; }
 .brush-giveup { justify-self: center; }
 .brush-chart { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: var(--sp-1); }
@@ -1305,6 +1315,27 @@ body.has-tabs #update-ready { bottom: calc(var(--tabbar-h) + var(--sp-3) + env(s
   .sprite.hurt, .me-sprite.hurt { animation: none; }
   .sprite.ko { transition: opacity .3s; transform: none; }
 }
+
+/* ---------- Encounters (js/modes/meet.js): Hyreign's pixel cast on the Rival Battle arena ---------- */
+.px-sprite { display: block; width: 100%; height: auto; image-rendering: pixelated; image-rendering: crisp-edges; user-select: none; }
+.sprite.px { color: inherit; }
+.meet-arena .foe-sprite { width: min(132px, 100%); }
+.meet-arena .me-sprite { width: min(190px, 100%); margin-bottom: -64px; }
+.meet-bubble { max-width: 72%; }
+.meet-line { font-family: var(--font-jp); font-size: var(--fs-jp-md); font-weight: 800; line-height: var(--lh-ruby); }
+.meet-want { margin: 0; }
+.meet-people { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-2); }
+.meet-person { display: grid; justify-items: center; gap: 2px; padding: var(--sp-2); text-align: center; cursor: pointer; color: inherit; font: inherit; min-width: 0; }
+.meet-person.on { border: 2px solid var(--rival); box-shadow: 3px 3px 0 var(--edge); }
+.meet-person .small { line-height: 1.2; }
+.meet-pic { width: 76px; height: 76px; }
+.meet-scenes { display: grid; gap: var(--sp-1); }
+.meet-scene { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--sp-2); padding: var(--sp-2) var(--sp-3); text-align: left; border-radius: var(--r-sm);
+  background: var(--surface); border: 1.5px solid var(--border); color: inherit; font: inherit; cursor: pointer; }
+.meet-scene > .small:last-child { margin-left: auto; }
+.meet-scene.on { border: 2px solid var(--rival); }
+.fighter-pic.px { width: 64px; height: 64px; }
+.meet-end-pic { width: 120px; margin-inline: auto; }
 
 /* ---------- JLPT levels (js/levels.js) ---------- */
 .level-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1) var(--sp-2); min-width: 0; }

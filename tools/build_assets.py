@@ -42,6 +42,9 @@ VOICES = [
     ('4.vvm', 11, '玄野武宏'),      # 3 Kaito, office worker
     ('21.vvm', 109, '東北イタコ'),  # 4 older customer
     ('0.vvm', 3, 'ずんだもん'),     # 5 kid
+    ('0.vvm', 8, '春日部つむぎ'),   # 6 Mika, the konbini clerk (Encounters)
+    ('21.vvm', 107, '東北ずん子'),  # 7 Chef Hana (Encounters)
+    ('4.vvm', 21, '剣崎雌雄'),      # 8 Kenta, the classmate (Encounters)
 ]
 # Two recordings of every line: natural speed, and a slow one for the 🐢 setting (slowing at synthesis
 # sounds far cleaner than stretching in the browser).
@@ -52,9 +55,10 @@ SPEEDS = {'': 1.0, 'slow': 0.6}
 RUN_OVERRIDE = {'十時': 'じゅうじ', '働': 'どう', '出発進行': 'しゅっぱつしんこう', '進行': 'しんこう', '学': 'がく', '間': 'あいだ', '一': 'いち', '二': 'に', '三': 'さん', '四': 'よん', '五': 'ご', '明': 'めい', '鍛冶': 'かじ', '生': 'せい',
                 '土': 'つち', '日': 'ひ', '時': 'とき', '組': 'くみ', '六': 'ろく',
                 # N3 kanji shown alone: the on reading, not an old or long kun reading (造 is not みやつこ).
-                '古': 'こ', '必': 'ひつ', '改': 'かい', '最': 'さい', '訪': 'ほう', '造': 'ぞう'}
+                '足': 'あし', '器': 'うつわ', '戦': 'せん', '古': 'こ', '必': 'ひつ', '改': 'かい', '最': 'さい', '訪': 'ほう', '造': 'ぞう'}
 # Sentences whose automatic split goes wrong, fixed by hand (a rebuild keeps them).
 SEGMENT_OVERRIDE = {
+    '入れます': [['入', 'い'], ['れます', None]],
     '毎日六時に帰ります': [['毎日', 'まいにち'], ['六時', 'ろくじ'], ['に', None], ['帰', 'かえ'], ['ります', None]],
     '十二月に入り': [['十二月', 'じゅうにがつ'], ['に', None], ['入', 'はい'], ['り', None]],
     '姉は国際電話で友だちと話している': [['姉', 'あね'], ['は', None], ['国際電話', 'こくさいでんわ'], ['で', None], ['友', 'とも'], ['だちと', None], ['話', 'はな'], ['している', None]],
@@ -559,7 +563,7 @@ def build_sw(level_of=None):
                     level_of[n.split('/')[-1]] = lv
     files = ['./', './index.html', './styles.css', './manifest.webmanifest']
     later = {}
-    for sub in ('js', 'icons', 'audio'):
+    for sub in ('js', 'icons', 'img', 'audio'):
         for dirpath, _, names in os.walk(os.path.join(ROOT, sub)):
             for n in sorted(names):
                 f = './' + os.path.relpath(os.path.join(dirpath, n), ROOT).replace(os.sep, '/')

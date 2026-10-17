@@ -140,3 +140,41 @@ export const BRUSH_WORDS = tagLevel(N4_BRUSH_WORDS.filter((w) => [...w.kana].eve
   BRUSH_WORDS.push(...tagLevel(N3_BRUSH_WORDS.filter((w) => [...w.kana].every((k) => BRUSH_BY_KANA[k]) && !have.has(w.kana) && have.add(w.kana))
     .map((w) => ({ ...w, id: 'bw:' + w.kana })), 'N3'));
 }
+
+/**
+ * Look-alikes: when a drawing comes out as a different kana, both are shown side by side with what tells them apart
+ * (original wording). Either order; pairs not listed get a general tip.
+ */
+const LOOKALIKES = [
+  ['ぬ', 'め', 'ぬ ends in a little loop at the bottom right; め just sweeps out and stops.'],
+  ['ね', 'れ', 'Both start with a post. ね finishes with a loop; れ kicks out to the right like a leg.'],
+  ['ね', 'わ', 'Both start with a post. ね finishes with a loop; わ rounds off into a wide curve.'],
+  ['れ', 'わ', 'Both start with a post. れ kicks out to the right; わ rounds off into a wide curve.'],
+  ['る', 'ろ', 'る closes with a loop at the bottom; ろ stays open.'],
+  ['さ', 'ち', 'Mirror images: the bottom curve of さ opens to the right, the belly of ち opens to the left.'],
+  ['き', 'さ', 'き has two bars across the top; さ has one.'],
+  ['は', 'ほ', 'ほ has a bar across the top of its right side; は does not.'],
+  ['け', 'は', 'Both start with a post. は ties a loop at the bottom right; け just drops a long leg.'],
+  ['ほ', 'ま', 'ほ has a post on the left; ま is only the right side.'],
+  ['い', 'り', 'In い the left stroke is the long one; in り the right stroke is long and curves down.'],
+  ['こ', 'に', 'に has a post on the left; こ is only the two short bars.'],
+  ['シ', 'ツ', 'シ: dots stacked on the left, long stroke sweeping UP. ツ: dots side by side on top, long stroke falling DOWN.'],
+  ['ソ', 'ン', 'ソ\'s long stroke falls from the top right; ン\'s long stroke sweeps up from the bottom left.'],
+  ['シ', 'ン', 'シ has two dots, ン has one; both long strokes sweep up from the bottom.'],
+  ['ツ', 'ソ', 'ツ has two dots, ソ has one; both long strokes fall from the top.'],
+  ['ク', 'タ', 'タ has an extra stroke tucked inside; ク does not.'],
+  ['ク', 'ケ', 'ク\'s second stroke is a roof that bends down; ケ has a flat bar and a separate stroke falling from it.'],
+  ['ウ', 'ワ', 'ウ has a little post sticking up on top; ワ does not.'],
+  ['フ', 'ワ', 'ワ has a short post on the left; フ is only the roof.'],
+  ['ア', 'マ', 'ア ends with a long slash down; マ ends with a short tick in the middle.'],
+  ['コ', 'ユ', 'ユ\'s bottom bar runs out past the side; コ\'s corners stay closed.'],
+  ['チ', 'テ', 'チ starts with a slanted tick on top; テ starts with a flat bar.'],
+  ['ナ', 'メ', 'ナ is a flat bar with a post through it; メ is a slanted X.'],
+  ['ス', 'ヌ', 'ヌ\'s second stroke cuts right through the first; ス\'s only kicks out from its corner.'],
+];
+const LOOK = new Map(LOOKALIKES.flatMap(([a, b, t]) => [[a + b, t], [b + a, t]]));
+
+/** What tells kana `a` and `b` apart, for the side-by-side shown when one was drawn for the other. */
+export function lookalikeTip(a, b) {
+  return LOOK.get(a + b) || 'Watch where each stroke starts and which way it goes: that\'s what tells these two apart.';
+}
