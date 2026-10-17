@@ -33,7 +33,7 @@ export const HELP_CLEAR = 2;
 export const SKILLS = ['kana', 'kanji', 'vocab', 'grammar', 'listening', 'pitch', 'speaking', 'counters'];
 
 /** Version of the saved progress shape. Bump it and add a step to MIGRATIONS whenever the shape changes. */
-export const STATE_VERSION = 12;
+export const STATE_VERSION = 13;
 
 function blank() {
   return {
@@ -63,6 +63,7 @@ function blank() {
     coach: { ears: [] }, // added in v8: Pitch Coach; ears = words whose "where does it drop?" warm-up is done
     exam: blankExam(),  // added in v9: mock JLPT results and readiness (see blankExam)
     messages: blankMessages(),   // added in v11: Ren's Messages (see blankMessages and js/messages.js)
+    library: blankLibrary(),     // added in v13: Library readers read (see blankLibrary and js/modes/library.js)
   };
 }
 
@@ -120,6 +121,40 @@ function mergeMessages(a, b) {
     if (!cur || score(e) > score(cur) || (score(e) === score(cur) && e.at < cur.at)) by.set(key, { ...e });
   }
   return normalizeMessages({ thread: [...by.values()] });
+}
+
+/**
+ * The Library (js/modes/library.js): readers read to the end, id -> { n (times finished), at (ms, the last time),
+ * q (best questions right), qt (questions asked) }. Words read are counted from these (a reader's words x n).
+ */
+export function blankLibrary() {
+  return { read: {} };
+}
+
+function normalizeLibrary(raw) {
+  const l = blankLibrary();
+  if (!raw || typeof raw !== 'object' || !raw.read || typeof raw.read !== 'object') return l;
+  for (const [id, r] of Object.entries(raw.read)) {
+    if (!/^[a-z0-9_-]{1,40}$/i.test(id) || !r || typeof r !== 'object') continue;
+    const n = Math.max(0, Math.min(9999, Math.floor(Number(r.n) || 0)));
+    if (!n) continue;
+    const qt = Math.max(0, Math.min(10, Math.floor(Number(r.qt) || 0)));
+    l.read[id] = { n, at: Math.max(0, Number(r.at) || 0), q: Math.max(0, Math.min(qt, Math.floor(Number(r.q) || 0))), qt };
+  }
+  return l;
+}
+
+/** Two devices' Library: each reader's larger count, latest time and best score. */
+function mergeLibrary(a, b) {
+  const read = { ...a.read };
+  for (const [id, r] of Object.entries(b.read)) {
+    const x = read[id];
+    read[id] = !x ? { ...r } : {
+      n: Math.max(x.n, r.n), at: Math.max(x.at, r.at),
+      ...(r.qt > x.qt || (r.qt === x.qt && r.q > x.q) ? { q: r.q, qt: r.qt } : { q: x.q, qt: x.qt }),
+    };
+  }
+  return normalizeLibrary({ read });
 }
 
 export function blankExam() {
@@ -229,6 +264,8 @@ const MIGRATIONS = {
   // done (a full mock passed, or the real N5 marked as passed). A per-device setting, so sync never changes it.
   // Everything already learned stays exactly as it was.
   11: (raw) => ({ ...raw, settings: { showAllLevels: false, ...(raw.settings || {}) } }),
+  // v12 -> v13: the Library. No readers read yet; everything else passes through untouched.
+  12: (raw) => ({ ...raw, library: raw.library && typeof raw.library === 'object' ? raw.library : blankLibrary() }),
 };
 
 /** Adds the guided-course field with defaults. Self-contained: it touches nothing else in the blob. */
@@ -324,6 +361,7 @@ function normalize(input) {
   }
   s.exam = normalizeExam(raw.exam);
   s.messages = normalizeMessages(raw.messages);
+  s.library = normalizeLibrary(raw.library);
   return s;
 }
 
@@ -558,7 +596,7 @@ function mergeMined(a, b, aItems, bItems) {
  * - Review items: the copy with the most recent review wins (best score kept from both); each Listen / Say it card
  *   and each grammar card the same way, on its own, with its miss count and needs-help mark.
  * - Cleared lessons, chapters, forged kanji, course units: union.
- * - Counters (days, story replays, course tallies, skill tallies): the larger value.
+ * - Counters (days, story replays, course tallies, skill tallies, Library readers read): the larger value.
  * - Settings and the course on/off switch: this device's (they stay per device).
  */
 export function mergeProgress(local, remote, now = Date.now()) {
@@ -626,6 +664,7 @@ export function mergeProgress(local, remote, now = Date.now()) {
   const real = { ...a.exam.real };
   for (const [lv, r] of Object.entries(b.exam.real)) if (!real[lv] || r.at > real[lv].at) real[lv] = { ...r };
   out.messages = mergeMessages(a.messages, b.messages);
+  out.library = mergeLibrary(a.library, b.library);
   out.exam = {
     history: [...hist.values()].sort((x, y) => x.at - y.at).slice(-EXAM_HISTORY_MAX).map((h) => ({ ...h, parts: { ...h.parts } })),
     real, later,
@@ -1294,6 +1333,20 @@ class Store {
 
   // ----- Ren's Messages (js/messages.js) -----
   get messages() { return this.s.messages.thread; }
+
+  // ----- library -----
+  /** A Library reader's record ({ n, at, q, qt }), or null if it hasn't been read to the end. */
+  readerResult(id) { return this.s.library.read[id] || null; }
+  /** A reader finished: one more read, and its best question score. */
+  finishReader(id, q = 0, qt = 0, now = Date.now()) {
+    const r = this.s.library.read[id] || { n: 0, at: 0, q: 0, qt: 0 };
+    r.n += 1;
+    r.at = now;
+    if (qt > r.qt || (qt === r.qt && q > r.q)) { r.q = q; r.qt = qt; }
+    this.s.library.read[id] = r;
+    this.markStudied();
+    this.save();
+  }
   /** Adds a message that just arrived (at most one a day is the caller's rule; js/messages.js keeps it). */
   deliverMessage(id, now = Date.now()) {
     const day = dateKey(new Date(now));
