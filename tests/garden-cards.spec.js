@@ -46,7 +46,7 @@ test.describe('saved progress v5 → v6', () => {
     await seed(page, FIXTURE_V5);
     await page.goto('./');
     const s = await saved(page);
-    expect(s.v).toBe(8);   // migrated on to the current version
+    expect(s.v).toBe(13);   // migrated on to the current version
     for (const [id, p] of Object.entries(FIXTURE_V5.items)) {
       for (const k of ['level', 'due', 'best', 'r', 'pl', 's', 'd', 'lr']) expect(s.items[id][k], `${id}.${k}`).toBe(p[k]);
     }
@@ -143,11 +143,35 @@ test.describe('Listen and Say it cards', () => {
     await open(page, { items: { 'n5:猫': p }, days: { '2026-10-10': { ok: 0, tot: 0, rev: 0, newc: 5, studied: true, blocks: {} } } });
     const v = view(page);
     await v.getByRole('button', { name: /Water 1 plant/ }).click();
+    // The mic waits for a tap: nothing listens until 🎤 is pressed.
+    await expect(v.getByRole('button', { name: /Tap to answer out loud/ })).toBeVisible();
+    await page.waitForTimeout(300);
+    await expect(v.getByText(/Heard it/)).toHaveCount(0);
+    await v.getByRole('button', { name: /Tap to answer out loud/ }).click();
     await expect(v.getByText(/Heard it/)).toBeVisible();
     await v.getByRole('button', { name: 'Next', exact: true }).click();
     const say = (await saved(page)).items['n5:猫'].dirs.say;
     expect(say.r).toBe(1);
     expect(say.due).toBeGreaterThan(T);   // graded right
+  });
+
+  test('with "Start the mic on its own" on, Say it listens without a tap', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.webkitSpeechRecognition = window.SpeechRecognition = class {
+        start() {
+          setTimeout(() => { this.onstart && this.onstart(); }, 20);
+          setTimeout(() => { const r = [{ transcript: 'ねこ' }]; r.isFinal = true; this.onresult && this.onresult({ results: [r], resultIndex: 0 }); }, 150);
+        }
+        stop() {}
+        abort() {}
+      };
+    });
+    const p = later({ dirs: { listen: { due: T + 9 * DAY, s: 9, d: 5, lr: T - DAY, r: 2, pl: T - 9 * DAY } } });
+    await open(page, { items: { 'n5:猫': p }, settings: { autoMic: true, hideIosHint: true }, days: { '2026-10-10': { ok: 0, tot: 0, rev: 0, newc: 5, studied: true, blocks: {} } } });
+    const v = view(page);
+    await v.getByRole('button', { name: /Water 1 plant/ }).click();
+    await expect(v.getByText(/Heard it/)).toBeVisible();
+    await expect(v.getByRole('button', { name: /Tap to answer out loud/ })).toHaveCount(0);
   });
 
   test('quiet mode: Say it is graded by yourself, no mic', async ({ page }) => {

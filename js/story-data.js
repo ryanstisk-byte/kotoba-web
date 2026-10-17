@@ -6,9 +6,9 @@
 
 /** The three arcs of the saga, for the chapter map. */
 export const ARCS = [
-  { id: 'dojo', title: '道場編', en: 'Dojo Arc', level: 'N5', chapters: ['ch1', 'ch2', 'ch3', 'ch4'] },
-  { id: 'tournament', title: '大会編', en: 'Tournament Arc', level: 'N5', chapters: ['ch5', 'ch6', 'ch7', 'ch8'] },
-  { id: 'final', title: '決勝編', en: 'Final Arc', level: 'Toward N4 · casual speech', chapters: ['ch9', 'ch10', 'ch11', 'ch12'] },
+  { id: 'dojo', title: '道場編', en: 'Dojo Arc', level: 'N5', label: 'N5', chapters: ['ch1', 'ch2', 'ch3', 'ch4'] },
+  { id: 'tournament', title: '大会編', en: 'Tournament Arc', level: 'N5', label: 'N5', chapters: ['ch5', 'ch6', 'ch7', 'ch8'] },
+  { id: 'final', title: '決勝編', en: 'Final Arc', level: 'N5', label: 'Toward N4 · casual speech', chapters: ['ch9', 'ch10', 'ch11', 'ch12'] },
 ];
 
 /** The shop customers from Shopkeeper mode join the story, each with the voice they already use there. */

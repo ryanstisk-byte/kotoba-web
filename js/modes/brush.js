@@ -1,0 +1,542 @@
+// Kana Brush: hear a kana and draw it from memory with a finger or the mouse. The drawing is checked generously
+// (stroke count, rough order, shape; js/brush-check.js) against KanjiVG's strokes. A miss draws the right strokes in
+// order and lets you try again; nothing is lost. Only kana met in the Reading Dojo come up, and each one's drawing card
+// is reviewed on the Dojo's schedule (store.recordBrush). A guide outline shows at first and fades as a kana gets
+// stronger. At N4 (js/levels.js), whole words join the round: hear an N4 word and write it kana by kana, about 70% of
+// a round's entries once N4 is open (each kana still trains its own drawing card).
+// A brand-new kana plays its strokes once before you draw (watch, then do). Kana missed on the first try come back
+// once at the end of the round with no guide, so each miss is recalled again a few minutes later, not just traced.
+// A miss says which stroke was off (or drawn backwards), and a drawing that came out as another kana shows the two
+// side by side with what tells them apart.
+import { store } from '../store.js';
+import { speaker } from '../audio.js';
+import { STROKES } from '../kana-strokes.js';
+import { BRUSH_KANA, BRUSH_BY_KANA, lookalikeTip } from '../brush-data.js';
+import { content, mixed, levelBar } from '../levels.js';
+import { checkDrawing } from '../brush-check.js';
+import { esc, shuffle, delegate } from '../ui.js';
+import * as fx from '../fx.js';
+
+const ROUND = 8;
+/** New kana (never drawn) per round at most, so a round is mostly review. */
+const NEW_PER_ROUND = 3;
+/** Model strokes per kana, as SVG paths. */
+const PATHS = Object.fromEntries(Object.entries(STROKES).map(([k, v]) => [k, v.map((s) => s[0])]));
+const OTHERS = Object.fromEntries(BRUSH_KANA.map((x) => [x.k, PATHS[x.k]]));
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/**
+ * How strongly the guide outline shows for a kana (1 full … 0 none), from its drawing card: full until it has been
+ * drawn right once, then fainter as its memory grows; a kana that needs help gets the full guide back.
+ */
+export function guideLevel(card) {
+  if (!card || !card.r || card.help) return 1;
+  if (card.s < 1) return 0.6;
+  if (card.s < 4) return 0.3;
+  return 0;
+}
+/** "2", "1 and 3", "1, 2 and 4". */
+const listN = (ns) => (ns.length < 2 ? String(ns[0]) : `${ns.slice(0, -1).join(', ')} and ${ns[ns.length - 1]}`);
+const GUIDE_WORD = (g) => (g >= 1 ? 'Guide on' : g > 0.4 ? 'Guide fading' : g > 0 ? 'Faint guide' : 'From memory');
+
+/** Kana met in the Reading Dojo (they have a reading item) that Kana Brush can ask for, in lesson order. */
+export function brushPool() {
+  return BRUSH_KANA.filter((x) => store.item('kana:' + x.k));
+}
+
+/** A round: due drawings first, then a few never drawn, then the weakest drawn ones, then more new ones if still short. */
+export function pickRound(n = ROUND) {
+  const pool = brushPool();
+  const inPool = new Set(pool.map((x) => x.k));
+  const due = store.brushDue().filter((k) => inPool.has(k));
+  const fresh = pool.filter((x) => !store.brushCard(x.k)).slice(0, NEW_PER_ROUND).map((x) => x.k);
+  const picked = [...new Set([...due.slice(0, n), ...fresh])].slice(0, n);
+  if (picked.length < n) {
+    const rest = pool.map((x) => x.k).filter((k) => !picked.includes(k) && store.brushCard(k))
+      .sort((a, b) => (store.brushCard(a).s || 0) - (store.brushCard(b).s || 0));
+    picked.push(...rest.slice(0, n - picked.length));
+  }
+  if (picked.length < n) picked.push(...pool.map((x) => x.k).filter((k) => !picked.includes(k)).slice(0, n - picked.length));
+  return shuffle(picked);
+}
+
+/** Words in reach: N4 words (when unlocked) whose every kana has been met in the Reading Dojo. */
+export function brushWords() {
+  const met = new Set(brushPool().map((x) => x.k));
+  return content('brush').filter((x) => x.kana && [...x.kana].every((k) => met.has(k)));
+}
+
+/** Most whole words in one round (each is several drawings). */
+const WORDS_PER_ROUND = 3;
+
+/**
+ * A round's drawings: { k } for a single kana, { k, word, pos } for each kana of a word. Kana come from pickRound;
+ * with N4 open, words and kana are mixed about 70/30 (js/levels.js), at most WORDS_PER_ROUND words.
+ */
+export function pickPlan(n = ROUND) {
+  const kana = pickRound(n).map((k) => ({ kind: 'kana', k, level: 'N5' }));
+  const words = brushWords().slice().sort(() => Math.random() - 0.5).slice(0, WORDS_PER_ROUND).map((w) => ({ kind: 'word', w, level: w.level }));
+  const entries = words.length ? mixed([...kana, ...words], Math.min(n, kana.length + words.length)) : kana;
+  return entries.flatMap((e) => (e.kind === 'kana' ? [{ k: e.k }] : [...e.w.kana].map((k, pos) => ({ k, word: e.w, pos }))));
+}
+
+export function mount(el, ctx) {
+  let screen = 'intro';   // intro | draw | result
+  let round = [];
+  let i = 0;
+  let results = [];       // { k, ok } for each first try
+  let comebacks = [];     // { k, ok } for each end-of-round comeback
+  let cur = null;         // { k, info, guide, attempt, firstOk, comeback, demo, state: 'draw' | 'missed' | 'passed', showRomaji }
+  let pad = null;         // the drawing surface for the current question
+  const timers = [];
+
+  const say = (k) => speaker.speak(k, { mps: 3 });
+  const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+
+  function render() {
+    pad?.destroy();
+    pad = null;
+    if (screen === 'draw') return renderDraw();
+    if (screen === 'result') return renderResult();
+    renderIntro();
+  }
+
+  // ---------- intro ----------
+  function renderIntro() {
+    const pool = brushPool();
+    const due = store.brushDue().filter((k) => BRUSH_BY_KANA[k] && store.item('kana:' + k)).length;
+    const fresh = pool.filter((x) => !store.brushCard(x.k)).length;
+    if (!pool.length) {
+      el.innerHTML = `<div class="stack center-text practice">
+          <div class="hero-jp accent-c" lang="ja" data-noruby>書</div>
+          <p class="lead strong">Hear a kana, then draw it from memory.</p>
+          <p class="dim">Kana Brush uses the kana you've met in the Reading Dojo. Do the first Dojo lesson (the vowels) and they'll be ready to draw here.</p>
+          <a class="btn primary wide" href="#/play/dojo">🔤 Go to the Reading Dojo</a>
+        </div>`;
+      return;
+    }
+    const words = brushWords().length;
+    el.innerHTML = `<div class="stack practice">
+        ${levelBar('brush')}
+        <div class="hero-jp accent-c center-text" lang="ja" data-noruby>書</div>
+        <p class="lead strong">Hear a kana, then draw it from memory with your finger or the mouse.</p>
+        <p class="dim">A guide outline helps at first and fades as each kana gets stronger. A miss shows the strokes in order, then you try again: nothing is lost. Drawn kana come back for review like the rest of the Dojo.</p>
+        <div class="tiles">
+          <div class="tile"><span class="tile-v mono">${pool.length}</span><span class="small dim">kana you've met</span></div>
+          <div class="tile"><span class="tile-v mono">${due}</span><span class="small dim">due to draw</span></div>
+          <div class="tile"><span class="tile-v mono">${fresh}</span><span class="small dim">not drawn yet</span></div>
+        </div>
+        ${words ? `<p class="small dim">N4: rounds also bring whole words (${words} in reach) to write kana by kana from hearing them.</p>` : ''}
+        <button class="btn primary wide" data-act="start">✍ Start a round of ${Math.min(ROUND, pool.length)}</button>
+        <section class="stack-sm" aria-label="Your kana">
+          <h2 class="section-label">YOUR KANA</h2>
+          <p class="small dim">Darker means stronger by hand. Tap one to hear it.</p>
+          <div class="brush-chart" data-noruby>${pool.map((x) => {
+            const g = guideLevel(store.brushCard(x.k));
+            return `<button class="brush-cell g${Math.round((1 - g) * 3)}" data-act="hear" data-k="${esc(x.k)}" aria-label="${esc(x.k)} ${esc(x.r)}: ${esc(GUIDE_WORD(g).toLowerCase())}"><span lang="ja">${esc(x.k)}</span></button>`;
+          }).join('')}</div>
+        </section>
+      </div>`;
+  }
+
+  // ---------- drawing ----------
+  function start() {
+    round = pickPlan(ctx.today && ctx.n ? ctx.n : ROUND);
+    i = 0;
+    results = [];
+    comebacks = [];
+    if (!round.length) { screen = 'intro'; render(); if (ctx.today) ctx.today.done('No kana to draw yet.'); return; }
+    ask();
+  }
+
+  function ask() {
+    const { k, word = null, pos = 0, comeback = false } = round[i];
+    const info = BRUSH_BY_KANA[k];
+    const card = store.brushCard(k);
+    // A comeback is from memory: no guide, no mnemonic up front.
+    const guide = comeback ? 0 : guideLevel(card);
+    // Never drawn and not seen yet this round: watch the strokes once first.
+    const demo = !comeback && !card && !round.slice(0, i).some((e) => e.k === k);
+    cur = { k, word, pos, info, guide, attempt: 1, firstOk: null, comeback, demo, state: 'draw', showRomaji: false };
+    screen = 'draw';
+    render();
+    if (ctx.today) ctx.today.report(`${i + 1}/${round.length}`);
+    // A word is heard once, at its first kana (and again on request); a single kana every time.
+    if (!word || pos === 0) later(() => say(word ? word.kana : k), 200);
+    if (demo) pad.demo();
+  }
+  /** What "Play again" plays: the whole word while writing one, else the kana. */
+  const sayCur = () => cur && say(cur.word ? cur.word.kana : cur.k);
+
+  function renderDraw() {
+    const { info, guide } = cur;
+    const script = info.track === 'katakana' ? 'Katakana' : 'Hiragana';
+    const showMnemonic = guide >= 0.6;
+    const guideWord = cur.comeback && cur.attempt === 1 ? 'Comeback: from memory' : GUIDE_WORD(cur.attempt > 1 ? 1 : guide);
+    el.innerHTML = `
+      <div class="stack practice brush" data-noruby data-k="${esc(cur.k)}">
+        <div class="row-between"><span class="small dim"><span class="tag">${script}</span> <span class="brush-guide-word">${esc(guideWord)}</span></span>
+          <span class="small dim mono">${i + 1} / ${round.length}</span></div>
+        <div class="bar"><span style="width:${(i / round.length) * 100}%"></span></div>
+        <div class="brush-ask">
+          <button class="btn brush-listen" data-act="hear-cur">🔊 Play again</button>
+          <p class="small dim brush-romaji">${cur.showRomaji ? `Sound: <span class="mono strong">${esc(info.r)}</span>` : '<button class="linkbtn" data-act="romaji">Can\'t play sound? Show it in letters</button>'}</p>
+        </div>
+        ${cur.word ? `<div class="panel brush-word stack-xs"><p class="small dim">Write the word you heard (${esc(cur.word.en)}), one kana at a time: kana ${cur.pos + 1} of ${cur.word.kana.length}.</p>
+          <p class="brush-word-row" lang="ja" aria-label="Written so far: ${esc(cur.word.kana.slice(0, cur.pos))}">${[...cur.word.kana].map((c, j) => `<span class="brush-slot ${j < cur.pos ? 'done' : j === cur.pos ? 'now' : ''}">${j < cur.pos ? esc(c) : j === cur.pos ? '?' : ''}</span>`).join('')}</p></div>`
+          : `<p class="small dim brush-instr">${cur.demo && cur.attempt === 1 ? 'New one: watch the strokes, then draw it.'
+            : cur.comeback && cur.attempt === 1 ? `You missed this one earlier. Draw the ${script.toLowerCase()} for this sound from memory.`
+            : `Draw the ${script.toLowerCase()} for this sound.`}</p>`}
+        ${showMnemonic ? `<p class="small panel note brush-hint">💡 ${esc(info.m)}</p>` : ''}
+        <div class="brush-pad"></div>
+        <div class="brush-feedback" aria-live="polite"></div>
+        <div class="row3 brush-tools">
+          <button class="btn" data-act="undo">↩ Undo</button>
+          <button class="btn" data-act="clear">✕ Clear</button>
+          <button class="btn primary" data-act="check">✓ Check</button>
+        </div>
+        <button class="linkbtn brush-giveup" data-act="giveup">🙈 I don't remember: show me</button>
+      </div>`;
+    pad = makePad(el.querySelector('.brush-pad'), cur.k, cur.attempt > 1 ? 1 : guide);
+  }
+
+  function setFeedback(html, toolsHTML) {
+    el.querySelector('.brush-feedback').innerHTML = html;
+    const tools = el.querySelector('.brush-tools');
+    const give = el.querySelector('.brush-giveup');
+    if (toolsHTML != null) { tools.innerHTML = toolsHTML; tools.className = toolsHTML ? 'row2 brush-tools' : 'brush-tools'; }
+    if (give) give.hidden = cur.state !== 'draw';
+    const hint = el.querySelector('.brush-hint');
+    if (hint) hint.hidden = cur.state !== 'draw';   // the answer below repeats it
+  }
+
+  /** The answer: the kana itself, its sound, a button to hear it and the writing mnemonic. */
+  const answerHTML = () => `<p class="brush-answer"><span class="brush-answer-k" lang="ja">${strokeGlyph(cur.k)}<span class="sr-only">${esc(cur.k)}</span></span>
+      <span class="mono strong">${esc(cur.info.r)}</span> · ${STROKES[cur.k].length} stroke${STROKES[cur.k].length === 1 ? '' : 's'}</p>
+    <p class="small">💡 ${esc(cur.info.m)}</p>`;
+
+  /**
+   * A kana drawn from its own model strokes, so it shows exactly the strokes the learner draws. A heavy system font
+   * (Hiragino Sans on iPhone) runs some of them together, e.g. さ's last two and こ's hook.
+   */
+  const strokeGlyph = (k) => `<svg class="brush-glyph" viewBox="0 0 109 109" aria-hidden="true">${PATHS[k].map((d) => `<path d="${d}"/>`).join('')}</svg>`;
+
+  /** Two kana side by side (the one asked for and the one the drawing came out as), with what tells them apart. */
+  const lookalikeHTML = (other) => `<div class="brush-pair">${[cur.k, other].map((k, j) => `<figure class="brush-pair-k ${j ? 'other' : 'asked'}">
+      ${strokeGlyph(k)}
+      <figcaption><span lang="ja">${esc(k)}</span> <span class="mono">${esc(BRUSH_BY_KANA[k]?.r || '')}</span>${j ? ' (you drew)' : ' (this sound)'}</figcaption>
+    </figure>`).join('')}</div>
+    <p class="small strong brush-pair-tip">${esc(lookalikeTip(cur.k, other))}</p>`;
+
+  function check() {
+    if (cur.state !== 'draw') return;
+    const strokes = pad.strokes();
+    if (!strokes.length) { setFeedback('<p class="small dim">Draw it in the box first, then tap Check.</p>'); return; }
+    const r = checkDrawing(strokes, PATHS[cur.k], { others: OTHERS, self: cur.k });
+    const ok = r.verdict !== 'miss';
+    settle(ok);
+    if (ok) {
+      cur.state = 'passed';
+      const note = {
+        ok: cur.attempt > 1 ? 'Now you have it. Next time it\'s from memory.' : 'Great, that\'s it.',
+        order: 'Right shape! The strokes usually go in this order:',
+        backwards: r.why === 'backwards' && `Right shape! Stroke ${listN(r.strokes)} usually goes the other way. Watch where ${r.strokes.length > 1 ? 'they start' : 'it starts'}:`,
+        joined: `Right! You joined strokes ${r.at} and ${r.at + 1}. Fine in handwriting; in print they're separate.`,
+        split: 'Right! In print, two of those are one stroke.',
+      }[r.why];
+      setFeedback(`<div class="panel good-panel stack-sm"><p class="strong good-c">✓ ${esc(note)}</p>${answerHTML()}</div>`,
+        `<button class="btn" data-act="hear-cur">🔊 Hear it</button><button class="btn primary" data-act="next">Next ▶</button>`);
+      pad.lock();
+      if (r.why === 'order') pad.reveal({ fade: false });
+      if (r.why === 'backwards') pad.reveal({ fade: false, mark: r.strokes.map((n) => n - 1) });
+      fx.hit();
+      fx.announce(`Right. ${cur.k}, ${cur.info.r}.`);
+      say(cur.k);
+      return;
+    }
+    cur.state = 'missed';
+    const n = STROKES[cur.k].length;
+    const why = {
+      empty: 'Draw it in the box first.',
+      count: `Not quite: this one has ${n} stroke${n === 1 ? '' : 's'}, and you drew ${r.drawn}. Watch how it goes:`,
+      shape: `Close, but stroke ${r.stroke} is off. Watch how it goes:`,
+      like: `That looks like ${r.like} (${BRUSH_BY_KANA[r.like]?.r || ''}). This sound is written like this:`,
+    }[r.why];
+    missed(why, { mark: r.why === 'shape' ? [r.stroke - 1] : [], like: r.why === 'like' ? r.like : null });
+  }
+
+  function missed(text, { mark = [], like = null } = {}) {
+    const back = !cur.comeback && cur.attempt === 1 ? '<p class="small dim">It comes back at the end of this round, from memory.</p>' : '';
+    setFeedback(`<div class="panel note stack-sm"><p class="strong miss-c">${esc(text)}</p>${like && PATHS[like] ? lookalikeHTML(like) : ''}${answerHTML()}${back}</div>`,
+      `<button class="btn" data-act="replay-strokes">↻ Show again</button><button class="btn primary" data-act="retry">✍ Trace it</button>`);
+    cur.mark = mark;
+    pad.lock();
+    pad.mark(mark);
+    pad.reveal({ fade: true, mark });
+    fx.miss();
+    fx.announce(`Not quite. It's ${cur.k}, ${cur.info.r}. Watch the strokes, then try again.`);
+    say(cur.k);
+  }
+
+  function giveUp() {
+    if (cur.state !== 'draw') return;
+    settle(false);
+    cur.state = 'missed';
+    missed("No problem. Here's how it goes:");
+  }
+
+  /** Grades the first try only; tries after a miss are practice. A comeback is noted for the round, not graded again. */
+  function settle(ok) {
+    if (cur.firstOk !== null) return;
+    cur.firstOk = ok;
+    if (cur.comeback) { comebacks.push({ k: cur.k, ok }); return; }
+    results.push({ k: cur.k, ok });
+    store.recordBrush(cur.k, ok);
+    store.grade({ skill: 'kana', id: 'draw:kana:' + cur.k, ok });
+  }
+
+  function retry() {
+    cur.attempt += 1;
+    cur.state = 'draw';
+    renderDraw();
+  }
+
+  function next() {
+    i += 1;
+    // At the end of the first pass, each kana missed on its first try comes back once, from memory.
+    if (i >= round.length && !round.some((e) => e.comeback)) {
+      const missed = [...new Set(results.filter((r) => !r.ok).map((r) => r.k))];
+      round.push(...shuffle(missed).map((k) => ({ k, comeback: true })));
+    }
+    if (i >= round.length) return finish();
+    ask();
+  }
+
+  function finish() {
+    store.markStudied();
+    screen = 'result';
+    render();
+    fx.hit({ big: true, el: el.querySelector('.score-huge') });
+    if (ctx.today) ctx.today.done();
+  }
+
+  function renderResult() {
+    const right = results.filter((r) => r.ok).length;
+    // Still worth practising: missed on the first try and not drawn from memory on the comeback either.
+    const fixed = new Set(comebacks.filter((r) => r.ok).map((r) => r.k));
+    const missedK = [...new Set(results.filter((r) => !r.ok && !fixed.has(r.k)).map((r) => r.k))].map((k) => BRUSH_BY_KANA[k]);
+    el.innerHTML = `
+      <div class="stack center-text practice">
+        <div class="score-huge accent-c mono">${right}/${results.length}</div>
+        <p class="lead strong">${right === results.length ? 'Every one drawn on the first try.' : `${right} of ${results.length} drawn on the first try.`}</p>
+        ${comebacks.length ? `<p class="strong brush-comeback-sum">Comeback: ${fixed.size} of ${comebacks.length} missed kana drawn from memory.</p>` : ''}
+        <p class="dim">${results.some((r) => !r.ok) ? 'The ones you missed come back soon, with the guide on. The rest come back later, with less guide each time.' : 'They come back later, with less guide each time.'}</p>
+        ${missedK.length ? `<div class="panel left-text"><p class="section-label">PRACTICE THESE</p><div class="chips">${missedK.map((x) => `<button class="chip" data-act="hear" data-k="${esc(x.k)}"><span lang="ja" data-noruby>${esc(x.k)}</span> <span class="mono small">${esc(x.r)}</span></button>`).join('')}</div></div>` : ''}
+        ${ctx.today ? '' : `<button class="btn primary wide" data-act="start">✍ Another round</button>
+          <a class="btn ghost wide" href="#/play/dojo">🔤 Reading Dojo</a>`}
+      </div>`;
+  }
+
+  const off = delegate(el, {
+    start,
+    hear: (b) => say(b.dataset.k),
+    'hear-cur': sayCur,
+    romaji: () => { cur.showRomaji = true; el.querySelector('.brush-romaji').innerHTML = `Sound: <span class="mono strong">${esc(cur.info.r)}</span>`; },
+    undo: () => pad?.undo(),
+    clear: () => pad?.clear(),
+    check,
+    giveup: giveUp,
+    retry,
+    'replay-strokes': () => pad?.reveal({ fade: true, mark: cur?.mark || [] }),
+    next,
+  });
+
+  const onKey = (e) => {
+    if (screen !== 'draw' || !cur || e.target.closest?.('input, textarea, select')) return;
+    if (e.key === 'Enter') {
+      if (e.target.closest?.('button, a')) return;   // let a focused button do its own thing
+      e.preventDefault();
+      if (cur.state === 'draw') check(); else if (cur.state === 'passed') next(); else retry();
+    } else if ((e.key === 'z' && (e.ctrlKey || e.metaKey)) || e.key === 'Backspace') {
+      if (cur.state === 'draw') { e.preventDefault(); pad?.undo(); }
+    }
+  };
+  window.addEventListener('keydown', onKey);
+
+  if (ctx.today) start(); else render();
+
+  return () => {
+    off();
+    window.removeEventListener('keydown', onKey);
+    timers.forEach(clearTimeout);
+    pad?.destroy();
+    speaker.stop();
+  };
+}
+
+/**
+ * A square drawing pad over a 109x109 practice grid (KanjiVG's box): a canvas for the learner's strokes, an SVG
+ * under it for the guide outline and over it for the model strokes when they're shown. Touch never scrolls the page.
+ * Returns { strokes(), undo(), clear(), lock(), mark(indexes), reveal({ fade, mark }), demo(), destroy() }.
+ */
+function makePad(host, kana, guide) {
+  const model = STROKES[kana];
+  host.innerHTML = `
+    <svg class="brush-under" viewBox="0 0 109 109" aria-hidden="true">
+      <path class="brush-grid" d="M54.5 0V109M0 54.5H109"/>
+      ${guide > 0 ? `<g class="brush-guide" style="opacity:${(0.28 * guide).toFixed(2)}">${model.map((s) => `<path d="${s[0]}"/>`).join('')}</g>` : ''}
+    </svg>
+    <canvas class="brush-canvas" role="img" aria-label="Drawing area. Draw the kana here with your finger or the mouse."></canvas>
+    <svg class="brush-over" viewBox="0 0 109 109" aria-hidden="true"></svg>`;
+  const canvas = host.querySelector('canvas');
+  const over = host.querySelector('.brush-over');
+  const g = canvas.getContext('2d');
+  const strokes = [];
+  let live = null;
+  let locked = false;
+  let size = 0;
+  let marked = new Set();   // the learner's strokes shown in the miss colour
+  let demoing = false;      // the model strokes are playing before a new kana is drawn
+  let demoTimer = 0;
+
+  function fit() {
+    const r = canvas.getBoundingClientRect();
+    if (!r.width) return;
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
+    size = r.width;
+    canvas.width = Math.round(r.width * dpr);
+    canvas.height = Math.round(r.height * dpr);
+    g.setTransform((dpr * r.width) / 109, 0, 0, (dpr * r.height) / 109, 0, 0);
+    redraw();
+  }
+
+  function ink() { return getComputedStyle(host).getPropertyValue('--brush-ink').trim() || getComputedStyle(host).color; }
+
+  function drawStroke(s) {
+    g.beginPath();
+    g.moveTo(s[0][0], s[0][1]);
+    if (s.length === 1) g.lineTo(s[0][0] + 0.01, s[0][1]);
+    for (let j = 1; j < s.length - 1; j++) {
+      const mx = (s[j][0] + s[j + 1][0]) / 2, my = (s[j][1] + s[j + 1][1]) / 2;
+      g.quadraticCurveTo(s[j][0], s[j][1], mx, my);
+    }
+    if (s.length > 1) g.lineTo(s[s.length - 1][0], s[s.length - 1][1]);
+    g.stroke();
+  }
+
+  function redraw() {
+    g.clearRect(0, 0, 109, 109);
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    g.lineWidth = 5.5;
+    const base = ink();
+    const miss = getComputedStyle(host).getPropertyValue('--brush-miss').trim() || base;
+    strokes.forEach((s, j) => { g.strokeStyle = marked.has(j) ? miss : base; drawStroke(s); });
+    g.strokeStyle = base;
+    if (live) drawStroke(live.pts);
+  }
+
+  const pos = (e) => {
+    const r = canvas.getBoundingClientRect();
+    return [((e.clientX - r.left) / r.width) * 109, ((e.clientY - r.top) / r.height) * 109];
+  };
+
+  /** Ends the stroke demo: the model strokes go and the pad is free to draw on. */
+  function endDemo() {
+    if (!demoing) return;
+    demoing = false;
+    clearTimeout(demoTimer);
+    over.innerHTML = '';
+    host.classList.remove('demo');
+  }
+
+  function down(e) {
+    if (demoing) endDemo();   // starting to draw skips the rest of the demo
+    if (locked || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    if (live) return;   // one finger at a time
+    e.preventDefault();
+    canvas.setPointerCapture?.(e.pointerId);
+    live = { id: e.pointerId, pts: [pos(e)] };
+    redraw();
+  }
+  function move(e) {
+    if (!live || e.pointerId !== live.id) return;
+    e.preventDefault();
+    const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    for (const ev of (evs.length ? evs : [e])) {
+      const p = pos(ev);
+      const last = live.pts[live.pts.length - 1];
+      if (Math.hypot(p[0] - last[0], p[1] - last[1]) >= 0.6) live.pts.push(p);
+    }
+    redraw();
+  }
+  function up(e) {
+    if (!live || e.pointerId !== live.id) return;
+    strokes.push(live.pts);
+    live = null;
+    redraw();
+  }
+  // Safari scrolls on touchmove unless it's cancelled, even with touch-action: none on older versions.
+  const noScroll = (e) => { if (e.target === canvas) e.preventDefault(); };
+
+  canvas.addEventListener('pointerdown', down);
+  canvas.addEventListener('pointermove', move);
+  canvas.addEventListener('pointerup', up);
+  canvas.addEventListener('pointercancel', up);
+  canvas.addEventListener('touchstart', noScroll, { passive: false });
+  canvas.addEventListener('touchmove', noScroll, { passive: false });
+  const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { if (canvas.getBoundingClientRect().width !== size) fit(); }) : null;
+  ro?.observe(canvas);
+  fit();
+
+  return {
+    strokes: () => strokes.map((s) => s.slice()),
+    undo() { if (!locked) { strokes.pop(); redraw(); } },
+    clear() { if (!locked) { strokes.length = 0; redraw(); } },
+    lock() { locked = true; live = null; host.classList.add('locked'); },
+    /** Shows the learner's strokes at these indexes (0-based) in the miss colour. */
+    mark(idx = []) { marked = new Set(idx); redraw(); },
+    /**
+     * Draws the model strokes one by one with their numbers; `fade` dims the learner's drawing underneath, and the
+     * strokes in `mark` (0-based) are picked out (the one that was off, or went the wrong way).
+     */
+    reveal({ fade = true, mark = [] } = {}) {
+      endDemo();
+      host.classList.toggle('faded', fade);
+      over.innerHTML = '';
+      const still = fx.reducedMotion();
+      model.forEach(([d, x, y], j) => {
+        const p = document.createElementNS(SVG_NS, 'path');
+        p.setAttribute('d', d);
+        p.setAttribute('pathLength', '1');
+        p.setAttribute('class', 'brush-model' + (mark.includes(j) ? ' mark' : '') + (still ? '' : ' anim'));
+        p.style.animationDelay = `${j * 0.7}s`;
+        over.appendChild(p);
+        const t = document.createElementNS(SVG_NS, 'text');
+        t.setAttribute('x', String(x));
+        t.setAttribute('y', String(y));
+        t.setAttribute('class', 'brush-num' + (still ? '' : ' anim'));
+        t.style.animationDelay = `${j * 0.7}s`;
+        t.textContent = String(j + 1);
+        over.appendChild(t);
+      });
+    },
+    /**
+     * Before a new kana's first drawing: plays its strokes in order with their numbers, then clears them so the
+     * learner draws over the guide. Touching the pad skips ahead. With reduced motion the numbered strokes stay until
+     * the first touch.
+     */
+    demo() {
+      this.reveal({ fade: false });
+      demoing = true;
+      host.classList.add('demo');
+      if (!fx.reducedMotion()) demoTimer = setTimeout(endDemo, model.length * 700 + 900);
+    },
+    destroy() {
+      clearTimeout(demoTimer);
+      ro?.disconnect();
+      canvas.removeEventListener('touchstart', noScroll);
+      canvas.removeEventListener('touchmove', noScroll);
+    },
+  };
+}

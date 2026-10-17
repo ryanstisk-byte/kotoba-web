@@ -300,6 +300,8 @@ export class Recognizer {
     this.failures = [];
     this.hints = hints;
     this.want = true;
+    this.startedAt = Date.now();
+    this.everStarted = false;
     this.begin();
   }
 
@@ -335,6 +337,7 @@ export class Recognizer {
     rec.onstart = () => {
       if (gen !== this.gen) return;
       this.listening = true;
+      this.everStarted = true;
       this.status = 'Listening';
       this.emit();
     };
@@ -371,6 +374,9 @@ export class Recognizer {
       if (!this.want) return;
       // Give up gracefully if it keeps ending instantly (broken service).
       const now = Date.now();
+      // The first time, the browser's "allow the microphone?" question can end a few windows before you answer it;
+      // those don't count as the service failing.
+      if (!this.everStarted && now - this.startedAt < 15000) { setTimeout(() => { if (gen === this.gen) this.begin(); }, 400); return; }
       this.failures = this.failures.filter((t) => now - t < 5000);
       this.failures.push(now);
       if (this.failures.length > 6) { this.fail('Speech recognition keeps stopping on this device.'); return; }
@@ -424,7 +430,10 @@ export class PitchTracker {
   }
 
   async start() {
-    if (this.running) return;
+    // A mic that went quiet behind our back (iPhone audio interruptions, another tab taking the mic, a closed
+    // context) is reopened instead of reused, so a later try doesn't record silence.
+    if (this.running && !this.stale()) return;
+    if (this.running) this.stop();
     if (!micSupported) throw new Error('This browser has no microphone access.');
     const ctx = audioContext();
     if (!ctx) throw new Error('This browser has no Web Audio.');
@@ -438,7 +447,7 @@ export class PitchTracker {
       if (e && (e.name === 'OverconstrainedError' || e.name === 'TypeError')) this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       else { setAudioSession('playback'); throw e; }
     }
-    if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
+    if (ctx.state !== 'running') await ctx.resume().catch(() => {});
     this.ctx = ctx;
     this.source = ctx.createMediaStreamSource(this.stream);
     this.analyser = ctx.createAnalyser();
@@ -462,13 +471,22 @@ export class PitchTracker {
     let sum = 0;
     for (let i = 0; i < frames.length; i++) sum += frames[i] * frames[i];
     const rms = Math.sqrt(sum / frames.length);
-    const voiced = rms > Math.max(this.noiseFloor * 2.2, 0.004);
+    const voiced = rms > Math.max(this.noiseFloor * 2.2, 0.0015);   // low enough for a quiet laptop mic with no auto gain
     const hz = voiced ? detectPitch(frames, this.ctx.sampleRate) : null;
     const t = (performance.now() - this.startTime) / 1000;
     this.liveLevel = rms;
     this.liveHz = hz;
     this.samples.push({ time: t, hz, level: rms });
   }
+
+  /** True when the open mic can no longer deliver sound. */
+  stale() {
+    const track = this.stream && this.stream.getAudioTracks()[0];
+    return !track || track.readyState === 'ended' || track.muted || !this.ctx || this.ctx.state !== 'running';
+  }
+
+  /** Loudest level since the clock was last reset (0 means the mic sent only silence). */
+  get peak() { return this.samples.reduce((m, s) => Math.max(m, s.level), 0); }
 
   /** Restart the clock without stopping the mic (call right as the countdown starts). */
   resetClock() {
@@ -479,7 +497,9 @@ export class PitchTracker {
   /** Sample ~1 second of room noise so quiet rooms and noisy rooms both work. */
   calibrateNoise(recent) {
     const levels = recent.map((s) => s.level).sort((a, b) => a - b);
-    if (levels.length) this.noiseFloor = levels[Math.floor(levels.length / 2)];
+    // The quieter part of the second, capped: someone who starts talking during the count-in mustn't set the
+    // floor to their own voice and then be ignored.
+    if (levels.length) this.noiseFloor = Math.min(levels[Math.floor(levels.length * 0.2)], 0.01);
   }
 
   stop() {
@@ -525,9 +545,14 @@ export function detectPitch(raw, sampleRate) {
     running += diff[tau];
     cmnd[tau] = running > 0 ? (diff[tau] * tau) / running : 1;
   }
+  // YIN: take the first dip under the threshold. A real room (fan, raw laptop mic, a breathy voice) often keeps every
+  // dip a little above it, so fall back to the deepest dip when it is still clearly periodic.
+  let best = minLag;
+  for (let t = minLag; t <= maxLag; t++) if (cmnd[t] < cmnd[best]) best = t;
+  const threshold = cmnd[best] < 0.2 ? 0.2 : cmnd[best] < 0.35 ? cmnd[best] + 1e-6 : -1;
   let tau = minLag;
   while (tau <= maxLag) {
-    if (cmnd[tau] < 0.15) {
+    if (cmnd[tau] < threshold) {
       while (tau + 1 <= maxLag && cmnd[tau + 1] < cmnd[tau]) tau++;
       // Parabolic interpolation for a smoother estimate.
       let better = tau;

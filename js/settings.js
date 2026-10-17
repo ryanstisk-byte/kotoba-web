@@ -1,11 +1,12 @@
 // Settings: quiet mode, session length, theme, voices, mic test, latency calibration, export/import.
 import { store } from './store.js';
-import { speaker, recognitionSupported, micSupported, PitchTracker, audioContext, click, micHelp } from './audio.js';
+import { speaker, recognitionSupported, micSupported, PitchTracker, audioContext, click, micHelp, isIOS } from './audio.js';
 import { esc, delegate, toast } from './ui.js';
-import { CLIPS } from './clips.js';
+import { CLIPS, LATER_CLIPS } from './clips.js';
 import { median } from './modes/rhythm.js';
 import * as fx from './fx.js';
 import * as sync from './sync.js';
+import { unlockedLevels, lockedLevels, lockLine } from './levels.js';
 
 export function mount(el, ctx) {
   let calib = null;        // { beats: [perfMs], taps: [perfMs], timers, result }
@@ -35,7 +36,7 @@ export function mount(el, ctx) {
               ${[['normal', 'Up to 5'], ['less', 'Up to 3']].map(([v, t]) => `<button class="seg-btn ${st.pace === v ? 'on' : ''}" data-act="pace" data-v="${v}" role="radio" aria-checked="${st.pace === v}">${t}</button>`).join('')}
             </div>
             <p class="small dim">The app also brings in fewer while your recent answers are below ~80%, so it stays near the 85% sweet spot.</p></div>
-          <a class="btn wide" href="#/placement">Placement check (skip what you already know)</a>
+          <div><a class="btn wide" href="#/placement">Placement check</a><p class="small dim">Skips the Reading Dojo lessons you already know.</p></div>
           <div><span class="strong">Theme</span>
             <div class="seg" role="radiogroup">
               ${['auto', 'light', 'dark'].map((t) => `<button class="seg-btn ${st.theme === t ? 'on' : ''}" data-act="theme" data-v="${t}" role="radio" aria-checked="${st.theme === t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}
@@ -99,11 +100,19 @@ export function mount(el, ctx) {
         </section>
 
         <section class="panel stack-sm">
+          <h2 class="section-title">JLPT levels</h2>
+          <p class="small">Open now: ${unlockedLevels().join(', ')}. ${lockedLevels().length ? esc(lockLine(lockedLevels()[0])) : 'Every level is open.'}</p>
+          <label class="switch-row"><span><span class="strong">Show every level</span><br><span class="small dim">Opens every level's content in every mode now, to look ahead (or to test). Turning it off again takes nothing away: what you've already started keeps coming back for review.</span></span>
+            <input type="checkbox" role="switch" data-act="alllevels" ${st.showAllLevels ? 'checked' : ''}></label>
+        </section>
+        <section class="panel stack-sm">
           <h2 class="section-title">Microphone</h2>
           <p class="small">Speech recognition: <span class="${recognitionSupported ? 'good-c' : 'miss-c'}">${recognitionSupported ? 'available (Japanese, needs internet in Chrome)' : 'not available here: speaking modes use self-grading'}</span></p>
           <p class="small">Pitch tracking (Rhythm): <span class="${micSupported ? 'good-c' : 'miss-c'}">${micSupported ? 'available' : 'not available'}</span></p>
           <label class="switch-row"><span><span class="strong">Pronunciation check</span><br><span class="small dim">A 🎤 button next to new words and phrases. It compares how you say one with the model: its sounds, pitch and length, all on this device. Always optional${st.quiet ? '; hidden in Quiet mode' : ''}.</span></span>
             <input type="checkbox" role="switch" data-act="pron" ${st.pronCheck !== false ? 'checked' : ''}></label>
+          <label class="switch-row"><span><span class="strong">Start the mic on its own</span><br><span class="small dim">Say it cards and Sentence Builder listen as soon as it's your turn, so you don't tap 🎤 first. The mic turns off again after each answer.${isIOS ? ' Safari may still ask for permission once per visit.' : ''}</span></span>
+            <input type="checkbox" role="switch" data-act="automic" ${st.autoMic ? 'checked' : ''}></label>
           <button class="btn" data-act="mictest">${micTest ? '■ Stop mic test' : '🎤 Test mic + pitch'}</button>
           ${micTest ? `<p class="mono" id="mic-out">${esc(micTest.msg || 'Listening…')}</p>` : ''}
         </section>
@@ -113,6 +122,14 @@ export function mount(el, ctx) {
           <p class="small dim">Tap along with the clicks so Rhythm can line your voice up with the beat. Current offset: <span class="strong mono" id="lat-val">${st.latencyMs} ms</span></p>
           ${calibHTML()}
           <label class="small">Fine-tune <input type="range" min="-100" max="400" step="10" value="${st.latencyMs}" data-act="latrange" aria-label="Latency offset in milliseconds"></label>
+        </section>
+
+        <section class="panel stack-sm">
+          <h2 class="section-title">Keep progress safe</h2>
+          <p class="small">On iPhone: Share › Add to Home Screen keeps your progress safe. Safari can clear website data after about 7 days without a visit, but not for Home Screen apps. Export now and then as a backup.</p>
+          <p class="small" id="offline-status">${offlineText}</p>
+          <p class="small dim" id="app-version">${esc(versionText)}</p>
+          ${store.saveOk ? '' : '<p class="miss-c small">Saving is blocked in this browser (private mode?). Progress will not persist.</p>'}
         </section>
 
         <section class="panel stack-sm full" id="sync-panel" aria-labelledby="sync-h">${syncHTML()}</section>
@@ -130,18 +147,17 @@ export function mount(el, ctx) {
             <div class="row2"><button class="btn primary" data-act="confirmimport">Replace</button><button class="btn" data-act="cancelimport">Cancel</button></div></div>` : ''}
         </section>
 
-        <section class="panel stack-sm">
-          <h2 class="section-title">Keep progress safe</h2>
-          <p class="small">On iPhone: Share › Add to Home Screen keeps your progress safe. Safari can clear website data after about 7 days without a visit, but not for Home Screen apps. Export now and then as a backup.</p>
-          <p class="small" id="offline-status">${offlineText}</p>
-          ${store.saveOk ? '' : '<p class="miss-c small">Saving is blocked in this browser (private mode?). Progress will not persist.</p>'}
+        <section class="panel stack-sm full danger-zone" aria-labelledby="reset-h">
+          <h2 class="section-title" id="reset-h">Start over</h2>
+          <p class="small dim">Erases this device's progress. Your settings stay. It asks once more before erasing.</p>
           ${sync.status().connected ? '<p class="small dim">Sync is on: a reset only erases this device, and the next sync brings your progress back from GitHub. Disconnect sync first to start over everywhere.</p>' : ''}
-          <button class="btn ${resetArmed ? 'danger' : ''}" data-act="reset">${resetArmed ? 'Tap again to erase all progress' : 'Reset all progress'}</button>
+          <button class="btn danger-outline ${resetArmed ? 'danger' : ''}" data-act="reset">${resetArmed ? 'Tap again to erase all progress' : 'Reset all progress'}</button>
         </section>
         <div class="full stack-sm">
           <p class="tiny dim center-text">Kotoba Beat web · works offline once loaded</p>
-          <p class="tiny dim center-text" lang="ja" data-noruby>Voices: VOICEVOX:四国めたん · VOICEVOX:白上虎太郎 · VOICEVOX:青山龍星 · VOICEVOX:玄野武宏 · VOICEVOX:東北イタコ · VOICEVOX:ずんだもん</p>
-          <p class="tiny dim center-text">N5 deck readings checked against JMdict, © EDRDG, CC BY-SA 4.0.</p>
+          <p class="tiny dim center-text" lang="ja" data-noruby>Voices: VOICEVOX:四国めたん · VOICEVOX:白上虎太郎 · VOICEVOX:青山龍星 · VOICEVOX:玄野武宏 · VOICEVOX:東北イタコ · VOICEVOX:ずんだもん · VOICEVOX:春日部つむぎ · VOICEVOX:東北ずん子 · VOICEVOX:剣崎雌雄</p>
+          <p class="tiny dim center-text">Deck readings checked against JMdict, and word lookup meanings beyond the decks from JMdict, © EDRDG, CC BY-SA 4.0.</p>
+          <p class="tiny dim center-text">Kana Brush strokes from KanjiVG (kanjivg.tagaini.net), © Ulrich Apel and contributors, CC BY-SA 3.0.</p>
           <p class="tiny dim center-text">Furigana and romaji made with Open JTalk.</p>
         </div>
       </div>`;
@@ -182,13 +198,16 @@ export function mount(el, ctx) {
 
   // How many voice clips the service worker has saved, so it's clear when the app is ready to use offline.
   let offlineText = 'Checking the offline download…';
+  let versionText = '';
   async function checkOffline() {
     let text;
     try {
       if (!('caches' in window) || !navigator.serviceWorker?.controller) {
         text = 'Offline: not set up yet. Open the site once while online, then reload.';
       } else {
-        const files = new Set(Object.values(CLIPS));
+        // The clips this device should have: all but those of levels still locked (cached once they open).
+        const waiting = new Set(lockedLevels().flatMap((lv) => LATER_CLIPS[lv] || []));
+        const files = new Set(Object.values(CLIPS).filter((f) => !waiting.has(f)));
         const saved = new Set();
         for (const key of await caches.keys()) {
           if (!key.startsWith('kotoba-beat-')) continue;
@@ -202,6 +221,14 @@ export function mount(el, ctx) {
           : `Offline: ${saved.size} of ${files.size} voice clips saved so far. Keep the app open on Wi-Fi to finish; missing lines use the device voice.`;
       }
     } catch (e) { text = 'Offline: could not check this browser\'s storage.'; }
+    try {
+      const v = (await caches.keys()).filter((k) => k.startsWith('kotoba-beat-v')).map((k) => +k.slice(13)).sort((a, b) => b - a)[0];
+      if (v) {
+        versionText = `Version ${v}. Updates install on their own and show up the next time the app starts.`;
+        const vp = el.querySelector('#app-version');
+        if (vp) vp.textContent = versionText;
+      }
+    } catch (e) { /* no cache storage here */ }
     if (text === offlineText) return;
     offlineText = text;
     const p = el.querySelector('#offline-status');
@@ -372,6 +399,8 @@ export function mount(el, ctx) {
     if (t.matches('[data-act=quiet]')) { store.setSetting('quiet', t.checked); ctx.refreshChrome(); }
     if (t.matches('[data-act=sfx]')) { store.setSetting('sfx', t.checked); if (t.checked) fx.sound('hit'); }
     if (t.matches('[data-act=pron]')) store.setSetting('pronCheck', t.checked);
+    if (t.matches('[data-act=automic]')) store.setSetting('autoMic', t.checked);
+    if (t.matches('[data-act=alllevels]')) { store.setSetting('showAllLevels', t.checked); render(); }
     if (t.matches('[data-act=haptics]')) { store.setSetting('haptics', t.checked); if (t.checked) fx.buzz(20); }
     if (t.matches('[data-act=latrange]')) { setLatency(+t.value); }
     if (t.matches('[data-act-change=file]') && t.files && t.files[0]) {

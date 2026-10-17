@@ -231,7 +231,9 @@ test.describe('the Pitch Coach (fake mic singing known curves)', () => {
     const sheet = page.locator('.coach-sheet');
     const title = await attempt(page, [[0.45, st(180, -2)], [0.45, st(180, 2)]]);   // low then high: backwards
     expect(title).toBe('Try again');
-    await expect(sheet.locator('.coach-step.miss')).toContainText('(↘)');
+    // The expected direction, drawn as a falling arrow (with "down" for screen readers).
+    await expect(sheet.locator('.coach-step.miss svg.ico-fall')).toHaveCount(1);
+    await expect(sheet.locator('.coach-step.miss')).toContainText('(down)');
     await expect(sheet.getByText('Listen for the drop after あ')).toBeVisible();
     await expect(sheet.getByRole('button', { name: /Next step/ })).toHaveCount(0);
     // Any step can be chosen at any time.
@@ -438,8 +440,8 @@ test.describe('saved progress v7 → v8', () => {
     await seed(page, FIXTURE_V7);
     await page.goto('./');
     const s = await saved(page);
-    expect(s.v).toBe(8);
-    expect(s.settings).toEqual({ ...FIXTURE_V7.settings, voice: null });
+    expect(s.v).toBe(13);
+    expect(s.settings).toEqual({ ...FIXTURE_V7.settings, autoMic: false, voice: null, showAllLevels: false });
     expect(s.coach).toEqual({ ears: [] });
     expect(s.items).toEqual(FIXTURE_V7.items);
     expect(s.grammar).toEqual(FIXTURE_V7.grammar);

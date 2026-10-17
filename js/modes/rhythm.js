@@ -2,9 +2,10 @@
 // the melody line shows pitch accent and your own pitch is drawn over it.
 import { store } from '../store.js';
 import { rhythmSpeed } from '../tuning.js';
-import { speaker, PitchTracker, semitones, micSupported, micHelp } from '../audio.js';
+import { speaker, PitchTracker, semitones, micSupported, micHelp, audioContext, click } from '../audio.js';
 import { esc, delegate } from '../ui.js';
 import { PHRASE_BY_ID } from '../data.js';
+import { levelOf, levelBar } from '../levels.js';
 import * as fx from '../fx.js';
 import { romajiIfWanted } from '../furigana.js';
 import { openCoach, phraseTarget, coachAvailable } from '../pitch-coach.js';
@@ -21,22 +22,25 @@ export function median(values) {
  * Timing is "were you voicing during the beat?", pitch is "did you go up and down where the melody
  * goes up and down?" relative to your own voice, so any voice range works.
  */
-export function scoreRhythm(phrase, samples, beat, lineStart) {
+export function scoreRhythm(phrase, samples, beat, lineStart, floor = 0) {
   const morae = phrase.morae;
+  // Timing only asks "were you making sound?", so a voice the pitch finder can't read still counts as on the beat.
+  const loud = Math.max(floor * 2.5, 0.002);
+  const sounding = (s) => s.hz != null || s.level > loud;
   // Allow for reaction time: lock onto when the player actually started (up to half a second late).
-  const fv = samples.find((s) => s.hz != null && s.time > lineStart - 0.3);
+  const fv = samples.find((s) => sounding(s) && s.time > lineStart - 0.2);
   const firstVoiced = fv ? fv.time : lineStart;
   const offset = Math.min(Math.max(firstVoiced - lineStart, -0.15), 0.5);
   const start = lineStart + offset;
 
-  const voicedHz = samples.map((s) => s.hz).filter((h) => h != null && h > 60 && h < 500);
+  const voicedHz = samples.filter((s) => s.time >= lineStart - 0.2).map((s) => s.hz).filter((h) => h != null && h > 60 && h < 500);   // not the count-in clicks
   const reference = median(voicedHz) ?? 150;
 
   const results = morae.map((mo, i) => {
     const lo = start + i * beat;
     const hi = lo + beat;
     const win = samples.filter((s) => s.time >= lo && s.time < hi);
-    const voicedShare = win.length ? win.filter((s) => s.hz != null).length / win.length : 0;
+    const voicedShare = win.length ? win.filter(sounding).length / win.length : 0;
     const hit = mo.silent ? voicedShare < 0.5 : voicedShare >= 0.25;
     const md = median(win.map((s) => s.hz).filter((h) => h != null));
     return { hit, semitone: mo.silent || md == null ? null : semitones(md, reference) };
@@ -59,14 +63,13 @@ export function scoreRhythm(phrase, samples, beat, lineStart) {
   });
   const pitch = checks === 0 ? 1 : correct / checks;
   const total = 0.6 * timing + 0.4 * pitch;
-  return { timing, pitch, perMora: results, total, passed: total >= 0.8 };
+  return { timing, pitch, perMora: results, total, passed: total >= 0.8, offset };
 }
 
 // ---------- View ----------
 
 export function mount(el, ctx) {
   const GOAL = 3;
-  const COUNTDOWN = 1.6;
   const tracker = new PitchTracker();
   // A course unit can limit the phrases (ctx.phraseIds), keeping the review order for the ones it includes.
   const unitQueue = () => {
@@ -81,6 +84,7 @@ export function mount(el, ctx) {
   let playStart = 0;
   let result = null;
   let micError = null;
+  let silent = false;     // the last try recorded nothing at all: point to the mic check
   let selfGrade = !micSupported || ctx.quiet;   // no mic: grade yourself
   let attempted = new Set();
   let raf = 0;
@@ -90,9 +94,16 @@ export function mount(el, ctx) {
   const phrase = () => queue[index % queue.length];
   const level = () => store.level(phrase());
   const tempo = rhythmSpeed(store.engine);   // difficulty targeting: a little slower while speaking is hard
-  const mps = () => Math.max(1.6, Math.min(2.0 + 0.8 * level(), 7.0) * tempo);
+  // N4 and N3 lines are longer and start a little faster (natural speed for set phrases), then speed up the same way.
+  const levelBoost = () => ({ N4: 0.6, N3: 0.9 }[levelOf(phrase())] || 0);
+  const mps = () => Math.max(1.6, Math.min(2.0 + levelBoost() + 0.8 * level(), 7.0) * tempo);
   const beat = () => 1 / mps();
   const latency = () => (store.settings.latencyMs || 0) / 1000;
+  // Count-in: four clicks at the line's own beat (doubled up when the beat is very fast), so you hear the tempo
+  // before you start. The line starts where a fifth click would be.
+  const COUNT = 4;
+  const clickGap = () => beat() * Math.max(1, Math.ceil(0.35 / beat()));
+  let COUNTDOWN = COUNT * clickGap();
   const showDisplay = () => level() < 2 || phase === 'result';
   /** Hide more of the lyrics as you level up, so you say it from memory. Everything shows again after a try. */
   const kanaVisible = (i) => phase === 'result' || level() === 0 || (level() === 1 && i % 2 === 0);
@@ -107,6 +118,7 @@ export function mount(el, ctx) {
     const busy = phase === 'countdown' || phase === 'playing';
     el.innerHTML = `
       <div class="stack">
+        ${ctx.phraseIds?.length ? '' : levelBar('rhythm')}
         ${ctx.quiet ? '<div class="panel note">🤫 Quiet mode: Rhythm needs your voice, so the mic is off. Listen, mouth along, and grade yourself.</div>' : ''}
         <div class="row-between">
           <span class="badge ${p.isBoss ? 'boss' : ''}">${p.isBoss ? 'BOSS · pitch pair' : 'Level ' + level()}</span>
@@ -116,6 +128,9 @@ export function mount(el, ctx) {
         <p class="rhythm-display" lang="ja">${showDisplay() ? esc(p.display) : '・・・'}</p>
         ${micError ? `<p class="small miss-c">${esc(micError)}</p>` : ''}
         <div class="track-wrap"><canvas class="track" height="230" aria-label="Rhythm track"></canvas></div>
+        ${busy && !selfGrade ? '<div class="mic-meter" aria-hidden="true"><span class="tiny dim strong">MIC</span><span class="mic-meter-bar"><span id="rh-level"></span></span></div>' : ''}
+        ${phase === 'result' && silent ? `<div class="panel note stack-sm"><p class="strong">The mic only sent silence.</p>
+          <p class="small">Your browser opened a microphone, but no sound came through it. Open the <a href="#/check">sound and mic check</a> and press Start mic: if the bar stays still there too, the browser is using the wrong mic or another app has it. Check the mic icon in the address bar (PC) or Settings › Safari › Microphone (iPhone).</p></div>` : ''}
         <div class="row3">
           <button class="btn" data-act="listen" ${busy ? 'disabled' : ''}>🔊 Listen</button>
           <button class="btn primary" data-act="play" ${busy ? 'disabled' : ''}>${phase === 'result' ? '🎤 Again' : '🎤 Sing it'}</button>
@@ -130,7 +145,7 @@ export function mount(el, ctx) {
               <button class="btn good" data-act="sg-ok">I said it ✓</button>
               <button class="btn" data-act="sg-miss">Missed</button>
             </div></div>` : ''}
-        ${phase === 'ready' ? `<p class="small dim">Tap Sing it: after Ready, Set, Go, say one mora per beat as the line sweeps. ${selfGrade ? 'No mic here, so you grade yourself.' : 'Pink dots are the target melody; blue dots are your voice.'}</p>` : ''}
+        ${phase === 'ready' ? `<p class="small dim">Tap Sing it: after the four clicks count you in, say one mora per beat as the line sweeps (the lit box is the one to say now). ${selfGrade ? 'No mic here, so you grade yourself.' : 'Pink dots are the target melody; blue dots are your voice.'}</p>` : ''}
       </div>`;
     draw();
   }
@@ -193,7 +208,7 @@ export function mount(el, ctx) {
         g.fillStyle = colors.trace; g.globalAlpha = 0.9;
         for (const s of tracker.samples) {
           if (s.hz == null) continue;
-          const t = s.time - COUNTDOWN - latency();
+          const t = s.time - COUNTDOWN - latency() - (phase === 'result' && result ? result.offset || 0 : 0);
           if (t < -0.1 || t > total + 0.3) continue;
           const x = left + (t / total) * (right - left);
           const st = Math.max(-5, Math.min(5, semitones(s.hz, ref)));
@@ -213,6 +228,12 @@ export function mount(el, ctx) {
       if (phase === 'result' && result && i < result.perMora.length) {
         g.fillStyle = result.perMora[i].hit ? colors.good : colors.miss;
         g.globalAlpha = 0.25;
+        roundRect(g, cx - slot / 2 + 3, kanaY - 24, slot - 6, 48, 10); g.fill();
+        g.globalAlpha = 1;
+      }
+      if (phase === 'playing' && Math.floor(lineElapsed / beat()) === i) {
+        // The mora to say right now.
+        g.fillStyle = colors.accent; g.globalAlpha = 0.18;
         roundRect(g, cx - slot / 2 + 3, kanaY - 24, slot - 6, 48, 10); g.fill();
         g.globalAlpha = 1;
       }
@@ -242,12 +263,14 @@ export function mount(el, ctx) {
       const remaining = Math.max(0, COUNTDOWN - elapsed);
       g.font = '900 44px system-ui, sans-serif';
       g.fillStyle = colors.accent;
-      g.fillText(remaining > 1.05 ? 'Ready' : remaining > 0.5 ? 'Set' : 'Go', W / 2, H / 2 - 10);
+      g.fillText(String(Math.min(COUNT, Math.ceil(remaining / clickGap()))), W / 2, H / 2 - 10);
     }
   }
 
   function loop() {
     draw();
+    const lv = el.querySelector('#rh-level');
+    if (lv) lv.style.width = Math.min(100, Math.sqrt(tracker.liveLevel / 0.2) * 100).toFixed(0) + '%';
     if (phase === 'countdown' || phase === 'playing') raf = requestAnimationFrame(loop);
   }
 
@@ -266,20 +289,27 @@ export function mount(el, ctx) {
           : `Couldn't start the microphone (${(e && e.message) || e}). Grade yourself for now.`;
       }
     }
+    COUNTDOWN = COUNT * clickGap();
     tracker.resetClock();
     playStart = performance.now();
+    try {
+      const ac = audioContext();
+      if (ac) for (let i = 0; i < COUNT; i++) click(ac, ac.currentTime + 0.02 + i * clickGap(), i === COUNT - 1 ? 1320 : 880);
+    } catch (e) { /* no Web Audio: the numbers still count in */ }
     phase = 'countdown';
     render();
     cancelAnimationFrame(raf);
     raf = requestAnimationFrame(loop);
     const total = p.morae.length * beat();
-    timers.push(setTimeout(() => { if (!selfGrade) tracker.calibrateNoise(tracker.samples); }, 1000));
+    timers.push(setTimeout(() => { if (!selfGrade) tracker.calibrateNoise(tracker.samples); }, Math.min(1000, COUNTDOWN * 1000 - 150)));
     timers.push(setTimeout(() => { phase = 'playing'; render(); cancelAnimationFrame(raf); raf = requestAnimationFrame(loop); }, COUNTDOWN * 1000));
     timers.push(setTimeout(() => {
+      silent = false;
       if (selfGrade) {
         result = null;
       } else {
-        result = scoreRhythm(p, tracker.samples, beat(), COUNTDOWN + latency());
+        silent = tracker.peak < 0.0005;
+        result = scoreRhythm(p, tracker.samples, beat(), COUNTDOWN + latency(), tracker.noiseFloor);
         store.recordRhythm(p, result.total);
         store.grade({ skill: 'speaking', id: p.id, ok: result.passed });
         store.grade({ skill: 'pitch', id: p.id, ok: result.pitch >= 0.75 });

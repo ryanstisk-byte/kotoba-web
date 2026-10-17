@@ -1,6 +1,7 @@
 // Progress store: spaced review with no streaks. Missing days never wipes anything out.
 // Port of ProgressStore.swift plus the daily-plan bookkeeping for the "Today" screen.
-import { PHRASES, PHRASE_BY_ID, GARDEN_CATALOG, CHAPTERS, N5_WORDS } from './data.js';
+import { PHRASES, PHRASE_BY_ID, GARDEN_CATALOG, CHAPTERS, N5_WORDS, N4_WORDS, N3_WORDS } from './data.js';
+import { itemOpen } from './levels.js';
 import { ALL_LESSONS, LESSON_BY_ID } from './dojo-data.js';
 import * as srs from './srs.js';
 import { blankEngine, normalizeEngine, recordGrade, dayNumber, prune } from './skills.js';
@@ -23,6 +24,8 @@ export const DIRECTIONS = ['listen', 'say'];
 export const DIRECTION_STAGE = 3;
 /** Misses (since the last time it was cleared) after which a card is marked as needing help. */
 export const HELP_AFTER = 4;
+/** Card directions a Reading Dojo kana can have besides reading it (Kana Brush: hear it, draw it). Added in v10. */
+export const KANA_DIRECTIONS = ['draw'];
 /** Right answers in a row that clear the needs-help mark. */
 export const HELP_CLEAR = 2;
 
@@ -30,13 +33,14 @@ export const HELP_CLEAR = 2;
 export const SKILLS = ['kana', 'kanji', 'vocab', 'grammar', 'listening', 'pitch', 'speaking', 'counters'];
 
 /** Version of the saved progress shape. Bump it and add a step to MIGRATIONS whenever the shape changes. */
-export const STATE_VERSION = 8;
+export const STATE_VERSION = 13;
 
 function blank() {
   return {
     v: STATE_VERSION,
     items: {},          // id -> { level, due (ms), best, r (reviews), pl (planted ms), s (stability, days), d (difficulty 1-10), lr (last review ms),
-                        //        lapses, help, ok2 (needs-help bookkeeping, added in v6), dirs: { listen, say } (v6, see DIRECTIONS) }
+                        //        lapses, help, ok2 (needs-help bookkeeping, added in v6), dirs: { listen, say } (v6, see DIRECTIONS)
+                        //        or, on a 'kana:' item, dirs: { draw } (v10, Kana Brush, see KANA_DIRECTIONS) }
     lastSession: null,
     chapters: [],       // cleared chapter ids
     forged: [],         // forged kanji
@@ -47,7 +51,9 @@ function blank() {
       textSize: 'm', sfx: true, haptics: true,   // added in v2
       pace: 'normal',                             // added in v3: 'less' = at most 3 new words a day
       pronCheck: true,                            // added in v7: show the 🎤 pronunciation check buttons
+      autoMic: false,                             // the mic starts on its own in Say it cards and Sentence Builder
       voice: null,                                // added in v8: { mid (Hz), lo, hi (semitones), n } learned by the Pitch Coach
+      showAllLevels: false,                       // added in v12: open every JLPT level (js/levels.js), not just the ones reached
     },
     engine: blankEngine(),   // added in v3: the skill model, placement and weekly check-in (see skills.js)
     days: {},           // 'YYYY-MM-DD' -> { ok, tot, rev, newc, studied, blocks: { id: 'done'|'skipped' }, newd?, newg? (v6) }
@@ -55,7 +61,104 @@ function blank() {
     course: blankCourse(),   // added in v5: the guided course (see migrateCourse)
     grammar: {},        // added in v6: grammar review cards, key -> card (see migrateCards and js/grammar-cards.js)
     coach: { ears: [] }, // added in v8: Pitch Coach; ears = words whose "where does it drop?" warm-up is done
+    exam: blankExam(),  // added in v9: mock JLPT results and readiness (see blankExam)
+    messages: blankMessages(),   // added in v11: Ren's Messages (see blankMessages and js/messages.js)
+    library: blankLibrary(),     // added in v13: Library readers read (see blankLibrary and js/modes/library.js)
   };
+}
+
+/** Mock results kept (the oldest drop off), and question ids remembered so the next mocks pick fresh ones. */
+export const EXAM_HISTORY_MAX = 50;
+export const EXAM_SEEN_MAX = 400;
+const LEVEL_RE = /^N[1-5]$/;
+
+/**
+ * Mock JLPT (js/exam.js) and readiness (js/readiness.js):
+ *   history  [{ level, format ('mini'|'full'), at, lk, li, total, pass, ok, n, parts: { part: [right, asked] } }], oldest first
+ *   real     { level: { on, at } }: the learner marked the real test as passed (on), or took the mark back
+ *   seen     question ids from recent mocks, newest last
+ *   later    { level: 'YYYY-MM-DD' }: "ready for a mock" stays quiet until this day ("Later")
+ * A level is done once a full mock is passed or the real test is marked; readiness then moves to the next level.
+ */
+/**
+ * Ren's Messages (js/messages.js): the thread, oldest first. Each entry: { id (message id), day ('YYYY-MM-DD' it
+ * arrived), at (ms), reply (index of the reply chosen, or null), ok (the "what did they mean?" answer: true, false,
+ * or null before it's answered) }. At most one arrives a day; nothing in it ever expires.
+ */
+export function blankMessages() {
+  return { thread: [] };
+}
+export const MESSAGES_MAX = 500;
+
+function normalizeMessages(raw) {
+  const m = blankMessages();
+  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.thread)) return m;
+  const seen = new Set();
+  for (const e of raw.thread) {
+    if (!e || typeof e !== 'object' || typeof e.id !== 'string' || !/^[a-z0-9_-]{1,40}$/i.test(e.id)) continue;
+    if (typeof e.day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(e.day)) continue;
+    const key = e.id + '|' + e.day;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    m.thread.push({
+      id: e.id, day: e.day, at: Math.max(0, Number(e.at) || 0),
+      reply: Number.isInteger(e.reply) && e.reply >= 0 && e.reply < 5 ? e.reply : null,
+      ok: e.ok === true ? true : e.ok === false ? false : null,
+    });
+  }
+  m.thread.sort((a, b) => a.at - b.at || (a.day < b.day ? -1 : 1));
+  m.thread = m.thread.slice(-MESSAGES_MAX);
+  return m;
+}
+
+/** Two devices' threads: every message from both, once; a copy with the reply (and answer) chosen wins. */
+function mergeMessages(a, b) {
+  const by = new Map();
+  for (const e of [...a.thread, ...b.thread]) {
+    const key = e.id + '|' + e.day;
+    const cur = by.get(key);
+    const score = (x) => (x.reply != null ? 2 : 0) + (x.ok != null ? 1 : 0);
+    if (!cur || score(e) > score(cur) || (score(e) === score(cur) && e.at < cur.at)) by.set(key, { ...e });
+  }
+  return normalizeMessages({ thread: [...by.values()] });
+}
+
+/**
+ * The Library (js/modes/library.js): readers read to the end, id -> { n (times finished), at (ms, the last time),
+ * q (best questions right), qt (questions asked) }. Words read are counted from these (a reader's words x n).
+ */
+export function blankLibrary() {
+  return { read: {} };
+}
+
+function normalizeLibrary(raw) {
+  const l = blankLibrary();
+  if (!raw || typeof raw !== 'object' || !raw.read || typeof raw.read !== 'object') return l;
+  for (const [id, r] of Object.entries(raw.read)) {
+    if (!/^[a-z0-9_-]{1,40}$/i.test(id) || !r || typeof r !== 'object') continue;
+    const n = Math.max(0, Math.min(9999, Math.floor(Number(r.n) || 0)));
+    if (!n) continue;
+    const qt = Math.max(0, Math.min(10, Math.floor(Number(r.qt) || 0)));
+    l.read[id] = { n, at: Math.max(0, Number(r.at) || 0), q: Math.max(0, Math.min(qt, Math.floor(Number(r.q) || 0))), qt };
+  }
+  return l;
+}
+
+/** Two devices' Library: each reader's larger count, latest time and best score. */
+function mergeLibrary(a, b) {
+  const read = { ...a.read };
+  for (const [id, r] of Object.entries(b.read)) {
+    const x = read[id];
+    read[id] = !x ? { ...r } : {
+      n: Math.max(x.n, r.n), at: Math.max(x.at, r.at),
+      ...(r.qt > x.qt || (r.qt === x.qt && r.q > x.q) ? { q: r.q, qt: r.qt } : { q: x.q, qt: x.qt }),
+    };
+  }
+  return normalizeLibrary({ read });
+}
+
+export function blankExam() {
+  return { history: [], real: {}, seen: [], later: {} };
 }
 
 /**
@@ -147,6 +250,22 @@ const MIGRATIONS = {
   // v7 -> v8: the Pitch Coach. The learner's voice range (a per-device setting, learned later, so none yet) and the
   // words whose pitch ear-training is done.
   7: (raw) => ({ ...raw, settings: { voice: null, ...(raw.settings || {}) }, coach: raw.coach && typeof raw.coach === 'object' ? raw.coach : { ears: [] } }),
+  // v8 -> v9: mock JLPT results and readiness (none yet). Nothing else changes.
+  8: (raw) => ({ ...raw, exam: raw.exam && typeof raw.exam === 'object' ? raw.exam : blankExam() }),
+  // v9 -> v10: Kana Brush. A Reading Dojo kana can carry a drawing card (items['kana:あ'].dirs.draw) with its own
+  // schedule. None exist yet (each starts the first time that kana is drawn), so every item, review date, chapter and
+  // setting passes through untouched. The version still moves so an older copy of the app, which would drop the
+  // drawing cards, leaves synced v10 progress alone until it updates.
+  9: (raw) => ({ ...raw }),
+  // v10 -> v11: Ren's Messages. An empty thread (the first message arrives the next time the app opens). Nothing
+  // else changes.
+  10: (raw) => ({ ...raw, messages: raw.messages && typeof raw.messages === 'object' ? raw.messages : blankMessages() }),
+  // v11 -> v12: JLPT levels (js/levels.js). The "Show every level" setting, off: N4 opens the usual way, once N5 is
+  // done (a full mock passed, or the real N5 marked as passed). A per-device setting, so sync never changes it.
+  // Everything already learned stays exactly as it was.
+  11: (raw) => ({ ...raw, settings: { showAllLevels: false, ...(raw.settings || {}) } }),
+  // v12 -> v13: the Library. No readers read yet; everything else passes through untouched.
+  12: (raw) => ({ ...raw, library: raw.library && typeof raw.library === 'object' ? raw.library : blankLibrary() }),
 };
 
 /** Adds the guided-course field with defaults. Self-contained: it touches nothing else in the blob. */
@@ -186,7 +305,7 @@ function normalize(input) {
       };
       if (p.dirs && typeof p.dirs === 'object') {
         const dirs = {};
-        for (const dir of DIRECTIONS) { const c = normalizeCard(p.dirs[dir]); if (c) dirs[dir] = c; }
+        for (const dir of id.startsWith('kana:') ? KANA_DIRECTIONS : DIRECTIONS) { const c = normalizeCard(p.dirs[dir]); if (c) dirs[dir] = c; }
         if (Object.keys(dirs).length) s.items[id].dirs = dirs;
       }
     }
@@ -212,7 +331,9 @@ function normalize(input) {
     s.settings.haptics = st.haptics !== false;
     s.settings.pace = st.pace === 'less' ? 'less' : 'normal';
     s.settings.pronCheck = st.pronCheck !== false;
+    s.settings.autoMic = st.autoMic === true;
     s.settings.voice = normalizeVoice(st.voice);
+    s.settings.showAllLevels = st.showAllLevels === true;
   }
   s.engine = normalizeEngine(raw.engine, SKILLS);
   if (raw.days && typeof raw.days === 'object') {
@@ -238,7 +359,42 @@ function normalize(input) {
       if (n) s.grammar[key] = n;
     }
   }
+  s.exam = normalizeExam(raw.exam);
+  s.messages = normalizeMessages(raw.messages);
+  s.library = normalizeLibrary(raw.library);
   return s;
+}
+
+/** Cleans the mock JLPT block, keeping every well-formed result. */
+function normalizeExam(raw) {
+  const e = blankExam();
+  if (!raw || typeof raw !== 'object') return e;
+  if (Array.isArray(raw.history)) {
+    for (const h of raw.history) {
+      if (!h || typeof h !== 'object' || !LEVEL_RE.test(h.level) || !(Number(h.at) > 0)) continue;
+      const parts = {};
+      if (h.parts && typeof h.parts === 'object') {
+        for (const [k, t] of Object.entries(h.parts)) {
+          if (/^[a-z]+$/.test(k) && Array.isArray(t) && t.length >= 2) parts[k] = [Math.max(0, Math.floor(num(t[0]))), Math.max(0, Math.floor(num(t[1])))];
+        }
+      }
+      e.history.push({
+        level: h.level, format: h.format === 'full' ? 'full' : 'mini', at: Number(h.at),
+        lk: Math.max(0, Math.round(num(h.lk))), li: Math.max(0, Math.round(num(h.li))), total: Math.max(0, Math.round(num(h.total))),
+        pass: !!h.pass, ok: Math.max(0, Math.floor(num(h.ok))), n: Math.max(0, Math.floor(num(h.n))), parts,
+      });
+    }
+    e.history.sort((a, b) => a.at - b.at);
+    e.history = e.history.slice(-EXAM_HISTORY_MAX);
+  }
+  if (raw.real && typeof raw.real === 'object') {
+    for (const [lv, r] of Object.entries(raw.real)) if (LEVEL_RE.test(lv) && r && typeof r === 'object') e.real[lv] = { on: !!r.on, at: num(r.at) };
+  }
+  if (Array.isArray(raw.seen)) e.seen = [...new Set(raw.seen.filter((x) => typeof x === 'string' && x.length < 200))].slice(-EXAM_SEEN_MAX);
+  if (raw.later && typeof raw.later === 'object') {
+    for (const [lv, d] of Object.entries(raw.later)) if (LEVEL_RE.test(lv) && /^\d{4}-\d{2}-\d{2}$/.test(d)) e.later[lv] = d;
+  }
+  return e;
 }
 
 /** A saved voice range, or null if it's missing or doesn't look like a human voice. */
@@ -440,7 +596,7 @@ function mergeMined(a, b, aItems, bItems) {
  * - Review items: the copy with the most recent review wins (best score kept from both); each Listen / Say it card
  *   and each grammar card the same way, on its own, with its miss count and needs-help mark.
  * - Cleared lessons, chapters, forged kanji, course units: union.
- * - Counters (days, story replays, course tallies, skill tallies): the larger value.
+ * - Counters (days, story replays, course tallies, skill tallies, Library readers read): the larger value.
  * - Settings and the course on/off switch: this device's (they stay per device).
  */
 export function mergeProgress(local, remote, now = Date.now()) {
@@ -499,7 +655,23 @@ export function mergeProgress(local, remote, now = Date.now()) {
 
   out.coach = { ears: union(a.coach.ears, b.coach.ears) };
 
-  out.settings = { ...a.settings };
+  // Mock results from both devices (the same mock synced twice counts once); the latest real-test mark per level;
+  // recently seen questions from both; the later of two "Later" days.
+  const hist = new Map();
+  for (const h of [...a.exam.history, ...b.exam.history]) hist.set(`${h.level}|${h.format}|${h.at}`, h);
+  const later = { ...a.exam.later };
+  for (const [lv, d] of Object.entries(b.exam.later)) if (!later[lv] || d > later[lv]) later[lv] = d;
+  const real = { ...a.exam.real };
+  for (const [lv, r] of Object.entries(b.exam.real)) if (!real[lv] || r.at > real[lv].at) real[lv] = { ...r };
+  out.messages = mergeMessages(a.messages, b.messages);
+  out.library = mergeLibrary(a.library, b.library);
+  out.exam = {
+    history: [...hist.values()].sort((x, y) => x.at - y.at).slice(-EXAM_HISTORY_MAX).map((h) => ({ ...h, parts: { ...h.parts } })),
+    real, later,
+    seen: union(a.exam.seen, b.exam.seen).slice(-EXAM_SEEN_MAX),
+  };
+
+  out.settings = { ...a.settings };   // per device: theme, voice range, "Show every level" (v12)…
   return out;
 }
 
@@ -760,8 +932,10 @@ class Store {
   /** Due phrases first (oldest due first), boss levels only after the basics have been seen. */
   queue() {
     const now = Date.now();
-    const seenBasics = PHRASES.filter((p) => !p.isBoss && this.s.items[p.id]).length;
-    const pool = PHRASES.filter((p) => !p.isBoss || seenBasics >= 6);
+    // Only phrases of unlocked levels (an N4 phrase already planted keeps its review, though: nothing is taken away).
+    const open = PHRASES.filter((p) => itemOpen(p) || this.s.items[p.id]);
+    const seenBasics = open.filter((p) => !p.isBoss && this.s.items[p.id]).length;
+    const pool = open.filter((p) => !p.isBoss || seenBasics >= 6);
     const byDue = (a, b) => this.progress(a.id).due - this.progress(b.id).due;
     const due = pool.filter((p) => this.isDue(p, now)).sort(byDue);
     return due.length ? due : pool.slice().sort(byDue);
@@ -804,7 +978,7 @@ class Store {
 
   thirsty(now = Date.now()) { return this.planted().filter((p) => p.prog.due <= now).map((p) => p.item); }
 
-  /** New words not yet planted that today's watering would introduce, in order (starter phrases, then the N5 deck). */
+  /** New words not yet planted that today's watering would introduce, in order (starter phrases, the N5 deck, then the N4 and N3 decks once unlocked). */
   freshWords(limit) {
     const plants = this.planted();
     const fresh = plants.filter((p) => !p.prog.r && p.prog.due <= Date.now())
@@ -814,13 +988,14 @@ class Store {
     if (fresh.length < limit) {
       for (const ph of PHRASES) {
         if (fresh.length >= limit) break;
-        if (!ph.isBoss && !this.s.items[ph.id]) fresh.push(GARDEN_CATALOG[ph.id]);
+        if (!ph.isBoss && ph.level === 'N5' && !this.s.items[ph.id]) fresh.push(GARDEN_CATALOG[ph.id]);
       }
     }
     if (fresh.length < limit) {
       // Skip N5 words already growing under another id (met in Story, Kanji Forge or the starter phrases).
       const known = new Set(plants.map((p) => p.item.jp).concat(fresh.map((f) => f.jp)));
-      for (const w of N5_WORDS) {
+      // Then the N4 deck, once N4 is unlocked, and the N3 deck once N3 is (js/levels.js).
+      for (const w of [...N5_WORDS, ...N4_WORDS.filter(itemOpen), ...N3_WORDS.filter(itemOpen)]) {
         if (fresh.length >= limit) break;
         if (!this.s.items[w.id] && !known.has(w.jp)) { fresh.push(GARDEN_CATALOG[w.id]); known.add(w.jp); }
       }
@@ -1021,10 +1196,10 @@ class Store {
     const cleared = this.clearedLessons;
     return ALL_LESSONS.filter((l) => l.track === track).every((l) => cleared.has(l.id));
   }
-  /** First lesson not yet cleared, in course order (hiragana, katakana, kanji). */
+  /** First lesson not yet cleared, in course order (hiragana, katakana, kanji, then N4 and N3 kanji once unlocked). */
   nextLesson() {
     const cleared = this.clearedLessons;
-    return ALL_LESSONS.find((l) => !cleared.has(l.id)) || null;
+    return ALL_LESSONS.find((l) => !cleared.has(l.id) && itemOpen(l)) || null;
   }
 
   /** Dojo review: same scheduler as the garden, but kept out of the garden's daily cap. */
@@ -1038,6 +1213,38 @@ class Store {
     this.log(ok);
   }
 
+  // ----- Kana Brush: drawing cards on Reading Dojo kana -----
+  /** A kana's drawing card (items['kana:<k>'].dirs.draw), or null if it was never drawn. */
+  brushCard(kana) {
+    const p = this.s.items['kana:' + kana];
+    return (p && p.dirs && p.dirs.draw) || null;
+  }
+
+  /**
+   * Records one drawing of a kana met in the Reading Dojo: the same scheduler and rules as the Dojo's reading review
+   * (a first-time miss comes back in half a day, nothing is ever knocked down), on the kana's own drawing card.
+   */
+  recordBrush(kana, ok, now = Date.now()) {
+    const p = this.s.items['kana:' + kana];
+    if (!p) return null;
+    p.dirs = p.dirs || {};
+    const c = p.dirs.draw || (p.dirs.draw = newCard(now));
+    const firstTime = !c.r;
+    scheduleCard(c, ok, now);
+    trackHelp(c, ok);
+    if (!ok && firstTime) c.due = now + DAY / 2;
+    this.log(ok);
+    return c;
+  }
+
+  /** Kana whose drawing card is due again, most overdue first (as kana, not ids). */
+  brushDue(now = Date.now()) {
+    return Object.entries(this.s.items)
+      .filter(([id, p]) => id.startsWith('kana:') && p.dirs && p.dirs.draw && p.dirs.draw.due <= now)
+      .sort((a, b) => a[1].dirs.draw.due - b[1].dirs.draw.due)
+      .map(([id]) => id.slice(5));
+  }
+
   /** Learned kana and kanji that are due again, most overdue first. */
   dojoDue(now = Date.now()) {
     return Object.entries(this.s.items)
@@ -1049,10 +1256,11 @@ class Store {
   // ----- story plan -----
   nextChapter() {
     const cleared = this.clearedChapters;
-    const next = CHAPTERS.find((c) => !cleared.has(c.id));
+    const open = CHAPTERS.filter(itemOpen);
+    const next = open.find((c) => !cleared.has(c.id));
     if (next) return { chapter: next, replay: false };
     // All cleared: replay the one revisited longest ago (rotating), furigana off.
-    const sorted = CHAPTERS.slice().sort((a, b) => (this.s.storyReplays[a.id] || 0) - (this.s.storyReplays[b.id] || 0));
+    const sorted = open.filter((c) => cleared.has(c.id)).sort((a, b) => (this.s.storyReplays[a.id] || 0) - (this.s.storyReplays[b.id] || 0));
     return { chapter: sorted[0], replay: true };
   }
 
@@ -1122,6 +1330,78 @@ class Store {
   /** Whether a word's "where does the pitch drop?" warm-up is done (it comes first in its first Pitch Coach). */
   earsDone(id) { return this.s.coach.ears.includes(id); }
   markEars(id) { if (id && !this.s.coach.ears.includes(id)) { this.s.coach.ears.push(id); this.save(); } }
+
+  // ----- Ren's Messages (js/messages.js) -----
+  get messages() { return this.s.messages.thread; }
+
+  // ----- library -----
+  /** A Library reader's record ({ n, at, q, qt }), or null if it hasn't been read to the end. */
+  readerResult(id) { return this.s.library.read[id] || null; }
+  /** A reader finished: one more read, and its best question score. */
+  finishReader(id, q = 0, qt = 0, now = Date.now()) {
+    const r = this.s.library.read[id] || { n: 0, at: 0, q: 0, qt: 0 };
+    r.n += 1;
+    r.at = now;
+    if (qt > r.qt || (qt === r.qt && q > r.q)) { r.q = q; r.qt = qt; }
+    this.s.library.read[id] = r;
+    this.markStudied();
+    this.save();
+  }
+  /** Adds a message that just arrived (at most one a day is the caller's rule; js/messages.js keeps it). */
+  deliverMessage(id, now = Date.now()) {
+    const day = dateKey(new Date(now));
+    if (this.s.messages.thread.some((e) => e.id === id && e.day === day)) return;
+    this.s.messages.thread.push({ id, day, at: now, reply: null, ok: null });
+    this.s.messages.thread = this.s.messages.thread.slice(-MESSAGES_MAX);
+    this.save();
+  }
+  /** The thread entry for a message (the latest copy, for welcome-back notes that can come more than once). */
+  messageEntry(id) { return [...this.s.messages.thread].reverse().find((e) => e.id === id) || null; }
+  answerMessage(id, ok) {
+    const e = this.messageEntry(id);
+    if (!e || e.ok != null) return;
+    e.ok = !!ok;
+    this.log(ok);
+  }
+  replyMessage(id, index) {
+    const e = this.messageEntry(id);
+    if (!e || e.reply != null) return;
+    e.reply = index;
+    this.markStudied();
+  }
+
+  // ----- mock JLPT (js/exam.js, js/readiness.js) -----
+  get exam() { return this.s.exam; }
+
+  /** Levels done: a full mock passed, or the real test marked as passed. */
+  examDone() {
+    const done = new Set(this.s.exam.history.filter((h) => h.format === 'full' && h.pass).map((h) => h.level));
+    for (const [lv, r] of Object.entries(this.s.exam.real)) { if (r.on) done.add(lv); }
+    return done;
+  }
+
+  /** Saves a finished mock and remembers its questions as seen. */
+  recordMock(result, ids = [], now = Date.now()) {
+    const e = this.s.exam;
+    e.history.push({ ...result, at: now });
+    e.history = e.history.slice(-EXAM_HISTORY_MAX);
+    e.seen = [...e.seen.filter((x) => !ids.includes(x)), ...ids].slice(-EXAM_SEEN_MAX);
+    this.markStudied();
+  }
+
+  /** "I passed the real test" (on) or taking that back (off). */
+  markRealPass(level, on, now = Date.now()) {
+    if (!LEVEL_RE.test(level)) return;
+    this.s.exam.real[level] = { on: !!on, at: now };
+    this.save();
+  }
+
+  /** Hides "ready for a mock" for a level until `days` days from now. */
+  examLater(level, days = 7, now = new Date()) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + days);
+    this.s.exam.later[level] = dateKey(d);
+    this.save();
+  }
 
   /** Milestones worth syncing right away (a Today block finished). Returns an unsubscribe function. */
   onMilestone(fn) { milestoneListeners.add(fn); return () => milestoneListeners.delete(fn); }

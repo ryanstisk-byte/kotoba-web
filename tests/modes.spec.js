@@ -1,5 +1,5 @@
 // Every mode loads and completes at least one real interaction, and the result is saved.
-import { test, expect, seed, saved, plainText, view, pastWords } from './helpers.js';
+import { test, expect, seed, saved, plainText, view, pastWords, expectNoHorizontalScroll } from './helpers.js';
 
 test.describe('modes', () => {
   test('Reading Dojo: learn the first lesson and clear its quiz', async ({ page }) => {
@@ -90,10 +90,12 @@ test.describe('modes', () => {
     const v = view(page);
     const palette = v.locator('[data-act=place]');
     const n = await palette.count();
-    for (let i = 0; i < 60 && !(await v.getByText('出発進行', { exact: false }).isVisible()); i++) {
+    // Departed: the 出発進行！ line shows (with furigana now, so look for its Next train button).
+    const departed = v.getByRole('button', { name: /Next train/ });
+    for (let i = 0; i < 60 && !(await departed.isVisible()); i++) {
       await palette.nth(i % n).click();
     }
-    await expect(v.getByText('出発進行', { exact: false })).toBeVisible();
+    await expect(v.locator('.lead.good-c')).toContainText('出発');
     await v.getByRole('button', { name: /Next train/ }).click();
     await expect(v.locator('.coupling.active')).toHaveCount(1);
     const day = Object.values((await saved(page)).days)[0];
@@ -134,6 +136,20 @@ test.describe('modes', () => {
     await expect(v.locator('.score-big')).toHaveText(/\d+%/);
     const s = await saved(page);
     expect(Object.values(s.items).some((p) => p.pl > 0)).toBe(true);
+  });
+
+  test('Rhythm: a live mic meter while singing, and a pointer to the mic check when only silence came in', async ({ page }) => {
+    await page.addInitScript(() => {
+      // A microphone that delivers nothing but silence.
+      navigator.mediaDevices.getUserMedia = async () => new AudioContext().createMediaStreamDestination().stream;
+    });
+    await page.goto('./#/play/rhythm');
+    const v = view(page);
+    await v.getByRole('button', { name: /Sing it/ }).click();
+    await expect(v.locator('.mic-meter')).toBeVisible();
+    await expect(v.getByText('The mic only sent silence.')).toBeVisible({ timeout: 15_000 });
+    await expect(v.getByRole('link', { name: 'sound and mic check' })).toHaveAttribute('href', '#/check');
+    await expect(v.locator('.mic-meter')).toHaveCount(0);
   });
 
   test('Rhythm: quiet mode grades yourself', async ({ page }) => {
@@ -187,6 +203,32 @@ test.describe('modes', () => {
     await page.clock.runFor(60_000);
     await expect(v.getByText(/sliced · \d+ got away/)).toBeVisible();
     await expect(v.getByRole('button', { name: /Play again/ })).toBeVisible();
+  });
+
+  test('Speak Slice: the review list names each missed word, and same-sound pairs get their pitch', async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.clock.install();
+    await seed(page, { items: {}, settings: { quiet: true } });
+    await page.goto('./#/play/slice');
+    const v = view(page);
+    await v.getByRole('button', { name: /Start a 60-second round/ }).click();
+    await page.clock.runFor(65_000);   // answer nothing: everything that fell is in the review list
+    const rows = v.locator('.review-row');
+    await expect(rows.first()).toBeVisible();
+    const info = await page.evaluate(async () => {
+      const { PHRASE_BY_ID } = await import('./js/data.js');
+      return [...document.querySelectorAll('#view .review-row')].map((r) => {
+        const p = PHRASE_BY_ID[r.dataset.review];
+        const label = r.querySelector('.w110').textContent;
+        return { id: p.id, boss: p.isBoss, named: label.includes(p.meaning.replace(/\s*\(\+ が\)$/, '')), melody: !!r.querySelector('svg.melody'), hear: !!r.querySelector('[data-act=hear]') };
+      });
+    });
+    for (const r of info) {
+      expect(r.named, r.id).toBe(true);
+      expect(r.melody, r.id).toBe(r.boss);
+      expect(r.hear, r.id).toBe(r.boss);
+    }
+    await expectNoHorizontalScroll(page);
   });
 
   test('Shopkeeper: serve one customer', async ({ page }) => {

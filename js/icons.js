@@ -10,6 +10,7 @@ import { ICON_ART } from './icon-art.js';
 /** Emoji the app used to show, and the line drawing (js/icon-art.js) that now stands in for each. */
 export const EMOJI_ICONS = {
   "✓": "check",
+  "★": "star",
   "▶": "play",
   "🤫": "shush",
   "🔤": "abc",
@@ -27,6 +28,7 @@ export const EMOJI_ICONS = {
   "💧": "drop",
   "🐱": "cat",
   "🐶": "dog",
+  "⌨": "keyboard",
   "🥢": "chopsticks",
   "🌉": "bridge",
   "☔": "umbrella",
@@ -61,11 +63,11 @@ export const EMOJI_ICONS = {
   "↻": "retry",
   "🔁": "repeat",
   "🎉": "party",
-  "🏆": "trophy",
   "✏": "pencil",
   "🩹": "bandage",
   "👁": "eye",
   "🗣": "speaking",
+  "💬": "chat",
   "📐": "triangle-ruler",
   "↩": "undo",
   "🕒": "clock",
@@ -75,6 +77,7 @@ export const EMOJI_ICONS = {
   "✋": "hand",
   "🧑": "person",
   "✍": "writing",
+  "⚑": "flag",
   "🔍": "search",
   "🔒": "lock",
   "✔": "check-bold",
@@ -113,6 +116,16 @@ export const EMOJI_ICONS = {
   "📋": "clipboard",
   "⬇": "download",
   "📁": "folder",
+  "☀": "sun",
+  "👟": "shoe",
+  "📺": "tv",
+  "🍞": "bread",
+  "🛏": "bed",
+  "🥚": "egg",
+  "🌧": "rain",
+  "🏆": "trophy",
+  "↗": "rise",
+  "↘": "fall",
 };
 
 /** A short spoken name for an icon that stands alone ("potted plant"). */

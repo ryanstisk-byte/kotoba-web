@@ -9,7 +9,8 @@
 // look-alikes) until it's right twice in a row. The plant's growth stage only ever follows the Meaning card.
 import { store, DAILY_REVIEW_CAP } from '../store.js';
 import { speaker, Recognizer, recognitionSupported, normalizeJa } from '../audio.js';
-import { gardenStage, accentMorae, accentName, toMorae, N5_WORDS, GARDEN_CATALOG } from '../data.js';
+import { gardenStage, accentMorae, accentName, toMorae, N5_WORDS, N4_WORDS, N3_WORDS, GARDEN_CATALOG } from '../data.js';
+import { isUnlocked, lockLine, levelBar } from '../levels.js';
 import { mountRecap, listenQuestion, meaningQuestion, withReading, optionCount } from '../recap.js';
 import { cardQuestion, cardName } from '../grammar-cards.js';
 import { mnemonicFor, confusablesFor, exampleFor } from '../word-help.js';
@@ -42,6 +43,7 @@ export function mount(el, ctx) {
   let gram = null;         // the current grammar card's question: { q, picked }
   let heard = '';
   let heardOk = false;
+  let micOn = false;       // the mic starts when the learner taps 🎤, or on its own if Settings says so
   let hint = false;        // Say it: the example's English is showing
   let fresh = [];          // words seen for the first time this session (recapped at the end)
   let recapOff = null;
@@ -69,6 +71,7 @@ export function mount(el, ctx) {
     gram = null;
     heard = '';
     heardOk = false;
+    micOn = false;
     hint = false;
     recognizer.stop();
     const card = cur();
@@ -91,7 +94,8 @@ export function mount(el, ctx) {
       return;
     }
     if (card.dir === 'listen') speaker.speak(sayOf(card.item), { mps: 3.5 });
-    if (card.dir === 'say' && speech) listen(card);
+    // "Start the mic on its own" (Settings): Say it cards listen as soon as they open.
+    if (card.dir === 'say' && speech && store.settings.autoMic && !revealed) { micOn = true; render(); listen(card); }
   }
 
   // ---------- Say it: speech recognition ----------
@@ -161,6 +165,12 @@ export function mount(el, ctx) {
           ? "Your garden is empty. Words you meet in Rhythm, Story and Kanji Forge get planted here. Watering also introduces up to 5 new words a day: starter phrases first, then the N5 deck."
           : `${planted.length} plants. ${thirsty.length} need water. Plants grow each time you remember them, and they never die if you're away.`}</p>
         ${planted.length ? `<p class="small dim">N5 deck: ${planted.filter((p) => p.item.deck === 'n5').length} of ${N5_WORDS.length} words planted, up to 5 new a day.</p>` : ''}
+        ${planted.length ? (isUnlocked('N4')
+          ? `<p class="small dim">N4 deck: ${planted.filter((p) => p.item.deck === 'n4').length} of ${N4_WORDS.length} words planted. They come in after the N5 deck.</p>`
+          : `<p class="small dim">🔒 N4 deck (${N4_WORDS.length} words), after the N5 deck. ${esc(lockLine('N4'))}</p>`) : ''}
+        ${planted.length && isUnlocked('N4') ? (isUnlocked('N3')
+          ? `<p class="small dim">N3 deck: ${planted.filter((p) => p.item.deck === 'n3').length} of ${N3_WORDS.length} words planted. They come in after the N4 deck.</p>`
+          : `<p class="small dim">🔒 N3 deck (${N3_WORDS.length} words), after the N4 deck. ${esc(lockLine('N3'))}</p>`) : ''}
         ${grammarCount ? `<p class="small dim">${grammarCount} grammar card${grammarCount === 1 ? '' : 's'} come up in the watering too, up to 2 new a day.</p>` : ''}
         ${daily.waiting ? `<p class="small dim">Big backlog? Only ${cap} a day, most overdue first. The other ${daily.waiting} wait patiently.</p>` : ''}
         ${action}
@@ -171,7 +181,7 @@ export function mount(el, ctx) {
             return `
             <div class="plant${hurt ? ' needs-help' : ''}" title="${esc(item.reading)} · ${esc(item.en)}${hurt ? ' · needs a little help' : ''}">
               <span class="plant-emoji">${gardenStage(prog.level)}${prog.due <= Date.now() ? '<span class="drop">💧</span>' : ''}${hurt ? '<span class="bandage" aria-label="needs help">🩹</span>' : ''}</span>
-              <span class="plant-jp">${esc(item.jp)}</span>
+              <span class="plant-jp${[...item.jp].length > 4 ? ' long' : ''}">${esc(item.jp)}</span>
             </div>`;
           }).join('')}
         </div>
@@ -211,7 +221,8 @@ export function mount(el, ctx) {
         : `<p class="small dim">Say this in Japanese:</p>
            <p class="say-en">${esc(item.en)}</p>
            ${hint && ex ? `<p class="small trace-c">Used like: "${esc(ex.en)}"</p>` : ex ? '<button class="linkbtn" data-act="hint">💡 Example hint</button>' : ''}
-           ${speech ? `<p class="small dim" id="gd-heard" aria-live="polite">${heard ? `Heard: 「${esc(heard)}」` : '🎤 Listening… say it in Japanese'}</p>`
+           ${speech ? (micOn ? `<p class="small dim" id="gd-heard" aria-live="polite">${heard ? `Heard: 「${esc(heard)}」` : 'Starting the mic…'}</p>`
+             : '<button class="btn wide" data-act="mic">🎤 Tap to answer out loud</button><p class="small dim">Or say it, then Check and grade yourself.</p>')
              : `<p class="dim">${ctx.quiet ? 'Quiet mode: say it in your head' : 'Say it out loud'}, then check and grade yourself.</p>`}`;
     } else {
       body = revealed ? answerBlock(item)
@@ -377,7 +388,7 @@ export function mount(el, ctx) {
     const planted = store.planted().map((p) => p.item);
     const pool = (key, self, deck) => [
       ...shuffle(planted.filter((x) => !words.includes(x)).map((x) => x[key])),
-      ...shuffle(Object.values(GARDEN_CATALOG).filter((x) => !!x.deck === !!deck).map((x) => x[key])),
+      ...shuffle(Object.values(GARDEN_CATALOG).filter((x) => (deck ? x.deck === deck : !x.deck)).map((x) => x[key])),
     ].filter((v) => v && v !== self);
     // Lines mined from shows have no voice clip, so they're only asked by meaning.
     const listenQ = (w) => (w.mined ? meaning(w) : listenQuestion({ jp: w.jp, en: w.en, say: sayOf(w), pool: pool('en', w.en, w.deck), skill: 'vocab', gradeId: w.id, garden: [w.id], why: `${withReading(w.jp, w.reading)} means "${w.en}".`, what: 'the word' }));
@@ -407,6 +418,7 @@ export function mount(el, ctx) {
       speaker.speak(sayOf(card.item), { mps: 3.5 });
     },
     hint: () => { hint = true; render(); },
+    mic: () => { if (micOn || revealed) return; micOn = true; render(); listen(cur()); },
     hear: () => speaker.speak(sayOf(cur().item), { mps: 3.5 }),
     slow: () => speaker.speak(sayOf(cur().item), { mps: 2.5, speed: 'slow' }),
     hearEx: () => speaker.speak(cur().item.ex, { mps: 4 }),

@@ -1,14 +1,16 @@
 // Listening Lab: short audio-only scenes between the story characters, then comprehension questions.
 // Replay and slow buttons; the text appears once the questions are answered (or on request). A miss shows the answer.
 import { store } from '../store.js';
-import { DIALOGUES, gardenIdsIn } from '../practice-data.js';
+import { gardenIdsIn } from '../practice-data.js';
+import { content, mixed, levelBar } from '../levels.js';
 import { esc, shuffle, delegate } from '../ui.js';
 import { choiceButtons, shuffled, sayAt, linePlayer } from '../practice-ui.js';
 import * as fx from '../fx.js';
 
 export function mount(el, ctx) {
   const GOAL = 2;
-  let order = shuffle(DIALOGUES.map((_, i) => i));
+  // The unlocked levels' scenes, about 70% from the newest level (js/levels.js).
+  let order = mixed(content('listen'));
   let pos = 0;
   let d = null;          // current dialogue
   let qs = [];           // its questions, options shuffled
@@ -29,7 +31,7 @@ export function mount(el, ctx) {
   const play = (slow = false) => player.play(lines(), { slow });
 
   function start() {
-    d = DIALOGUES[order[pos % order.length]];
+    d = order[pos % order.length];
     qs = d.questions.map((q) => ({ ...q, ...shuffled(q.options) }));
     qi = 0;
     picked = -1;
@@ -47,6 +49,7 @@ export function mount(el, ctx) {
     const showText = textShown || done();
     el.innerHTML = `
       <div class="stack practice" data-qid="${esc(d.id)}">
+        ${levelBar('listen')}
         <div class="row-between"><span class="strong mono">${right}/${asked} right · ${finished} scenes</span><span class="small dim">Scene ${(pos % order.length) + 1} of ${order.length}</span></div>
         <div class="panel listen-stage">
           <span class="listen-scene" aria-hidden="true">${d.scene}</span>
@@ -137,7 +140,7 @@ export function mount(el, ctx) {
     line: (b) => { player.stop(); const l = d.lines[+b.dataset.i]; sayAt(l.jp, { voice: l.who.voice }); },
     pick: (b) => answer(+b.dataset.i),
     next: nextQuestion,
-    nextscene: () => { player.stop(); pos++; if (pos % order.length === 0) order = shuffle(order); start(); },
+    nextscene: () => { player.stop(); pos++; if (pos % order.length === 0) order = mixed(content('listen')); start(); },
   });
 
   store.markSession();

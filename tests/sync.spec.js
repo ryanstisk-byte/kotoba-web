@@ -134,6 +134,19 @@ test.describe('mergeProgress (pure merge in store.js)', () => {
     expect((await merge(page, phone, { v: 6, items: {} })).settings.pronCheck).toBe(false);
   });
 
+  test('"Show every level" stays per device; a passed N5 on either device opens N4 on both (v12)', async ({ page }) => {
+    const pass = { level: 'N5', format: 'full', pass: true, total: 120, lk: 80, li: 40, at: T0 };
+    const phone = { v: 12, items: { ohayou: item(T0) }, settings: { showAllLevels: true }, exam: { history: [], real: {}, seen: [], later: {} } };
+    const pc = { v: 12, items: { arigatou: item(T0 + H) }, settings: { showAllLevels: false }, exam: { history: [pass], real: {}, seen: [], later: {} } };
+    const a = await merge(page, phone, pc);
+    expect(a.settings.showAllLevels).toBe(true);
+    expect((await merge(page, pc, phone)).settings.showAllLevels).toBe(false);
+    // The passed mock comes over, so N5 counts as done here too (that's what opens N4: js/levels.js).
+    expect(a.exam.history.map((h) => [h.level, h.format, h.pass])).toEqual([['N5', 'full', true]]);
+    // An older copy (v11, before the setting) never switches it on or off here.
+    expect((await merge(page, phone, { v: 11, items: {} })).settings.showAllLevels).toBe(true);
+  });
+
   test('the saved voice range stays per device; "ears first" words done on either device are kept', async ({ page }) => {
     const phoneVoice = { mid: 210, lo: -3, hi: 4, n: 5 };
     const pcVoice = { mid: 120, lo: -2.5, hi: 3, n: 2 };
@@ -191,6 +204,34 @@ test.describe('mergeProgress (pure merge in store.js)', () => {
     expect(m2.items).toEqual(m.items);
     expect(m2.grammar).toEqual(m.grammar);
     expect(await merge(page, m, pc)).toEqual(m);
+  });
+
+  test("Ren's Messages: both devices' messages are kept once, and a reply made on either device wins", async ({ page }) => {
+    const e = (id, day, at, extra = {}) => ({ id, day, at, reply: null, ok: null, ...extra });
+    const phone = { v: 9, items: {}, messages: { thread: [e('r1', '2026-10-06', T0 - 50 * H, { ok: true, reply: 1 }), e('r2', '2026-10-07', T0 - 20 * H)] } };
+    const pc = { v: 10, items: {}, messages: { thread: [e('r1', '2026-10-06', T0 - 50 * H), e('r2', '2026-10-07', T0 - 21 * H, { ok: false, reply: 0 }), e('r7', '2026-10-08', T0 + H)] } };
+    const m = await merge(page, phone, pc);
+    expect(m.messages.thread.map((x) => [x.id, x.reply, x.ok])).toEqual([['r1', 1, true], ['r2', 0, false], ['r7', null, null]]);
+    expect((await merge(page, pc, phone)).messages).toEqual(m.messages);
+  });
+
+  test('Kana Brush drawing cards: the newest drawing review on either device wins, reading reviews merge on their own', async ({ page }) => {
+    const card = (lr, extra = {}) => ({ due: lr + 24 * H, s: 1.5, d: 5, lr, r: 2, pl: T0 - 90 * H, ...extra });
+    const phone = { v: 9, items: {
+      'kana:あ': item(T0 - 20 * H, { dirs: { draw: card(T0 + 4 * H, { r: 3 }) } }),   // drawn on the phone after the split
+      'kana:い': item(T0 + 2 * H),                                                     // read on the phone, never drawn
+    } };
+    const pc = { v: 10, items: {
+      'kana:あ': item(T0 + 1 * H, { r: 7 }),                                           // read on the PC, drawing older
+      'kana:い': item(T0 - 30 * H, { dirs: { draw: card(T0 + 3 * H, { lapses: 1 }) } }),
+    } };
+    const m = await merge(page, phone, pc);
+    expect(m.v).toBe(await page.evaluate(async () => (await import('./js/store.js')).STATE_VERSION));
+    expect(m.items['kana:あ'].r).toBe(7);                                 // PC's newer reading review
+    expect(m.items['kana:あ'].dirs.draw).toEqual(phone.items['kana:あ'].dirs.draw);
+    expect(m.items['kana:い'].lr).toBe(T0 + 2 * H);                      // phone's newer reading review
+    expect(m.items['kana:い'].dirs.draw).toEqual(pc.items['kana:い'].dirs.draw);
+    expect(await merge(page, pc, phone)).toMatchObject({ items: m.items });   // same either way round
   });
 
   test('lines mined on both devices under the same number are both kept, and both devices agree on ids', async ({ page }) => {

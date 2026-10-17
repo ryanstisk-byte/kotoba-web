@@ -54,9 +54,9 @@ test.describe('saved progress from the current version (v1)', () => {
     await page.goto('./');
     const out = await page.evaluate(async (blob) => (await import('./js/store.js')).store.parseImport(JSON.stringify(blob)), FIXTURE);
     expectNothingLost(FIXTURE, out);
-    expect(out.v).toBe(8);
+    expect(out.v).toBe(13);
     expect(out.saga).toEqual(EMPTY_SAGA);
-    expect(out.settings).toEqual({ ...FIXTURE.settings, textSize: 'm', sfx: true, haptics: true, pace: 'normal', pronCheck: true, voice: null });
+    expect(out.settings).toEqual({ ...FIXTURE.settings, textSize: 'm', sfx: true, haptics: true, pace: 'normal', pronCheck: true, autoMic: false, voice: null, showAllLevels: false });
   });
 
   test('a v1 blob in storage is saved back as the current version with nothing lost', async ({ page }) => {
@@ -64,7 +64,7 @@ test.describe('saved progress from the current version (v1)', () => {
     await page.goto('./');
     await expect(page.locator('#view')).not.toBeEmpty();
     const s = await saved(page);
-    expect(s.v).toBe(8);
+    expect(s.v).toBe(13);
     expectNothingLost(FIXTURE, s);
     expect(s.settings).toEqual(expect.objectContaining({ textSize: 'm', sfx: true, haptics: true }));
   });
@@ -97,7 +97,7 @@ test.describe('saved progress from v2', () => {
     await expect(page.locator('#view')).not.toBeEmpty();
     const s = await saved(page);
     expectNothingLost(FIXTURE_V2, s);
-    expect(s.v).toBe(8);   // migrated to the current version (engine.spec.js covers v3, story-saga.spec.js v4, garden-cards.spec.js v6, pron.spec.js v7, pitch-coach.spec.js v8)
+    expect(s.v).toBe(13);   // migrated to the current version (engine.spec.js covers v3, story-saga.spec.js v4, garden-cards.spec.js v6, pron.spec.js v7, pitch-coach.spec.js v8, exam.spec.js v9, brush.spec.js v10, messages.spec.js v11, levels.spec.js v12, library.spec.js v13)
     expectNothingLost(FIXTURE_V2, await page.evaluate(async (blob) => (await import('./js/store.js')).store.parseImport(JSON.stringify(blob)), FIXTURE_V2));
   });
 
@@ -206,7 +206,7 @@ test.describe('reload persistence', () => {
     expect(after.settings.readingHelp).toBe('kana');
     await page.goto('./#/');
     await expect(view(page).locator('.block-row').nth(1)).toHaveClass(/skipped/);
-    await expect(view(page).locator('.tile-v').nth(1)).toHaveText('0');   // one plant, at level 1
+    expect(Object.values(after.items).filter((p) => p.level >= 2)).toHaveLength(0);   // one plant, at level 1
   });
 
   test('reset needs two taps and keeps settings', async ({ page }) => {

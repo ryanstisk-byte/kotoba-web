@@ -1,5 +1,9 @@
-// Reading Dojo content: hiragana, katakana and starter kanji, in small lessons.
+// Reading Dojo content: hiragana, katakana and starter kanji, in small lessons, then the N4 kanji (js/n4-kanji.js).
 // Mnemonics are short picture hooks; they fade once the shapes are familiar.
+import { N4_KANJI_LESSONS as N4_LESSONS } from './n4-kanji.js';
+import { N3_KANJI_LESSONS_A } from './n3-kanji-a.js';
+import { N3_KANJI_LESSONS_B } from './n3-kanji-b.js';
+import { tagLevel } from './level-tag.js';
 
 const C = (k, r, m = '') => ({ k, r, m });
 
@@ -235,14 +239,24 @@ export const KANJI_LESSONS = [
   ] },
 ];
 
-/** Every lesson in order. Kanji lessons come after both kana tracks. */
-export const ALL_LESSONS = [...LESSONS, ...KANJI_LESSONS];
+tagLevel(LESSONS, 'N5');
+tagLevel(KANJI_LESSONS, 'N5');
+/** The N4 kanji (175), in lessons of 5-7: a track of their own once N4 is unlocked. */
+export const N4_KANJI_LESSONS = tagLevel(N4_LESSONS.map((l) => ({ ...l, track: 'kanji4' })), 'N4');
+/** The N3 kanji (370), in lessons of 6-7: the third kanji track, once N3 is unlocked. */
+export const N3_KANJI_LESSONS = tagLevel([...N3_KANJI_LESSONS_A, ...N3_KANJI_LESSONS_B].map((l) => ({ ...l, track: 'kanji3' })), 'N3');
+
+/** Every lesson in order. Kanji lessons come after both kana tracks, then the N4 kanji, then the N3 kanji. */
+export const ALL_LESSONS = [...LESSONS, ...KANJI_LESSONS, ...N4_KANJI_LESSONS, ...N3_KANJI_LESSONS];
 export const LESSON_BY_ID = Object.fromEntries(ALL_LESSONS.map((l) => [l.id, l]));
 export const TRACKS = [
   { id: 'hiragana', title: 'Hiragana', jp: 'ひらがな', body: 'The basic alphabet. Every word can be written in it.' },
   { id: 'katakana', title: 'Katakana', jp: 'カタカナ', body: 'Same sounds, sharper shapes: foreign words, names, effects.' },
   { id: 'kanji', title: 'Starter kanji', jp: '漢字', body: '42 everyday kanji: numbers, days, people, verbs.' },
+  { id: 'kanji4', title: 'N4 kanji', jp: '漢字 N4', level: 'N4', body: `${N4_KANJI_LESSONS.reduce((n, l) => n + l.kanji.length, 0)} more kanji for N4: family, seasons, travel, work, feelings.` },
+  { id: 'kanji3', title: 'N3 kanji', jp: '漢字 N3', level: 'N3', body: `${N3_KANJI_LESSONS.reduce((n, l) => n + l.kanji.length, 0)} more kanji for N3: news, work, the body, nature, ideas.` },
 ];
+tagLevel(TRACKS, 'N5');
 
 /** Words to read once their kana are learned, so practice is real reading, not just letters. */
 const V = (w, en) => ({ w, en });

@@ -34,7 +34,7 @@ function step(page, mode, { wrong = false, advance = true } = {}) {
       b.click();
       return wrong ? 'wrong' : 'right';
     };
-    if (advance) for (const sel of ['[data-act=start]', '[data-act=nextscene]', '[data-act=nextsent]', '[data-act=sg-ok]', '[data-act=next]', '[data-act=again]']) if (click(sel)) return sel;
+    if (advance) for (const sel of ['[data-act=start]', '[data-act=learnnew]', '[data-act=nextscene]', '[data-act=nextsent]', '[data-act=sg-ok]', '[data-act=next]', '[data-act=again]']) if (click(sel)) return sel;
     const qid = v.querySelector('[data-qid]')?.dataset.qid;
     if (mode === 'listen') {
       const d = P.DIALOGUES.find((x) => x.id === qid);

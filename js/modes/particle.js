@@ -5,14 +5,18 @@ import { speaker } from '../audio.js';
 import { TRAINS, TRAIN_PALETTE, assembleTrain } from '../data.js';
 import { esc, shuffle, delegate } from '../ui.js';
 import * as fx from '../fx.js';
+import { content, mixed, levelBar } from '../levels.js';
 
 export function mount(el, ctx) {
   const GOAL = 6;
   // A course unit can limit practice to its own trains (ctx.trainIds); the mechanics stay the same.
   // Its own trains come first, then others that use only particles taught so far (ctx.extraTrainIds).
-  const ids = ctx.trainIds?.length ? ctx.trainIds.filter((i) => TRAINS[i]) : TRAINS.map((_, i) => i);
+  // Otherwise the unlocked levels' trains, about 70% from the newest level (js/levels.js). N4 trains bring their own
+  // palette of connectors (ので, のに, ながら, ば…) in place of the nine basic particles.
+  const open = () => mixed(content('particle')).map((t) => TRAINS.indexOf(t));
+  const ids = ctx.trainIds?.length ? ctx.trainIds.filter((i) => TRAINS[i]) : open();
   const extras = ctx.trainIds?.length ? (ctx.extraTrainIds || []).filter((i) => TRAINS[i] && !ids.includes(i)) : [];
-  let order = [...shuffle(ids), ...shuffle(extras)];
+  let order = ctx.trainIds?.length ? [...shuffle(ids), ...shuffle(extras)] : ids;
   let position = 0;
   let filled = {};
   let activeGap = null;
@@ -23,12 +27,20 @@ export function mount(el, ctx) {
   let done = 0;
 
   const sentence = () => TRAINS[order[position % order.length]];
+  // A train's choices: its own palette (N4), in a fixed shuffled order per train, or the nine basic particles.
+  const palettes = new Map();
+  const palette = (t) => {
+    if (!t.palette) return TRAIN_PALETTE;
+    if (!palettes.has(t)) palettes.set(t, shuffle(t.palette));
+    return palettes.get(t);
+  };
   const openGaps = () => sentence().gaps.map((g, i) => i).filter((i) => sentence().gaps[i] && filled[i] === undefined);
 
   function render(shake = false) {
     const t = sentence();
     el.innerHTML = `
       <div class="stack">
+        ${ctx.trainIds?.length ? '' : levelBar('particle')}
         <p class="strong mono">${clean} trains departed cleanly</p>
         <p class="lead dim">${esc(t.en)}</p>
         <div class="train-scroll"><div class="train ${shake ? 'shake' : ''}">
@@ -38,9 +50,9 @@ export function mount(el, ctx) {
         </div></div>
         ${derail ? `<div class="panel miss-c">⚠️ ${esc(derail)}</div>` : ''}
         ${!departed ? `
-          <p class="small dim">${activeGap === null ? 'Tap a coupling (○) to choose its particle.' : 'Pick the particle for the glowing coupling:'}</p>
-          <div class="particle-grid">
-            ${TRAIN_PALETTE.map((p) => `<button class="btn particle" data-act="place" data-p="${p}" lang="ja" ${activeGap === null ? 'disabled' : ''}>${p}</button>`).join('')}
+          <p class="small dim">${activeGap === null ? `Tap a coupling (○) to choose its ${t.palette ? 'piece' : 'particle'}.` : `Pick the ${t.palette ? 'piece' : 'particle'} for the glowing coupling:`}</p>
+          <div class="particle-grid${t.palette ? ' palette' : ''}">
+            ${palette(t).map((p) => `<button class="btn particle" data-act="place" data-p="${p}" lang="ja" ${activeGap === null ? 'disabled' : ''}>${p}</button>`).join('')}
           </div>` : `
           <p class="lead good-c strong" lang="ja">出発進行！ ${esc(assembleTrain(t, filled))}</p>
           <button class="btn primary wide" data-act="nexttrain">🚃 Next train</button>`}
@@ -92,7 +104,7 @@ export function mount(el, ctx) {
 
   function nextTrain() {
     position++;
-    if (position % order.length === 0) order = shuffle(order);
+    if (position % order.length === 0) order = ctx.trainIds?.length ? shuffle(order) : open();
     filled = {};
     derail = null;
     departed = false;

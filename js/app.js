@@ -1,5 +1,6 @@
 // App shell: router with a real back stack, tab bar, home ("Today" plan), modes, progress, today banner,
 // end-of-day reward, theme and text size, service worker.
+import { warmLevels } from './levels.js';
 import { store, dateKey } from './store.js';
 import { speaker } from './audio.js';
 import { MODES, MODE_BY_ID } from './data.js';
@@ -15,31 +16,41 @@ import * as duel from './modes/duel.js';
 import * as slice from './modes/slice.js';
 import * as shop from './modes/shop.js';
 import * as dojo from './modes/dojo.js';
+import * as brush from './modes/brush.js';
 import * as listen from './modes/listen.js';
 import * as conj from './modes/conj.js';
 import * as build from './modes/build.js';
 import * as kata from './modes/kata.js';
 import * as numbers from './modes/numbers.js';
+import * as rival from './modes/rival.js';
+import * as meet from './modes/meet.js';
+import * as library from './modes/library.js';
+import * as walk from './modes/walk.js';
+import * as type from './modes/type.js';
 import * as settings from './settings.js';
 import * as soundcheck from './soundcheck.js';
 import * as placement from './placement.js';
+import * as exam from './exam.js';
+import { readinessCard } from './readiness.js';
+import { skillMini } from './skill-chart.js';
 import * as progress from './progress.js';
 import { checkinCard, checkinHandlers } from './checkin.js';
 import { initReadingHelp, clearReadingHelp, readingConfig } from './furigana.js';
 import * as course from './course.js';
+import * as messages from './messages.js';
 import { UNIT_BY_ID } from './course-data.js';
 import * as sync from './sync.js';
 import { initPron, closePron } from './pron.js';
 import { closeCoach } from './pitch-coach.js';
 import { initIcons } from './icons.js';
 
-const MOUNTS = { dojo, garden, story, particle, forge, rhythm, duel, slice, shop, listen, conj, build, kata, numbers };
+const MOUNTS = { dojo, brush, garden, story, particle, forge, rhythm, duel, slice, shop, listen, conj, build, kata, numbers, rival, meet, library, walk, type };
 /** Screens the Today plan can open that aren't modes (the course lesson). */
 const TODAY_MOUNTS = { ...MOUNTS, lesson: { mount: course.mountLesson } };
 const modeTitle = (id) => MODE_BY_ID[id]?.title || 'Lesson';
 /** A one-glyph badge per mode (decorative; the English title is the label). */
-const MODE_GLYPH = { dojo: '読', garden: '庭', story: '話', particle: 'は', forge: '漢', rhythm: '拍', duel: '音', slice: '斬', shop: '店',
-  listen: '耳', conj: '活', build: '組', kata: 'カ', numbers: '数' };
+const MODE_GLYPH = { dojo: '読', brush: '書', garden: '庭', story: '話', particle: 'は', forge: '漢', rhythm: '拍', duel: '音', slice: '斬', shop: '店',
+  listen: '耳', conj: '活', build: '組', kata: 'カ', numbers: '数', rival: '戦', meet: '会', library: '本', walk: '歩', type: '打' };
 const TABS = { '': 'today', modes: 'modes', garden: 'garden', progress: 'progress', settings: 'settings' };
 
 const view = document.getElementById('view');
@@ -131,6 +142,7 @@ let lastPath = null;
 let inSession = false;   // on a screen outside the tabs (a mode, a lesson): leaving it ends the session
 
 function route() {
+  warmLevels();   // an unlocked level's voice clips are cached in the background (js/levels.js)
   closePron();   // a pronunciation check never outlives its screen
   closeCoach();  // nor does the Pitch Coach
   if (cleanup) { try { cleanup(); } catch (e) { console.warn(e); } cleanup = null; }
@@ -216,13 +228,19 @@ function routeView(a, b, c) {
     cleanup = placement.mount(view, { done: goHome });
     return;
   }
+  if (a === 'exam') {
+    setTitle('Mock JLPT', true);
+    cleanup = exam.mount(view, { done: goHome, quiet: store.settings.quiet });
+    return;
+  }
   if (a === 'check') {
     setTitle('Sound & mic check', true);
     cleanup = soundcheck.mount(view);
     return;
   }
+  if (a === 'messages') { setTitle('Messages', true); cleanup = messages.mount(view); return; }
   if (a === 'modes') { setTitle('Modes', false); renderModes(); return; }
-  if (a === 'progress') { setTitle('Progress', false); progress.render(view); return; }
+  if (a === 'progress') { setTitle('Progress', false); cleanup = progress.render(view); return; }
   setTitle('Kotoba Beat', false);
   renderHome();
 }
@@ -286,7 +304,7 @@ function showReward(plan) {
   if (document.querySelector('.reward')) return;
   const acc = store.weekAccuracy();
   const d = store.day();
-  const done = plan.blocks.filter((b) => b.status === 'done').length;
+  const done = plan.blocks.filter((b) => b.status === 'done' && !b.optional).length;
   const before = document.activeElement;
   const el = document.createElement('div');
   el.className = 'reward';
@@ -296,7 +314,7 @@ function showReward(plan) {
   el.innerHTML = `<div class="reward-card">
       <p class="reward-kicker">TODAY · COMPLETE</p>
       <h2 class="reward-title" id="reward-h" lang="ja">おつかれさま！</h2>
-      <p class="lead strong">That's today's training done. ${done} of ${plan.blocks.length} blocks.</p>
+      <p class="lead strong">That's today's training done. ${done} of ${plan.blocks.filter((b) => !b.optional).length} blocks.</p>
       <div class="tiles">
         <div class="tile"><span class="tile-v mono">${d.rev}</span><span class="small dim">reviewed</span></div>
         <div class="tile"><span class="tile-v mono">${d.tot ? Math.round((d.ok / d.tot) * 100) + '%' : '–'}</span><span class="small dim">right today</span></div>
@@ -349,15 +367,25 @@ const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frida
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 // ---------- home ----------
+/** The Library's next read (the unread story with the most words already met), on Today's side column. */
+function libraryCard() {
+  const r = library.nextReader();
+  const read = library.wordsRead();
+  if (!r) return '';
+  return `<a class="panel link-panel lib-today" href="#/play/library">
+    <span class="grow small">📕 <span class="strong">Library</span>: next read <span lang="ja" class="strong">${esc(r.title)}</span> (${esc(r.en)}),
+      ${library.readerStats(r).pct}% of its words met.${read ? ` ${read.toLocaleString()} words read so far.` : ' Short stories at your level; tap any word.'}</span>
+    <span class="dim chev" aria-hidden="true">›</span></a>`;
+}
+
 function renderHome() {
+  messages.deliver();   // opening the app can bring one new message a day (js/messages.js)
   const plan = todayPlan();
-  const items = Object.values(store.s.items);
-  const thirsty = store.thirsty().length;
-  const well = items.filter((p) => p.level >= 2).length;
   const quiet = store.settings.quiet;
   const showHint = !isStandalone() && !store.settings.hideIosHint;
-  const doneCount = plan.blocks.filter((b) => b.status === 'done').length;
-  const next = plan.blocks.find((b) => !b.status) || plan.blocks.find((b) => b.status === 'skipped');
+  const required = plan.blocks.filter((b) => !b.optional);   // an optional block (weekend Rival Battle) never counts
+  const doneCount = required.filter((b) => b.status === 'done').length;
+  const next = plan.blocks.find((b) => !b.status && !b.optional) || plan.blocks.find((b) => b.status === 'skipped' && !b.optional);
   const now = new Date();
 
   const blockRow = (b) => {
@@ -365,13 +393,16 @@ function renderHome() {
     const href = `#/today/${b.id}`;
     return `<div class="block-row ${st || ''} ${b === next && !st ? 'next' : ''}">
       <span class="block-check" aria-label="${st === 'done' ? 'done' : st === 'skipped' ? 'skipped' : 'to do'}">${st === 'done' ? '✓' : st === 'skipped' ? '–' : b.n}</span>
-      <span class="grow"><span class="strong">${esc(b.title)}</span> <span class="small dim">~${b.mins} min</span><br><span class="small dim">${esc(b.desc)}</span></span>
+      <span class="grow"><span class="strong">${esc(b.title)}</span> <span class="small dim">~${b.mins} min</span>${b.optional ? ' <span class="tag">optional</span>' : ''}<br><span class="small dim">${esc(b.desc)}</span></span>
       ${st === 'done' ? `<a class="btn small-btn" href="${href}">Again</a>`
-        : `<span class="block-actions"><a class="btn ${b === next ? 'primary' : ''} small-btn" href="${href}">${st === 'skipped' ? 'Do it' : 'Start'}</a>${st ? '' : `<button class="btn small-btn ghost" data-act="skip" data-id="${b.id}">Skip</button>`}</span>`}
+        : `<span class="block-actions"><a class="btn small-btn" href="${href}">${st === 'skipped' ? 'Do it' : 'Start'}</a>${st ? '' : `<button class="btn small-btn ghost" data-act="skip" data-id="${b.id}">Skip</button>`}</span>`}
     </div>`;
   };
 
   const acc = store.weekAccuracy();
+  // One beginner notice at a time: the quick check offer, else the Reading Dojo pointer.
+  const placementHTML = placementCardHTML();
+  const placementShown = !!placementHTML;
   view.innerHTML = `
     <div class="home">
       <div class="stack home-main">
@@ -381,7 +412,7 @@ function renderHome() {
           <p class="dim">${esc(welcome())}</p>
           <div class="meter-row">
             <span class="pips" aria-hidden="true">${plan.blocks.map((b) => `<span class="pip ${b.status || ''}"></span>`).join('')}</span>
-            <span class="small dim">${doneCount} of ${plan.blocks.length} done · about ${plan.minutes} min</span>
+            <span class="small dim">${doneCount} of ${required.length} done · about ${plan.minutes} min</span>
           </div>
           ${next ? `<div class="hero-next">
               <a class="btn primary wide" href="#/today/${next.id}">▶ ${next.status === 'skipped' ? 'Do' : 'Start'}: ${esc(next.title)}</a>
@@ -389,7 +420,7 @@ function renderHome() {
             : `<p class="lead strong good-c">✓ Today's plan is done. Come back whenever.</p>`}
         </section>
 
-        ${checkinCard()}${placementCardHTML()}
+        ${messages.inboxCard()}${checkinCard()}${placementHTML}
         <section class="panel today" aria-label="Today's plan">
           <div class="row-between wrap-gap">
             <h2 class="section-title">The plan</h2>
@@ -401,6 +432,7 @@ function renderHome() {
           <label class="switch-row small"><span>🤫 Quiet mode (no speaking: trains, planes)</span><input type="checkbox" role="switch" data-act="quiet" ${quiet ? 'checked' : ''}></label>
           ${plan.blocks.map(blockRow).join('')}
           ${plan.sunday ? '<p class="small dim">Sunday: review only. 休む ことも 修行だ (resting is part of training too).</p>' : ''}
+          ${plan.short ? '<a class="small linkbtn inline" href="#/play/walk">👟 Out and about? Walk mode reviews your words by ear, eyes free.</a>' : ''}
           <p class="tiny dim">Skip anything. Nothing is lost by skipping blocks or days.</p>
         </section>
 
@@ -419,24 +451,19 @@ function renderHome() {
 
       <aside class="stack home-side" aria-label="At a glance">
         ${course.courseCard()}
-        ${!store.trackDone('hiragana') && !store.clearedLessons.size ? `<a class="panel hint link-panel" href="#/play/dojo"><span class="grow small">🔤 <span class="strong">New to reading Japanese?</span> Start in the Reading Dojo: hiragana, katakana, then kanji. Until then, every game shows romaji (tap ふa at the top to change it).</span><span class="dim chev" aria-hidden="true">›</span></a>` : ''}
-        <section class="panel stack-sm" aria-label="Garden at a glance">
-          <div class="tiles">
-            <div class="tile"><span class="tile-v mono">${thirsty}</span><span class="small dim">plants need water</span></div>
-            <div class="tile"><span class="tile-v mono">${well}</span><span class="small dim">remembered well</span></div>
-            <div class="tile"><span class="tile-v mono">${store.daysStudiedThisMonth()}</span><span class="small dim">days studied this month</span></div>
-          </div>
-          <a class="linkbtn" href="#/progress">See all your progress ›</a>
-        </section>
+        ${readinessCard()}
+        ${skillMini()}
+        ${libraryCard()}
+        ${!placementShown && !store.trackDone('hiragana') && !store.clearedLessons.size ? `<a class="panel hint link-panel" href="#/play/dojo"><span class="grow small">🔤 <span class="strong">New to reading Japanese?</span> Start in the Reading Dojo: hiragana, katakana, then kanji. Until then, every game shows romaji (tap ふa at the top to change it).</span><span class="dim chev" aria-hidden="true">›</span></a>` : ''}
         ${showHint ? `<div class="panel hint"><span class="grow small">📱 On iPhone: <span class="strong">Share › Add to Home Screen</span> keeps your progress safe (Safari may clear website data after ~7 days unused).</span>
           <button class="iconbtn" data-act="hidehint" aria-label="Dismiss">✕</button></div>` : ''}
-        <a class="panel hint link-panel" href="#/check"><span class="grow small">🔧 No sound, or the mic doesn't hear you? Run the <span class="strong">sound &amp; mic check</span>.</span><span class="dim chev" aria-hidden="true">›</span></a>
       </aside>
     </div>`;
   const off = delegate(view, {
     skip: (b) => { store.setBlock(b.dataset.id, 'skipped'); renderHome(); maybeReward(); },
     len: (b) => { store.setSetting('length', b.dataset.v); renderHome(); },
     hidehint: () => { store.setSetting('hideIosHint', true); renderHome(); },
+    'exam-later': (b) => { store.examLater(b.dataset.level); renderHome(); },
     ...checkinHandlers(renderHome),
   });
   const onChange = (ev) => {
@@ -471,6 +498,11 @@ function placementCardHTML() { return placement.placementCard(); }
 
 // ---------- boot ----------
 backBtn.addEventListener('click', goBack);
+// A locked level chip (levels.js levelBar) explains itself when tapped.
+view.addEventListener('click', (e) => {
+  const chip = e.target.closest?.('.level-chip[data-lockline]');
+  if (chip) toast(chip.dataset.lockline);
+});
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || e.defaultPrevented || backBtn.hidden) return;
   if (e.target.closest?.('input, textarea, select')) return;
@@ -530,7 +562,24 @@ initPron();   // every 🎤 "Check my pronunciation" button opens the one shared
 try { navigator.storage?.persist?.().catch(() => {}); } catch (e) { /* ignore */ }
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  // A new version installs in the background. When it takes over, offer a reload instead of yanking the page
+  // mid-game. A Home Screen app can sit paused for days, so look for an update whenever it comes back.
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) showUpdateReady(); });
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('SW registration failed', e));
+    navigator.serviceWorker.register('./sw.js').then((reg) => {
+      navigator.serviceWorker.ready.then(() => setTimeout(warmLevels, 3000)).catch(() => {});
+      document.addEventListener('visibilitychange', () => { if (!document.hidden && reg) reg.update().catch(() => {}); });
+    }).catch((e) => console.warn('SW registration failed', e));
   });
+}
+
+function showUpdateReady() {
+  if (document.getElementById('update-ready')) return;
+  const b = document.createElement('button');
+  b.id = 'update-ready';
+  b.className = 'btn primary';
+  b.textContent = '↻ New version ready · tap to reload';
+  b.addEventListener('click', () => location.reload());
+  document.body.appendChild(b);
 }

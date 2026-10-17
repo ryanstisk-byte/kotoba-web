@@ -4,8 +4,9 @@
 import { store } from '../store.js';
 import { sliceSpawn } from '../tuning.js';
 import { speaker, Recognizer, recognitionSupported, normalizeJa } from '../audio.js';
-import { PHRASES } from '../data.js';
-import { esc, shuffle, pick, rand, delegate } from '../ui.js';
+import { PHRASE_BY_ID } from '../data.js';
+import { content, levelOf, NEW_SHARE, newestLevel, levelBar } from '../levels.js';
+import { esc, shuffle, pick, rand, delegate, melodySVG, howTo } from '../ui.js';
 import * as fx from '../fx.js';
 
 const ROUND = 60;
@@ -30,9 +31,12 @@ export function mount(el, ctx) {
   function renderIntro() {
     el.innerHTML = `
       <div class="stack center-text">
+        ${levelBar('slice')}
         <div class="hero-jp accent-c" lang="ja">斬</div>
         <p class="lead strong">Things fly up. Say their Japanese name out loud to slice them.</p>
-        <p class="dim">Stuck? Tap an object for its first kana (half points). If one falls, you'll see the answer. Nothing is lost.</p>
+        ${howTo(`<p>Stuck? Tap an object for its first kana (half points). If one falls, you'll see the answer. Nothing is lost.</p>
+        <p>Some objects share a sound, like 雨 (rain) and 飴 (candy), both あめ. They're written with が, the subject
+        marker, because the pitch after the word is what tells them apart.</p>`)}
         ${fallbackNote ? `<div class="panel note">${esc(fallbackNote)}</div>` : ''}
         <button class="btn primary wide" data-act="start">🎤 Start a 60-second round</button>
       </div>`;
@@ -69,13 +73,25 @@ export function mount(el, ctx) {
     }
     // choose
     if (f && g.choiceFor !== f.id) {
-      const others = shuffle(PHRASES.filter((p) => p.kana !== f.phrase.kana)).slice(0, 3);
+      const others = shuffle(content('slice').filter((p) => p.kana !== f.phrase.kana)).slice(0, 3);
       g.choices = shuffle([f.phrase, ...others]);
       g.choiceFor = f.id;
     }
     c.innerHTML = f
       ? `<p class="small dim">Which is the lowest (ringed) one?</p><div class="choice-grid">${g.choices.map((p, i) => `<button class="btn" data-act="choose" data-i="${i}" lang="ja">${esc(p.display)}</button>`).join('')}</div>`
       : '<p class="small dim">Wait for the next one…</p><div class="choice-grid"></div>';
+  }
+
+  // One missed word: picture and meaning, the word, and how it sounds. Same-sound pairs (雨 rain / 飴 candy) both read
+  // "ame", so they get the pitch melody and a play button instead of plain kana.
+  function reviewRow(p) {
+    const meaning = p.meaning.replace(/\s*\(\+ が\)$/, '');
+    const picture = /\p{Extended_Pictographic}/u.test(p.prompt);
+    const label = picture ? `${esc(p.prompt)} ${esc(meaning)}` : esc(p.meaning);
+    const sound = p.isBoss
+      ? `<span class="review-sound">${melodySVG(p.morae, { height: 44 })}<button class="btn small" data-act="hear" data-id="${esc(p.id)}" aria-label="Hear ${esc(meaning)}">🔊</button></span>`
+      : `<span class="dim" lang="ja">${esc(p.kana)}</span>`;
+    return `<div class="word-row review-row" data-review="${esc(p.id)}"><span class="w110">${label}</span><span class="strong" lang="ja">${esc(p.display)}</span><span class="grow"></span>${sound}</div>`;
   }
 
   function renderSummary() {
@@ -86,7 +102,11 @@ export function mount(el, ctx) {
         <p class="strong lead">${g.hits} sliced · ${g.misses} got away</p>
         ${missed.length ? `<div class="panel left-text stack-sm">
           <p class="section-label">REVIEW THESE (they'll come back sooner)</p>
-          ${missed.map((p) => `<div class="word-row"><span class="w110">${esc(p.prompt)}</span><span class="strong" lang="ja">${esc(p.display)}</span><span class="grow"></span><span class="dim" lang="ja">${esc(p.kana)}</span></div>`).join('')}
+          ${missed.map(reviewRow).join('')}
+          ${missed.some((p) => p.isBoss) ? `<p class="small dim">Same sounds, different words: only the pitch tells them apart. Follow the dots and press play to hear it.</p>
+          <p class="small dim">Why the が? It's the subject marker ("the rain…"), a real word you'll use all the time. Pitch dictionaries
+          write words with a particle after them because some words only show their drop on the next sound: 雨が drops before
+          が, 飴が never drops. Saying just the word (あめ) still slices it.</p>` : ''}
         </div>` : ''}
         <button class="btn primary wide" data-act="start">↻ Play again</button>
       </div>`;
@@ -108,7 +128,7 @@ export function mount(el, ctx) {
         renderControls();
         updateStatus();
       };
-      recognizer.start(PHRASES.flatMap((p) => p.accept));
+      recognizer.start(content('slice').flatMap((p) => p.accept));
     }
     updateStatus();
     cancelAnimationFrame(raf);
@@ -164,9 +184,14 @@ export function mount(el, ctx) {
 
   function spawn() {
     const onScreen = new Set(g.flyers.filter((f) => !f.slicedAt).map((f) => f.phrase.id));
-    const candidates = PHRASES.filter((p) => !onScreen.has(p.id));
-    // Words that are due for review show up more often.
-    const weighted = candidates.flatMap((p) => (store.isDue(p) ? [p, p, p] : [p]));
+    const candidates = content('slice').filter((p) => !onScreen.has(p.id));
+    // Words that are due for review show up more often, and the newest unlocked level about 70% of the time
+    // (js/levels.js): its words get weight 7 for every 3 of the levels below (in proportion to how many there are).
+    const top = newestLevel();
+    const nTop = candidates.filter((p) => levelOf(p) === top).length;
+    const nRest = candidates.length - nTop;
+    const share = nTop && nRest ? { top: Math.round((NEW_SHARE * nRest) / ((1 - NEW_SHARE) * nTop) * 10) || 1, rest: 10 } : { top: 1, rest: 1 };
+    const weighted = candidates.flatMap((p) => Array((store.isDue(p) ? 3 : 1) * (levelOf(p) === top ? share.top : share.rest)).fill(p));
     if (!weighted.length) return;
     const phrase = pick(weighted);
     const apex = rand(0.62, 0.82);
@@ -308,6 +333,7 @@ export function mount(el, ctx) {
 
   const off = delegate(el, {
     start,
+    hear: (b) => { const p = PHRASE_BY_ID[b.dataset.id]; if (p) speaker.speak(p.speak, { mps: 3.5 }); },
     hint: (b) => {
       const f = g && g.flyers.find((x) => x.id === +b.dataset.id);
       if (f && !f.slicedAt) { f.hinted = true; drawFlyers(performance.now()); }

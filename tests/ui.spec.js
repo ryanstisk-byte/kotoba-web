@@ -175,6 +175,32 @@ test.describe('readability', () => {
     expect(r.overflow).toBeLessThanOrEqual(0);
   });
 
+  test('romaji is spaced and broken by word, never in the middle of one', async ({ page }) => {
+    await seed(page, { v: 2, items: {}, settings: { readingHelp: 'romaji' } });
+    await page.goto('./#/modes');
+    const r = await page.evaluate(async () => {
+      const out = {};
+      for (const text of ['よろしくおねがいします', 'わたしはがくせいです', 'ありがとうございます', 'よろしくお願いします', 'レンです']) {
+        const p = document.createElement('p');
+        p.style.width = '120px';
+        p.lang = 'ja';
+        p.textContent = text;
+        document.getElementById('view').prepend(p);
+        await new Promise((res) => setTimeout(res, 100));
+        out[text] = { rts: [...p.querySelectorAll('rt')].map((x) => x.textContent), gaps: p.querySelectorAll('.wsp').length, plain: p.textContent };
+      }
+      return out;
+    });
+    expect(r['よろしくおねがいします'].rts).toEqual(['yoroshiku', 'onegaishimasu']);
+    expect(r['わたしはがくせいです'].rts).toEqual(['watashi wa', 'gakusei desu']);
+    expect(r['ありがとうございます'].rts).toEqual(['arigatou', 'gozaimasu']);
+    expect(r['よろしくお願いします'].rts).toEqual(['yoroshiku', 'onegaishimasu']);   // a する verb stays one word
+    expect(r['レンです'].rts).toEqual(['ren desu']);   // です gets its own romaji word, with no gap in the Japanese
+    expect(r['レンです'].gaps).toBe(0);
+    for (const v of Object.values(r)) expect(v.gaps).toBe(v.rts.length - 1);
+    expect(r['よろしくおねがいします'].plain).toBe('よろしくyoroshikuおねがいしますonegaishimasu');   // the gap adds no text
+  });
+
   for (const help of ['romaji', 'kana']) {
     test(`${help} reading help never overlaps other text`, async ({ page }) => {
       await seed(page, { v: 2, items: {}, settings: { readingHelp: help, textSize: 'l' } });
@@ -186,12 +212,14 @@ test.describe('readability', () => {
         const overlaps = await page.evaluate(() => {
           // Every reading (<rt>) box against every other line of text on screen.
           const rects = (node) => { const r = document.createRange(); r.selectNodeContents(node); return [...r.getClientRects()].filter((x) => x.width > 1 && x.height > 1); };
-          const rts = [...document.querySelectorAll('#view rt')].filter((rt) => rt.offsetParent);
+          // Text folded away in a closed <details> isn't on screen (Chromium still gives it boxes), so it's left out.
+          const shown = (el) => el.offsetParent && !el.closest('details:not([open]) > :not(summary)');
+          const rts = [...document.querySelectorAll('#view rt')].filter(shown);
           const texts = [];
           const walker = document.createTreeWalker(document.getElementById('view'), NodeFilter.SHOW_TEXT);
           while (walker.nextNode()) {
             const n = walker.currentNode;
-            if (!n.nodeValue.trim() || !n.parentElement.offsetParent) continue;
+            if (!n.nodeValue.trim() || !shown(n.parentElement)) continue;
             texts.push({ n, rt: n.parentElement.closest('rt'), ruby: n.parentElement.closest('ruby'), boxes: rects(n) });
           }
           const hit = (a, b) => a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 2 && b.top < a.bottom - 2;

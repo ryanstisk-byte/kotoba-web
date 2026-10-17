@@ -54,6 +54,11 @@ export function melodySVG(morae, { showKana = true, color = 'var(--accent)', hei
 }
 
 let toastTimer;
+/** A mode's longer rules, folded under "How it works" so the start screen leads with what to do and the Start button. */
+export function howTo(html) {
+  return `<details class="how-to"><summary class="small strong">How it works</summary><div class="small dim stack-sm">${html}</div></details>`;
+}
+
 export function toast(msg) {
   let el = document.getElementById('toast');
   if (!el) {

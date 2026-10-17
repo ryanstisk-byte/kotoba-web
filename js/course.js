@@ -12,15 +12,19 @@ import * as fx from './fx.js';
 import { mountRecap, particleQuestion, orderQuestion, listenQuestion, meaningQuestion } from './recap.js';
 import { POINT_PARTICLES } from './grammar-cards.js';
 import { pronButton, wordTarget } from './pron.js';
+import { N4_WORDS, N3_WORDS } from './data.js';
+import { itemOpen, lockLine, levelOf } from './levels.js';
 
-/** N5 deck words by written form (the first entry wins for the rare shared spelling). */
+/** N5, N4 and N3 deck words by written form (the first entry wins for the rare shared spelling). */
 const N5_BY_JP = new Map();
-for (const w of N5_WORDS) if (!N5_BY_JP.has(w.jp)) N5_BY_JP.set(w.jp, w);
+for (const w of [...N5_WORDS, ...N4_WORDS, ...N3_WORDS]) if (!N5_BY_JP.has(w.jp)) N5_BY_JP.set(w.jp, w);
 export const unitWords = (u) => (u.vocab || []).map((jp) => N5_BY_JP.get(jp)).filter(Boolean);
+/** Units with content in a level that's open (js/levels.js): Phase 2 (N4) waits until N4 is unlocked. */
+const openUnits = () => STUDY_UNITS.filter(itemOpen);
 
 // ---------- state ----------
 const C = () => store.s.course;
-const indexOf = (id) => STUDY_UNITS.findIndex((u) => u.id === id);
+const indexOf = (id) => openUnits().findIndex((u) => u.id === id);
 
 export const unitLabel = (u) => `Unit ${u.id.slice(1).replace('-', '.')}`;
 export const isDone = (id) => C().done.includes(id);
@@ -28,8 +32,8 @@ export const isDone = (id) => C().done.includes(id);
 /** The unit Today draws from: the one picked as current (until it's done), else the first one not done yet. */
 export function currentUnit() {
   const c = C();
-  if (c.current && UNIT_BY_ID[c.current] && !UNIT_BY_ID[c.current].outline && !c.done.includes(c.current)) return UNIT_BY_ID[c.current];
-  return STUDY_UNITS.find((u) => !c.done.includes(u.id)) || null;
+  if (c.current && UNIT_BY_ID[c.current] && !UNIT_BY_ID[c.current].outline && itemOpen(UNIT_BY_ID[c.current]) && !c.done.includes(c.current)) return UNIT_BY_ID[c.current];
+  return openUnits().find((u) => !c.done.includes(u.id)) || null;
 }
 
 /** Units reached so far: everything up to the furthest unit that is current, done or was practised. */
@@ -37,7 +41,7 @@ export function reachedUnits() {
   const c = C();
   const cur = currentUnit();
   const idx = Math.max(0, ...[...c.reached, ...c.done, cur ? cur.id : null].filter(Boolean).map(indexOf));
-  return STUDY_UNITS.slice(0, idx + 1);
+  return openUnits().slice(0, idx + 1);
 }
 
 function markReached(id) {
@@ -113,14 +117,26 @@ const GOALS = { particle: '6 trains', shop: '3 customers', rhythm: '3 phrases', 
 /** Other trains that use only particles taught by this unit or earlier ones, so a unit's practice has variety. */
 export function extraTrains(u) {
   const upto = UNITS.slice(0, UNITS.indexOf(u) + 1);
+  // An N4 unit's extras: the N4 trains of the units up to it (their connectors are taught by then).
+  if (levelOf(u) === 'N4') {
+    const ids = new Set(upto.map((x) => x.id));
+    const own = new Set(unitTrains(u));
+    return TRAINS.map((_, i) => i).filter((i) => TRAINS[i].unit && ids.has(TRAINS[i].unit) && !own.has(i));
+  }
   const taught = new Set(upto.flatMap((x) => (x.practice?.trains || []).flatMap((i) => (TRAINS[i] ? trainParticles(TRAINS[i]) : []))));
   const own = new Set(u.practice?.trains || []);
-  return TRAINS.map((_, i) => i).filter((i) => !own.has(i) && trainParticles(TRAINS[i]).every((x) => taught.has(x)));
+  return TRAINS.map((_, i) => i).filter((i) => !own.has(i) && levelOf(TRAINS[i]) === 'N5' && trainParticles(TRAINS[i]).every((x) => taught.has(x)));
+}
+
+/** A unit's own trains: listed in its practice, or (N4 units) the N4 trains written for it. */
+export function unitTrains(u) {
+  if (u.practice?.trains?.length) return u.practice.trains;
+  return TRAINS.map((t, i) => (t.unit === u.id ? i : -1)).filter((i) => i >= 0);
 }
 
 /** The practice a unit tags in each mode: [{ mode, label, detail, ctx }]. */
 export function practiceList(u) {
-  const p = u.practice || {};
+  const p = { ...(u.practice || {}), trains: unitTrains(u) };
   const out = [];
   if (p.trains?.length) {
     out.push({ mode: 'particle', label: 'Particle Train', ctx: { trainIds: p.trains, extraTrainIds: extraTrains(u) },
@@ -238,7 +254,7 @@ export function renderPath(view) {
     const cur = currentUnit();
     const reached = new Set(reachedUnits().map((u) => u.id));
     view.innerHTML = `<div class="stack course">
-      <p class="dim">A guided path through the study program: units of about a week, each with one clear goal. Nothing is locked; open any unit to read ahead.</p>
+      <p class="dim">A guided path through the study program: units of about a week, each with one clear goal. Open any unit of your level to read ahead; the N4 units open once N5 is done.</p>
       ${cur ? `<section class="panel stack-sm course-now" aria-label="Current unit">
           <p class="small dim">Now · ${esc(unitLabel(cur))}</p>
           <h2 class="section-title">${esc(cur.title)}</h2>
@@ -253,9 +269,20 @@ export function renderPath(view) {
       ${PHASES.map((ph) => `<section class="stack-sm" aria-label="Phase ${ph.n}: ${esc(ph.title)}">
         <h2 class="section-label">PHASE ${ph.n} · ${esc(ph.title.toUpperCase())}</h2>
         <p class="small dim">${esc(ph.when)}. ${esc(ph.focus)}</p>
-        ${UNITS.filter((u) => u.phase === ph.id).map((u) => unitRow(u, cur, reached)).join('')}
+        ${UNITS.some((u) => u.phase === ph.id && !itemOpen(u)) ? `<p class="small dim">🔒 ${esc(lockLine(levelOf(UNITS.find((u) => u.phase === ph.id && !itemOpen(u)))))}</p>` : ''}
+        ${phaseUnits(ph, cur, reached)}
       </section>`).join('')}
     </div>`;
+  };
+  // A phase that's locked or all done folds to one line; the phases still being worked on stay open.
+  const phaseUnits = (ph, cur, reached) => {
+    const units = UNITS.filter((u) => u.phase === ph.id);
+    const locked = units.every((u) => !itemOpen(u));
+    const allDone = units.every((u) => u.outline || isDone(u.id));
+    const open = !locked && (!allDone || (cur && cur.phase === ph.id));
+    const label = locked ? `${units.length} units, locked` : allDone ? `${units.length} units, all done` : `${units.length} units`;
+    return `<details class="fold" ${open ? 'open' : ''}><summary class="small strong">${label}</summary>
+      <div class="stack-sm">${units.map((u) => unitRow(u, cur, reached)).join('')}</div></details>`;
   };
   const unitRow = (u, cur, reached) => {
     const num = u.id.split('-')[1];
@@ -263,6 +290,11 @@ export function renderPath(view) {
       return `<div class="panel lesson-row unit-row outline"><span class="ch-num" aria-hidden="true">${num}</span>
         <span class="grow"><span class="strong">${esc(u.title)}</span> <span class="tag">coming later</span><br>
         <span class="small dim">${esc(u.goal)} Planned: <span lang="ja">${esc(u.planned.join('・'))}</span></span></span></div>`;
+    }
+    if (!itemOpen(u)) {
+      return `<div class="panel lesson-row unit-row locked" data-state="locked"><span class="ch-num" aria-hidden="true">${num}</span>
+        <span class="grow"><span class="small dim">${esc(unitLabel(u))}</span> <span class="tag">🔒 ${esc(levelOf(u))}</span><br>
+        <span class="strong">${esc(u.title)}</span><br><span class="small dim">${esc(u.goal)}</span></span></div>`;
     }
     const done = isDone(u.id);
     const isCur = cur && cur.id === u.id;
@@ -290,6 +322,15 @@ export function renderUnit(view, id) {
   const draw = () => {
     const cur = currentUnit();
     const phase = PHASES.find((p) => p.id === u.phase);
+    if (!itemOpen(u)) {
+      view.innerHTML = `<div class="stack course">
+        <p class="small dim">Phase ${phase.n} · ${esc(phase.title)} · ${esc(unitLabel(u))}</p>
+        <h2 class="section-title">${esc(u.title)}</h2>
+        <p>${esc(u.goal)}</p>
+        <div class="panel note">🔒 ${esc(lockLine(levelOf(u)))}</div>
+        <a class="btn wide" href="#/course">Back to the course</a></div>`;
+      return;
+    }
     if (u.outline) {
       view.innerHTML = `<div class="stack course">
         <p class="small dim">Phase ${phase.n} · ${esc(phase.title)} · ${esc(unitLabel(u))}</p>
@@ -360,7 +401,7 @@ export function renderGrammar(view) {
   let query = '';
   try { query = sessionStorage.getItem('kotobaBeat.grammarQuery') || ''; } catch (e) { /* ignore */ }
   view.innerHTML = `<div class="stack course">
-    <p class="dim">Every grammar point from the units you've reached (${units.length} of ${STUDY_UNITS.length}), with its examples. Search in English, Japanese or romaji.</p>
+    <p class="dim">Every grammar point from the units you've reached (${units.length} of ${openUnits().length}), with its examples. Search in English, Japanese or romaji.</p>
     <label class="search-row"><span class="sr-only">Search grammar</span>
       <input type="search" class="search" data-act="q" placeholder="Search: past tense, を, tai…" value="${esc(query)}" autocomplete="off"></label>
     <p class="small dim" id="gram-count" aria-live="polite"></p>

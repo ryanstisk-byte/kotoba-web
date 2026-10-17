@@ -1,13 +1,20 @@
 // Progress screen: words known, kana and kanji progress, accuracy by skill over the last 4 weeks, days studied this
-// month (a calendar, never a streak) and a rough JLPT N5 coverage estimate. Charts are plain SVG, coloured with the
+// month (a calendar, never a streak) and the road to the next JLPT level (js/readiness.js) with mock results. Charts are plain SVG, coloured with the
 // design tokens (so they follow light and dark), each with a text alternative.
 import { store, dateKey, SKILLS } from './store.js';
-import { CHAPTERS, KANJI, N5_WORDS } from './data.js';
+import { CHAPTERS, KANJI, N5_WORDS, N4_WORDS } from './data.js';
+import { APP_LEVELS, isUnlocked, lockLine } from './levels.js';
+import { mountSkillChart } from './skill-chart.js';
 import { ALL_LESSONS, LESSONS, KANJI_LESSONS, TRACKS } from './dojo-data.js';
 import { SKILL_LABELS } from './skills.js';
 import { knobs } from './tuning.js';
 import { accuracyNote } from './today.js';
-import { esc } from './ui.js';
+import { esc, delegate } from './ui.js';
+import { readiness, mockLine, N5_TARGETS, N4_TARGETS, N3_TARGETS, READY_AVERAGE, READY_FLOOR } from './readiness.js';
+import { SCORING, scoreSections } from './exam-data.js';
+import { N3_WORDS } from './data.js';
+import { READERS } from './library-data.js';
+import { wordsRead } from './modes/library.js';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const MON = MONTHS.map((m) => m.slice(0, 3));
@@ -16,6 +23,7 @@ export const N5_KANJI_ESTIMATE = 100;
 const W = 340;   // chart width in viewBox units; the SVG scales to the panel
 
 const pct = (x) => `${Math.round(x * 100)}%`;
+const daysLine = (n) => `${n} ${n === 1 ? 'day' : 'days'} studied this month.`;
 
 /**
  * Horizontal bar rows: [{ label, value (0..1 or null), text, title }]. An optional dashed reference line (ref).
@@ -76,6 +84,7 @@ export function progressData(now = new Date()) {
   const wordsKnown = planted.filter((p) => p.prog.level >= 2);
   const knownJp = new Set(wordsKnown.map((p) => p.item.jp));
   const n5Known = N5_WORDS.filter((w) => knownJp.has(w.jp)).length;
+  const n4Known = N4_WORDS.filter((w) => knownJp.has(w.jp)).length;
 
   const kanaIn = (track) => LESSONS.filter((l) => l.track === track).flatMap((l) => l.chars.map((c) => c.k));
   const learned = (id) => items[id] && items[id].level >= 1;
@@ -95,7 +104,7 @@ export function progressData(now = new Date()) {
   const bySkill = store.skillDays(dateKey(at(27)), dateKey(today));
 
   return {
-    planted: planted.length, wordsKnown: wordsKnown.length, n5Known, n5Total: N5_WORDS.length,
+    planted: planted.length, wordsKnown: wordsKnown.length, n5Known, n5Total: N5_WORDS.length, n4Known, n4Total: N4_WORDS.length,
     hira: { n: hira.filter((k) => learned('kana:' + k)).length, of: hira.length },
     kata: { n: kata.filter((k) => learned('kana:' + k)).length, of: kata.length },
     starter: { n: starter.filter((k) => learned('kj:' + k)).length, of: starter.length },
@@ -132,12 +141,7 @@ export function render(view) {
     { label: 'Starter kanji', value: d.starter.n / d.starter.of, text: `${d.starter.n}/${d.starter.of}` },
     { label: 'Kanji Forge', value: d.forged.n / d.forged.of, text: `${d.forged.n}/${d.forged.of}` },
   ];
-  const vocabCov = d.n5Known / d.n5Total;
-  const kanjiCov = Math.min(1, d.kanjiKnown / N5_KANJI_ESTIMATE);
-  const n5Rows = [
-    { label: 'N5 vocabulary', value: vocabCov, text: `${d.n5Known}/${d.n5Total}`, title: `N5 vocabulary: ${d.n5Known} of ${d.n5Total} words known (${pct(vocabCov)})` },
-    { label: 'N5 kanji (est.)', value: kanjiCov, text: `${d.kanjiKnown}/~${N5_KANJI_ESTIMATE}`, title: `N5 kanji: ${d.kanjiKnown} of about ${N5_KANJI_ESTIMATE} (${pct(kanjiCov)})` },
-  ];
+  const road = readiness(now);
 
   // This month's calendar: a mark for every day you studied. Gaps are fine.
   const first = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -153,41 +157,35 @@ export function render(view) {
   const lessonsDone = (t) => ALL_LESSONS.filter((l) => l.track === t && cleared.has(l.id)).length;
 
   view.innerHTML = `<div class="stack progress-screen">
+    <div id="skill-chart"></div>
     <section class="stat-grid" aria-label="Totals">
       <div class="panel stat"><span class="stat-v mono">${d.wordsKnown}<span class="stat-of"> / ${d.planted}</span></span><span class="small dim">words known (of those in your garden)</span></div>
       <div class="panel stat"><span class="stat-v mono">${d.hira.n + d.kata.n}</span><span class="small dim">kana learned</span></div>
       <div class="panel stat"><span class="stat-v mono">${d.kanjiKnown}</span><span class="small dim">kanji known</span></div>
-      <div class="panel stat"><span class="stat-v mono">${store.daysStudiedThisMonth()}</span><span class="small dim">days studied this month</span></div>
+      <div class="panel stat"><span class="stat-v mono">${store.daysStudiedThisMonth()}</span><span class="small dim">${store.daysStudiedThisMonth() === 1 ? 'day' : 'days'} studied this month</span></div>
     </section>
 
     <section class="panel stack-sm" aria-labelledby="skill-h">
-      <h2 class="section-title" id="skill-h">Accuracy by skill · last 4 weeks</h2>
-      ${answered ? barChart(skillRows, { label: `First-try accuracy by skill over the last 4 weeks. ${skillRows.map((r) => `${r.label} ${r.text}`).join(', ')}.`, ref: 0.85 })
-        : '<p class="small dim">Play any mode and your accuracy per skill shows up here.</p>'}
-      ${answered ? columnChart(weekCols, { label: `First-try accuracy per week: ${weekCols.map((c) => `${c.label} ${c.text}`).join(', ')}.`, ref: 0.85 }) : ''}
-      <p class="small dim">First tries only, with the number of answers in brackets. The dashed line is the ~85% sweet spot.</p>
-    </section>
-
-    <section class="panel stack-sm" aria-labelledby="acc-h">
-      <h2 class="section-title" id="acc-h">This week</h2>
-      <p><span class="stat-v mono">${acc.rate == null ? '–' : pct(acc.rate)}</span> <span class="small dim">right, from ${acc.tot} answers</span></p>
+      <h2 class="section-title" id="skill-h">Accuracy</h2>
+      ${answered ? `<p><span class="stat-v mono">${acc.rate == null ? '–' : pct(acc.rate)}</span> <span class="small dim">right this week, from ${acc.tot} answer${acc.tot === 1 ? '' : 's'}</span></p>
       <p class="small">${esc(accuracyNote(acc.rate, store.settings.length === 'short'))}</p>
+      <h3 class="section-label">BY SKILL · LAST 4 WEEKS</h3>
+      ${barChart(skillRows, { label: `First-try accuracy by skill over the last 4 weeks. ${skillRows.map((r) => `${r.label} ${r.text}`).join(', ')}.`, ref: 0.85 })}
+      ${columnChart(weekCols, { label: `First-try accuracy per week: ${weekCols.map((c) => `${c.label} ${c.text}`).join(', ')}.`, ref: 0.85 })}
+      <p class="small dim">First tries only, with the number of answers in brackets. The dashed line is the ~85% sweet spot.</p>`
+        : '<p class="small dim">Play any mode and your accuracy shows up here. About 85% right is the sweet spot.</p>'}
       <p class="small dim">Adjusting for you: up to ${k.newPerDay} new word${k.newPerDay === 1 ? '' : 's'} a day${k.rhythmSpeed !== 1 ? `, Rhythm at ${pct(k.rhythmSpeed)} speed` : ''}${k.forgeHint || k.storyHint ? ', hints shown earlier' : ''}.</p>
     </section>
 
     <section class="panel stack-sm" aria-labelledby="read-h">
       <h2 class="section-title" id="read-h">Kana and kanji</h2>
       ${barChart(readRows, { label: `Characters learned: ${readRows.map((r) => `${r.label} ${r.text}`).join(', ')}.` })}
-      <p class="small dim">Reading Dojo lessons: ${TRACKS.map((t) => `${esc(t.title)} ${lessonsDone(t.id)}/${ALL_LESSONS.filter((l) => l.track === t.id).length}`).join(' · ')}. Story chapters: ${store.clearedChapters.size}/${CHAPTERS.length}.</p>
+      <p class="small dim">Reading Dojo lessons: ${TRACKS.map((t) => `${esc(t.title)} ${lessonsDone(t.id)}/${ALL_LESSONS.filter((l) => l.track === t.id).length}`).join(' · ')}. Story chapters: ${store.clearedChapters.size}/${CHAPTERS.length}. Library: ${READERS.filter((r) => store.readerResult(r.id)).length}/${READERS.length} readers, ${wordsRead().toLocaleString()} words read.</p>
     </section>
 
-    <section class="panel stack-sm" aria-labelledby="n5-h">
-      <h2 class="section-title" id="n5-h">JLPT N5 coverage (estimate)</h2>
-      <p><span class="stat-v mono">${pct(vocabCov)}</span> <span class="small dim">of the N5 vocabulary deck known</span></p>
-      ${barChart(n5Rows, { label: `JLPT N5 coverage: ${n5Rows.map((r) => `${r.label} ${r.text}`).join(', ')}.` })}
-      <p class="small dim">A rough guide, not a test score. Vocabulary counts the app's ${d.n5Total}-word N5 deck: a word is "known" once it has reached the Seedling stage in your garden. There's no official kanji list; about ${N5_KANJI_ESTIMATE} is the common estimate, and kanji count once learned in the Dojo or forged. Grammar and listening aren't measured here.</p>
-    </section>
+    ${roadSection(road, d)}
 
+    <div class="progress-pair">
     <section class="panel stack-sm" aria-labelledby="garden-h">
       <h2 class="section-title" id="garden-h">Garden</h2>
       <div class="hbars">${stages.map((s, lv) => `<div class="hbar"><span class="small">${s}</span>
@@ -199,9 +197,62 @@ export function render(view) {
     <section class="panel stack-sm" aria-labelledby="cal-h">
       <h2 class="section-title" id="cal-h">${MONTHS[now.getMonth()]}</h2>
       <div class="cal">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((x) => `<span class="cal-h" aria-hidden="true">${x}</span>`).join('')}${cells.join('')}</div>
-      <p class="small dim">${store.daysStudiedThisMonth()} days studied this month. No streaks: come back whenever.</p>
+      <p class="small dim">${daysLine(store.daysStudiedThisMonth())} No streaks: come back whenever.</p>
     </section>
+    </div>
     <a class="btn wide" href="#/settings">Move progress to another device (Settings)</a>
   </div>`;
+  // The skill chart at the top (js/skill-chart.js), with its own clicks.
+  if (offChart) offChart();
+  offChart = mountSkillChart(view.querySelector('#skill-chart'));
+  if (offRoad) offRoad();
+  offRoad = delegate(view, {
+    'real-ask': (b) => { const box = view.querySelector('.real-pass'); if (box) box.innerHTML = realConfirm(b.dataset.level); box?.querySelector('button')?.focus(); },
+    'real-yes': (b) => { store.markRealPass(b.dataset.level, true); render(view); },
+    'real-no': () => render(view),
+    'real-undo': (b) => { store.markRealPass(b.dataset.level, false); render(view); },
+  });
+  return () => { if (offRoad) offRoad(); offRoad = null; if (offChart) offChart(); offChart = null; };
+}
+let offRoad = null;
+let offChart = null;
+
+const realConfirm = (lv) => `<p class="small">Mark ${lv} as passed? Its meter makes way for the next level. You can undo this here.</p>
+  <div class="row2"><button class="btn primary" data-act="real-yes" data-level="${lv}">Yes, I passed it</button><button class="btn ghost" data-act="real-no">Cancel</button></div>`;
+
+/** Which levels' content is open in the games, and how a locked one opens. */
+const levelsLine = () => `<p class="small dim levels-line">Levels in the games: ${APP_LEVELS.map((lv) => (isUnlocked(lv) ? `${lv} open` : `🔒 ${lv} (${esc(lockLine(lv))})`)).join(' · ')}${store.settings.showAllLevels ? ' · every level shown (Settings)' : ''}</p>`;
+
+/** The road to the next JLPT level: readiness by area, mock results, and levels already done. */
+function roadSection(road, d) {
+  const hist = store.exam.history;
+  const doneList = store.examDone();
+  const doneLines = [...doneList].map((lv) => {
+    const real = store.exam.real[lv];
+    const mock = hist.filter((h) => h.level === lv && h.format === 'full' && h.pass).pop();
+    return `<li>${lv} done${mock ? ` (${esc(mockLine(mock))})` : ''}${real && real.on ? ` · marked as passed for real <button class="linkbtn inline" data-act="real-undo" data-level="${lv}">Undo</button>` : ''}</li>`;
+  }).join('');
+  const recent = hist.slice(-5).reverse();
+  if (!road) {
+    return `<section class="panel stack-sm" aria-labelledby="road-h"><h2 class="section-title" id="road-h">JLPT</h2>
+      <ul class="small">${doneLines}</ul>${levelsLine()}</section>`;
+  }
+  const rows = road.areas.map((a) => ({ label: a.label, value: a.value, text: a.text, title: a.title }));
+  const sc = SCORING[road.level];
+  return `<section class="panel stack-sm road" aria-labelledby="road-h">
+      <h2 class="section-title" id="road-h">Road to JLPT ${road.level}</h2>
+      <p><span class="stat-v mono">${pct(road.overall)}</span> <span class="small dim">of the way to ${road.mock ? `a mock ${road.level}` : road.level}</span></p>
+      ${barChart(rows, { label: `Readiness for ${road.level}: ${rows.map((r) => `${r.label} ${r.text}`).join(', ')}.` })}
+      ${road.mock ? `<p class="small">${road.ready ? `<span class="strong good-c">Ready for a mock ${road.level}.</span> ` : ''}Each bar fills toward a target, and "ready" comes when they average ${pct(READY_AVERAGE)} with none under ${pct(READY_FLOOR)}.</p>
+      ${road.level === 'N3' ? `<p class="small dim">Targets: ${pct(N3_TARGETS.vocab)} of the ${N3_WORDS.length}-word N3 deck known (Seedling or later); ${pct(N3_TARGETS.kanji)} of the N3 kanji the app teaches; ${pct(N3_TARGETS.grammar)} of the N3 grammar points remembered for a week; ${pct(N3_TARGETS.listening)} right in listening over ${N3_TARGETS.listeningAnswers}+ answers; the ${N3_TARGETS.chapters} chapters of the N3 Story arc (with their reading passages) and the N3 kanji lessons.</p>`
+      : road.level === 'N4' ? `<p class="small dim">Targets: ${pct(N4_TARGETS.vocab)} of the ${d.n4Total}-word N4 deck known (Seedling or later); ${pct(N4_TARGETS.kanji)} of the N4 kanji the app teaches; ${pct(N4_TARGETS.grammar)} of the N4 grammar points remembered for a week; ${pct(N4_TARGETS.listening)} right in listening over ${N4_TARGETS.listeningAnswers}+ answers; the ${N4_TARGETS.chapters} chapters of the N4 Story arc and the N4 kanji lessons.</p>` : `<p class="small dim">Targets: ${pct(N5_TARGETS.vocab)} of the ${d.n5Total}-word N5 deck known (Seedling or later); ${pct(N5_TARGETS.kanji)} of the kanji the app teaches; ${pct(N5_TARGETS.grammar)} of the N5 grammar points remembered for a week; ${pct(N5_TARGETS.listening)} right in listening over ${N5_TARGETS.listeningAnswers}+ answers; the kana and ${N5_TARGETS.chapters} Story chapters. The real ${road.level} also uses about ${N5_KANJI_ESTIMATE} kanji, more than the app teaches yet, so its kanji questions come from words you know.</p>`}`
+        : `<p class="small dim">${road.level} lessons and a mock ${road.level} are still to come. Until then this shows the ground they build on.</p>`}
+      ${road.mock ? `<div class="row2"><a class="btn ${road.ready ? 'primary' : ''}" href="#/exam">Mock ${road.level}</a>
+        <span class="real-pass"><button class="btn ghost wide" data-act="real-ask" data-level="${road.level}">I passed the real ${road.level}</button></span></div>` : ''}
+      ${sc && recent.length ? `<h3 class="small strong">Mock results</h3><ul class="small mock-list">${recent.map((h) => `<li>${esc(mockLine(h))}</li>`).join('')}</ul>
+        <p class="tiny dim">The pass line for ${road.level} is ${sc.pass}/${sc.total}, with at least ${scoreSections(road.level).map((x) => `${x.min} in ${x.short}`).join(', ')}. Only a full mock counts toward finishing a level.</p>` : ''}
+      ${doneLines ? `<ul class="small">${doneLines}</ul>` : ''}
+      ${levelsLine()}
+    </section>`;
 }
 

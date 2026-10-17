@@ -3,6 +3,7 @@
 // Elements with [data-noruby] (quiz prompts, charts) are left alone.
 import { store } from './store.js';
 import { SEGMENTS, RUNS } from './readings.js';
+import { WORD_BREAKS } from './words.js';
 import { romaji, toHiragana, KANJI_RE, HIRA_RE, KATA_RE } from './romaji.js';
 
 const SEG_RE = /[ぁ-ゖァ-ヺー一-鿿々]+/g;
@@ -67,6 +68,7 @@ const escHTML = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;',
 // Characters a chunk may not start with (they belong to the kana before them).
 const NO_START = new Set([...'ゃゅょぁぃぅぇぉゎャュョァィゥェォヮー']);
 const CHUNK = 6;
+const PARTICLE_READ = { 'は': 'wa', 'へ': 'e', 'を': 'o' };
 
 /**
  * Ruby can't wrap, so a long kana word with romaji over it (ありがとうございました → arigatougozaimashita) can be
@@ -86,10 +88,54 @@ function chunkedRomaji(seg) {
   return parts.map((t, i) => `<ruby>${escHTML(t)}<rt>${escHTML(romaji(t, { particles: i === parts.length - 1 }))}</rt></ruby>`).join('');
 }
 
+/** A segment split into words (よろしくおねがいします → よろしく, おねがいします), from js/words.js. */
+export function wordsOf(seg) {
+  return wordPieces(seg).map((w) => w.join(''));
+}
+
+/** Each word as its romaji pieces: れんです → [['れん', 'です']] (one word on screen, "ren desu" in romaji). */
+function wordPieces(seg) {
+  const cuts = WORD_BREAKS[seg] || [];
+  const out = [[]];
+  let at = 0;
+  for (const c of [...cuts, seg.length]) {
+    const end = Math.abs(c);
+    out[out.length - 1].push(seg.slice(at, end));
+    if (c > 0 && end < seg.length) out.push([]);
+    at = end;
+  }
+  return out;
+}
+
+/** Ruby with romaji for one word (given as its romaji pieces), or null when a kanji in it has no known reading. */
+function romajiWord(pieces) {
+  const w = pieces.join('');
+  if (PARTICLE_READ[w]) return `<ruby>${escHTML(w)}<rt>${PARTICLE_READ[w]}</rt></ruby>`;
+  if (!KANJI_RE.test(w) && [...w].length > CHUNK + 2) return chunkedRomaji(w);
+  let rs = pieces.map((p) => (PARTICLE_READ[p] && pieces.length > 1 ? PARTICLE_READ[p] : readingOf(p) && romaji(readingOf(p))));
+  if (rs.some((r) => !r)) {
+    // A kanji split across pieces has no reading of its own: romaji for the whole word, unspaced.
+    const reading = readingOf(w);
+    rs = reading ? [romaji(reading)] : null;
+  }
+  return rs ? `<ruby>${escHTML(w)}<rt>${escHTML(rs.join(' ').replace(/\s+/g, ' ').trim())}</rt></ruby>` : null;
+}
+
 function annotateSegment(seg, cfg) {
   const hasKanji = KANJI_RE.test(seg);
   const wantRomaji = (HIRA_RE.test(seg) && cfg.hira) || (KATA_RE.test(seg) && cfg.kata) || (hasKanji && cfg.kanji === 'romaji');
+  // Romaji is spaced word by word, the way textbooks write it (yoroshiku onegaishimasu), and a long line wraps
+  // between words instead of in the middle of one.
+  if (wantRomaji) {
+    const words = wordPieces(seg);
+    if (words.length > 1 || words[0].length > 1) {
+      const parts = words.map(romajiWord);
+      if (parts.every(Boolean)) return parts.join('<span class="wsp"></span>');
+    }
+  }
   if (wantRomaji && !hasKanji && [...seg].length > CHUNK + 2) return chunkedRomaji(seg);
+  // A particle on its own (a word tile) is read as a particle: は "wa", へ "e".
+  if (wantRomaji && PARTICLE_READ[seg]) return `<ruby>${escHTML(seg)}<rt>${PARTICLE_READ[seg]}</rt></ruby>`;
   if (wantRomaji) {
     const reading = readingOf(seg);
     const r = reading ? romaji(reading) : null;

@@ -1,6 +1,9 @@
 // Line drawings that stand in for the emoji the app used to show (see icons.js). Original artwork: 24x24, drawn
 // with round 2px strokes in the text colour.
 export const ICON_ART = {
+  "keyboard": "<rect x=\"2.5\" y=\"6\" width=\"19\" height=\"12\" rx=\"2\"/><path d=\"M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h.01M18 14h.01M9 14h6\"/>",
+  "star": "<polygon points=\"12 3 14.6 9 21 9.4 16 13.6 17.6 20.5 12 16.8 6.4 20.5 8 13.6 3 9.4 9.4 9\"/>",
+  "flag": "<path d=\"M5 21V4\"/><path d=\"M5 4h12l-2.5 4.5L17 13H5\"/>",
   "check": "<polyline points=\"4 12.5 9.5 18 20 6\"/>",
   "play": "<polygon points=\"7 4 19 12 7 20\"/>",
   "shush": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M7.5 9.5q1.2 1 2.5 0\"/><path d=\"M14 9.5q1.2 1 2.5 0\"/><path d=\"M8 15.5h2\"/><path d=\"M14 15.5h2\"/><path d=\"M10.5 22v-9a1.5 1.5 0 0 1 3 0v9\"/>",
@@ -56,6 +59,7 @@ export const ICON_ART = {
   "pencil": "<path d=\"M16 3.5l4.5 4.5L8 20.5H3.5V16Z\"/><line x1=\"13.5\" y1=\"6\" x2=\"18\" y2=\"10.5\"/>",
   "bandage": "<path d=\"M9 20L20 9A3.5 3.5 0 0 0 15 4L4 15A3.5 3.5 0 0 0 9 20Z\"/><line x1=\"11.3\" y1=\"7.7\" x2=\"16.3\" y2=\"12.7\"/><line x1=\"7.7\" y1=\"11.3\" x2=\"12.7\" y2=\"16.3\"/><circle cx=\"11\" cy=\"11\" r=\"0.8\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"13\" cy=\"13\" r=\"0.8\" fill=\"currentColor\" stroke=\"none\"/>",
   "eye": "<path d=\"M2 12C5 6 19 6 22 12C19 18 5 18 2 12Z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>",
+  "chat": "<path d=\"M4 5h16a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 20 17H10l-5 4v-4H4a1.5 1.5 0 0 1-1.5-1.5v-9A1.5 1.5 0 0 1 4 5Z\"/><path d=\"M7 10h10\"/><path d=\"M7 13h6\"/>",
   "speaking": "<path d=\"M4 21v-4.5C2.5 15 2 13 2 11a6.5 6.5 0 0 1 12.8-1.8L16 12h-1.5v2.5a2 2 0 0 1-2 2H11V21\"/><path d=\"M18 9Q19.5 11 18 13\"/><path d=\"M20.5 7Q23 11 20.5 15\"/>",
   "triangle-ruler": "<polygon points=\"3 3 3 21 21 21\"/><polygon points=\"7 11.5 7 17 12.5 17\"/><line x1=\"11\" y1=\"21\" x2=\"11\" y2=\"19.5\"/><line x1=\"15\" y1=\"21\" x2=\"15\" y2=\"19.5\"/>",
   "undo": "<polyline points=\"9 14 4 9 9 4\"/><path d=\"M4 9h10.5a5.5 5.5 0 0 1 0 11H11\"/>",
@@ -103,6 +107,15 @@ export const ICON_ART = {
   "swap": "<line x1=\"4\" y1=\"8\" x2=\"19\" y2=\"8\"/><polyline points=\"15,4 19,8 15,12\"/><line x1=\"20\" y1=\"16\" x2=\"5\" y2=\"16\"/><polyline points=\"9,12 5,16 9,20\"/>",
   "clipboard": "<path d=\"M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2\"/><rect x=\"8\" y=\"2\" width=\"8\" height=\"4\" rx=\"1\"/><line x1=\"8\" y1=\"12\" x2=\"16\" y2=\"12\"/><line x1=\"8\" y1=\"16\" x2=\"13\" y2=\"16\"/>",
   "download": "<line x1=\"12\" y1=\"3\" x2=\"12\" y2=\"15\"/><polyline points=\"7,10 12,15 17,10\"/><line x1=\"5\" y1=\"20\" x2=\"19\" y2=\"20\"/>",
-  "trophy": "<path d=\"M7 4h10v5a5 5 0 0 1-10 0z\"/><path d=\"M7 6H4.5a2.5 2.5 0 0 0 2.6 4\"/><path d=\"M17 6h2.5a2.5 2.5 0 0 1-2.6 4\"/><path d=\"M12 14v3\"/><path d=\"M8 20h8\"/><path d=\"M9.5 17h5\"/>",
   "folder": "<path d=\"M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/>",
+  "sun": "<circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2.5\"/><path d=\"M12 19.5V22\"/><path d=\"M2 12h2.5\"/><path d=\"M19.5 12H22\"/><path d=\"M4.9 4.9l1.8 1.8\"/><path d=\"M17.3 17.3l1.8 1.8\"/><path d=\"M4.9 19.1l1.8-1.8\"/><path d=\"M17.3 6.7l1.8-1.8\"/>",
+  "shoe": "<path d=\"M2.5 17.5V10l4.5-1 2 3 4 1.5 6.5 1.5a2.5 2.5 0 0 1 2 2.5v.5Z\"/><path d=\"M2.5 20.5h19v-3\"/><path d=\"M10 13l1-2\"/><path d=\"M12.5 14l1-2\"/>",
+  "tv": "<rect x=\"2.5\" y=\"7\" width=\"19\" height=\"13\" rx=\"2\"/><path d=\"M8 2.5l4 4.5 4-4.5\"/><path d=\"M8 23h8\"/>",
+  "bread": "<path d=\"M4 20V11a4.5 4.5 0 0 1 0-8h16a4.5 4.5 0 0 1 0 8v9Z\"/><path d=\"M9 7v2\"/><path d=\"M15 7v2\"/>",
+  "bed": "<path d=\"M2.5 19V5\"/><path d=\"M2.5 15h19v4\"/><path d=\"M2.5 11h19a0 0 0 0 1 0 0v4\"/><rect x=\"4.5\" y=\"8\" width=\"5\" height=\"3\" rx=\"1.5\"/>",
+  "egg": "<path d=\"M12 2.5C8 2.5 5 9 5 14a7 7 0 0 0 14 0c0-5-3-11.5-7-11.5Z\"/>",
+  "rain": "<path d=\"M7 15a4.5 4.5 0 0 1-.5-9A6 6 0 0 1 18 7.5a3.8 3.8 0 0 1-.5 7.5Z\"/><path d=\"M8 18l-1 3\"/><path d=\"M12.5 18l-1 3\"/><path d=\"M17 18l-1 3\"/>",
+  "trophy": "<path d=\"M7 3h10v6a5 5 0 0 1-10 0Z\"/><path d=\"M7 5H3.5a3.5 3.5 0 0 0 3.8 4\"/><path d=\"M17 5h3.5a3.5 3.5 0 0 1-3.8 4\"/><path d=\"M12 14v4\"/><path d=\"M8 21h8\"/><path d=\"M9.5 18h5v3h-5Z\"/>",
+  "rise": "<path d=\"M5 19L19 5\"/><path d=\"M9 5h10v10\"/>",
+  "fall": "<path d=\"M5 5l14 14\"/><path d=\"M19 9v10H9\"/>",
 };

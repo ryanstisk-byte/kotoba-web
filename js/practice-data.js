@@ -1,8 +1,13 @@
 // Content for the newer practice modes: Listening Lab, Conjugation Dojo, Sentence Builder, Katakana Rush and
 // Numbers & Time. Vocabulary comes from the N5 deck (n5.js) and the story; many lines reuse N5 example sentences,
 // which already have voice clips. Only the short dialogues and a few scenarios are new, original writing.
-import { CAST, TRAINS, CHAPTERS, SHOP_STOCK, COUNTERS, CUSTOMERS, GARDEN_CATALOG, N5_WORDS, assembleTrain } from './data.js';
+import { CAST, TRAINS, CHAPTERS, SHOP_STOCK, COUNTERS, CUSTOMERS, GARDEN_CATALOG, N5_WORDS, N4_WORDS, N3_WORDS, assembleTrain } from './data.js';
 import { READ_WORDS } from './dojo-data.js';
+import { N4_DIALOGUES, N4_NUMBER_SCENES } from './n4-listening.js';
+import { N4_BUILD, N4_CONJ_WORDS, N4_KATA } from './n4-practice.js';
+import { N3_DIALOGUES, N3_NUMBER_SCENES } from './n3-listening.js';
+import { N3_BUILD, N3_CONJ_WORDS, N3_KATA } from './n3-practice.js';
+import { tagLevel } from './level-tag.js';
 
 const { narrator, ren, master, kaito } = CAST;
 
@@ -104,6 +109,10 @@ export const DIALOGUES = [
     Q('What does Kaito think?', ['Train anyway', 'Rest today', 'Go home'], '雨の 日も 修行だ = rainy days are training too.'),
   ] },
 ];
+tagLevel(DIALOGUES, 'N5');
+DIALOGUES.push(...tagLevel(N4_DIALOGUES.map((d) => ({ ...d })), 'N4'));
+// N3 (js/n3-listening.js): longer talks at natural speed; the ones marked `gist` ask for the main point (概要理解).
+DIALOGUES.push(...tagLevel(N3_DIALOGUES.map((d) => ({ ...d })), 'N3'));
 
 // ---------- shared N5 lookups ----------
 
@@ -181,6 +190,9 @@ export const NUMBER_SCENES = [
   S('c4', 'count', '🍡', CUSTOMERS.worker.voice, order('worker', 'だんご', 'いっぽん'), '', 'How many dango skewers?', ['1', '3', '5', '2'],
     COUNTERS.hon.explanation + ' いっぽん = 1.', 'One dango skewer, please.'),
 ];
+tagLevel(NUMBER_SCENES, 'N5');
+NUMBER_SCENES.push(...tagLevel(N4_NUMBER_SCENES.map((x) => ({ ...x, garden: x.garden && x.garden.length ? x.garden : gardenIdsIn(x.jp) })), 'N4'));
+NUMBER_SCENES.push(...tagLevel(N3_NUMBER_SCENES.map((x) => ({ ...x, garden: x.garden && x.garden.length ? x.garden : gardenIdsIn(x.jp) })), 'N3'));
 
 // ---------- Katakana Rush ----------
 
@@ -188,10 +200,19 @@ const isKatakana = (w) => /^[゠-ヿ]+$/.test(w);
 /** Loanwords in katakana: the N5 deck first (each has a Garden card and a clip), then Reading Dojo, shop and story words. */
 export const KATA_WORDS = (() => {
   const out = new Map();
-  for (const w of N5_WORDS) if (isKatakana(w.jp)) out.set(w.jp, { w: w.jp, en: w.en, garden: w.id, say: w.say });
-  for (const v of READ_WORDS) if (isKatakana(v.w) && !out.has(v.w)) out.set(v.w, { w: v.w, en: v.en, say: v.w });
-  for (const s of SHOP_STOCK) if (isKatakana(s.name) && !out.has(s.name)) out.set(s.name, { w: s.name, en: s.en, say: s.name });
-  for (const it of Object.values(GARDEN_CATALOG)) if (isKatakana(it.jp) && !out.has(it.jp)) out.set(it.jp, { w: it.jp, en: it.en, garden: it.id, say: it.jp });
+  const N5 = 'N5';
+  for (const w of N5_WORDS) if (isKatakana(w.jp)) out.set(w.jp, { w: w.jp, en: w.en, garden: w.id, say: w.say, level: N5 });
+  for (const v of READ_WORDS) if (isKatakana(v.w) && !out.has(v.w)) out.set(v.w, { w: v.w, en: v.en, say: v.w, level: N5 });
+  for (const s of SHOP_STOCK) if (s.level === N5 && isKatakana(s.name) && !out.has(s.name)) out.set(s.name, { w: s.name, en: s.en, say: s.name, level: N5 });
+  for (const it of Object.values(GARDEN_CATALOG)) if (it.level === N5 && isKatakana(it.jp) && !out.has(it.jp)) out.set(it.jp, { w: it.jp, en: it.en, garden: it.id, say: it.jp, level: N5 });
+  // N4: the N4 deck's loanwords, then the extra ones written for Katakana Rush (js/n4-practice.js) and the N4 shop.
+  for (const w of N4_WORDS) if (isKatakana(w.jp) && !out.has(w.jp)) out.set(w.jp, { w: w.jp, en: w.en, garden: w.id, say: w.say, level: 'N4' });
+  for (const v of N4_KATA) if (isKatakana(v.w) && !out.has(v.w)) out.set(v.w, { w: v.w, en: v.en, say: v.w, level: 'N4' });
+  for (const s of SHOP_STOCK) if (s.level === 'N4' && isKatakana(s.name) && !out.has(s.name)) out.set(s.name, { w: s.name, en: s.en, say: s.name, level: 'N4' });
+  // N3: the same again from the N3 deck, js/n3-practice.js and the N3 shop.
+  for (const w of N3_WORDS) if (isKatakana(w.jp) && !out.has(w.jp)) out.set(w.jp, { w: w.jp, en: w.en, garden: w.id, say: w.say, level: 'N3' });
+  for (const v of N3_KATA) if (isKatakana(v.w) && !out.has(v.w)) out.set(v.w, { w: v.w, en: v.en, say: v.w, level: 'N3' });
+  for (const s of SHOP_STOCK) if (s.level === 'N3' && isKatakana(s.name) && !out.has(s.name)) out.set(s.name, { w: s.name, en: s.en, say: s.name, level: 'N3' });
   return [...out.values()];
 })();
 
@@ -218,12 +239,43 @@ export const CONJ_WORDS = [
     ['好き', 'na'], ['元気', 'na'], ['静か', 'na'], ['綺麗', 'na'], ['嫌い', 'na'], ['有名', 'na'], ['便利', 'na'], ['上手', 'na'], ['暇', 'na']]
     .map(([jp, g]) => NA(jp, g)),
 ];
+tagLevel(CONJ_WORDS, 'N5');
+// N4 verbs and adjectives (js/n4-practice.js); the N4 deck's card is their Garden id when they have one.
+CONJ_WORDS.push(...tagLevel(N4_CONJ_WORDS.map((w) => ({ ...w, garden: w.garden || (N4_WORDS.find((x) => x.jp === w.jp) || {}).id || null })), 'N4'));
+// N3 verbs and adjectives (js/n3-practice.js), with their N3 deck card. A word already asked at a lower level stays there.
+{
+  const have = new Set(CONJ_WORDS.map((w) => w.jp));
+  CONJ_WORDS.push(...tagLevel(N3_CONJ_WORDS.filter((w) => !have.has(w.jp) && have.add(w.jp))
+    .map((w) => ({ ...w, garden: w.garden || (N3_WORDS.find((x) => x.jp === w.jp) || {}).id || null })), 'N3'));
+}
 
 export const VERB_FORMS = ['masu', 'nai', 'ta', 'te', 'plain'];
 export const ADJ_FORMS = ['nai', 'ta', 'te'];
+/** N4 forms (Conjugation Dojo asks them once N4 is unlocked): every verb and adjective, N5 or N4, can take them. */
+export const VERB_FORMS_N4 = ['pot', 'vol', 'pass', 'caus', 'ba'];
+export const ADJ_FORMS_N4 = ['ba', 'naru'];
+/** N3 forms (once N3 is unlocked): the causative-passive "be made to do" and ずに "without doing". Verbs only. */
+export const VERB_FORMS_N3 = ['cpass', 'zu'];
+export const ADJ_FORMS_N3 = [];
+/** The level each form belongs to. */
+export const FORM_LEVEL = Object.fromEntries([...VERB_FORMS, ...ADJ_FORMS].map((f) => [f, 'N5'])
+  .concat([...VERB_FORMS_N4, ...ADJ_FORMS_N4].map((f) => [f, 'N4']), VERB_FORMS_N3.map((f) => [f, 'N3'])));
 export const FORM_LABEL = {
   masu: 'polite ます form', nai: 'negative (ない)', ta: 'past (た)', te: 'て-form', plain: 'plain (dictionary) form',
+  pot: 'potential: "can do"', vol: 'volitional: "let\'s / I\'ll"', pass: 'passive: "is done (to)"', caus: 'causative: "make / let do"',
+  ba: 'conditional ば: "if"', naru: '"become" (〜く なる / 〜に なる)',
+  cpass: 'causative-passive: "be made to do"', zu: 'ずに: "without doing"',
 };
+/** Verbs that don't take the N4 forms naturally (no "can understand" or "let's be tired"): they only get ば. */
+const BA_ONLY = new Set(['ある', '分かる', '疲れる', '死ぬ', '知る', '要る', 'いる']);
+/** Verbs nobody is "made to" do (no causative-passive), and ある, which has no ずに in everyday speech. */
+const NO_CPASS = new Set([...BA_ONLY, 'できる', '見える', '聞こえる', '似る', 'なる']);
+const NO_ZU = new Set(['ある', '要る']);
+/** The forms a word can be asked in at a level's forms list. */
+export const formsFor = (word, forms) => forms.filter((f) => (word.type === 'adj' ? [...ADJ_FORMS, ...ADJ_FORMS_N4, ...ADJ_FORMS_N3] : [...VERB_FORMS, ...VERB_FORMS_N4, ...VERB_FORMS_N3]).includes(f)
+  && !(word.type === 'verb' && FORM_LEVEL[f] === 'N4' && f !== 'ba' && BA_ONLY.has(word.jp))
+  && !(f === 'cpass' && (NO_CPASS.has(word.jp) || /できる$/.test(word.jp)))
+  && !(f === 'zu' && NO_ZU.has(word.jp)));
 
 // Kana rows for godan endings.
 const ROW = {
@@ -231,31 +283,52 @@ const ROW = {
   ぬ: ['な', 'に', 'ぬ'], ぶ: ['ば', 'び', 'ぶ'], む: ['ま', 'み', 'む'], る: ['ら', 'り', 'る'],
 };
 const TE = { う: 'って', つ: 'って', る: 'って', む: 'んで', ぶ: 'んで', ぬ: 'んで', く: 'いて', ぐ: 'いで', す: 'して' };
+// え- and お-sounds of each godan ending (potential and ば use え, volitional お).
+const ROW_E = { う: 'え', く: 'け', ぐ: 'げ', す: 'せ', つ: 'て', ぬ: 'ね', ぶ: 'べ', む: 'め', る: 'れ' };
+const ROW_O = { う: 'お', く: 'こ', ぐ: 'ご', す: 'そ', つ: 'と', ぬ: 'の', ぶ: 'ぼ', む: 'も', る: 'ろ' };
 const head = (s) => s.slice(0, -1);
 const last = (s) => s.slice(-1);
 const toTa = (te) => te.replace('て', 'た').replace('で', 'だ');
 
 /** One verb form of a dictionary word, treating it as `group` (so wrong-group answers make good distractors). */
 function verbForm(dict, group, form, isIku = false) {
-  if (group === 'suru') return dict.slice(0, -2) + { masu: 'します', nai: 'しない', ta: 'した', te: 'して', plain: 'する' }[form];
-  if (group === 'kuru') return { masu: 'きます', nai: 'こない', ta: 'きた', te: 'きて', plain: 'くる' }[form];
+  if (group === 'suru') {
+    return dict.slice(0, -2) + { masu: 'します', nai: 'しない', ta: 'した', te: 'して', plain: 'する',
+      pot: 'できる', vol: 'しよう', pass: 'される', caus: 'させる', ba: 'すれば', cpass: 'させられる', zu: 'せずに' }[form];
+  }
+  if (group === 'kuru') {
+    return { masu: 'きます', nai: 'こない', ta: 'きた', te: 'きて', plain: 'くる',
+      pot: 'こられる', vol: 'こよう', pass: 'こられる', caus: 'こさせる', ba: 'くれば', cpass: 'こさせられる', zu: 'こずに' }[form];
+  }
   if (group === 'aru' && form === 'nai') return 'ない';
   const stem = head(dict);
   const end = last(dict);
-  if (group === 'ru') return { masu: stem + 'ます', nai: stem + 'ない', ta: stem + 'た', te: stem + 'て', plain: dict }[form];
+  if (group === 'ru') {
+    return { masu: stem + 'ます', nai: stem + 'ない', ta: stem + 'た', te: stem + 'て', plain: dict,
+      pot: stem + 'られる', vol: stem + 'よう', pass: stem + 'られる', caus: stem + 'させる', ba: stem + 'れば',
+      cpass: stem + 'させられる', zu: stem + 'ずに' }[form];
+  }
   const r = ROW[end];
   if (!r) return null;
   if (form === 'masu') return stem + r[1] + 'ます';
   if (form === 'nai') return stem + r[0] + 'ない';
   if (form === 'plain') return dict;
+  if (form === 'pot') return stem + ROW_E[end] + 'る';
+  if (form === 'vol') return stem + ROW_O[end] + 'う';
+  if (form === 'pass') return stem + r[0] + 'れる';
+  if (form === 'caus') return stem + r[0] + 'せる';
+  if (form === 'ba') return stem + ROW_E[end] + 'ば';
+  // The short causative-passive (行かされる), except after す, where only the long one is used (話させられる).
+  if (form === 'cpass') return stem + r[0] + (end === 'す' ? 'せられる' : 'される');
+  if (form === 'zu') return stem + r[0] + 'ずに';
   const te = isIku ? 'って' : TE[end];
   return stem + (form === 'te' ? te : toTa(te));
 }
 
 function adjForm(jp, group, form) {
-  if (group === 'ii') return { nai: 'よくない', ta: 'よかった', te: 'よくて' }[form];
-  if (group === 'i') return { nai: head(jp) + 'くない', ta: head(jp) + 'かった', te: head(jp) + 'くて' }[form];
-  return { nai: jp + 'じゃない', ta: jp + 'だった', te: jp + 'で' }[form];
+  if (group === 'ii') return { nai: 'よくない', ta: 'よかった', te: 'よくて', ba: 'よければ', naru: 'よく なる' }[form];
+  if (group === 'i') return { nai: head(jp) + 'くない', ta: head(jp) + 'かった', te: head(jp) + 'くて', ba: head(jp) + 'ければ', naru: head(jp) + 'く なる' }[form];
+  return { nai: jp + 'じゃない', ta: jp + 'だった', te: jp + 'で', ba: jp + 'なら', naru: jp + 'に なる' }[form];
 }
 
 /** The right answer for a word and form, written and in kana. 来る's changing forms are written in kana. */
@@ -273,6 +346,8 @@ export function conjPrompt(word, form) {
 
 /** Plausible wrong answers: the same word run through the other group's rules, and the classic slips. */
 export function conjDistractors(word, form) {
+  if (FORM_LEVEL[form] === 'N4') return n4Distractors(word, form);
+  if (FORM_LEVEL[form] === 'N3') return n3Distractors(word, form);
   const right = conjugate(word, form).jp;
   const out = new Set();
   const w = word.jp;
@@ -324,12 +399,109 @@ export function conjDistractors(word, form) {
   return [...out].filter((x) => x && x !== right && x.length >= 2 && !['ります', 'ない', 'ます'].includes(x));
 }
 
+/** Wrong answers for the N4 forms: the word's other N4 forms, the other verb group's rule, and the usual slips. */
+function n4Distractors(word, form) {
+  const right = conjugate(word, form).jp;
+  const out = new Set();
+  const w = word.jp;
+  if (word.type === 'adj') {
+    if (word.group === 'ii') {
+      out.add({ ba: 'いければ', naru: 'いく なる' }[form]);
+      out.add({ ba: 'いいければ', naru: 'いいに なる' }[form]);
+      out.add({ ba: 'よいれば', naru: 'よいく なる' }[form]);
+    } else if (word.group === 'i') {
+      out.add(adjForm(w, 'na', form));
+      out.add({ ba: w + 'ければ', naru: w + 'く なる' }[form]);
+      out.add({ ba: head(w) + 'くれば', naru: head(w) + 'に なる' }[form]);
+    } else {
+      if (/い$/.test(word.kana)) out.add(/い$/.test(w) ? adjForm(w, 'i', form) : adjForm(word.kana, 'i', form));
+      out.add({ ba: w + 'ければ', naru: w + 'く なる' }[form]);
+      out.add({ ba: w + 'だれば', naru: w + 'な なる' }[form]);
+      out.add({ ba: w + 'れば', naru: w + 'で なる' }[form]);
+    }
+  } else {
+    const dict = word.group === 'kuru' ? word.kana : w;
+    const group = word.group === 'aru' ? 'u' : word.group;
+    for (const f of VERB_FORMS_N4) if (f !== form) out.add(verbForm(dict, group, f, false));
+    if (group === 'u' || group === 'ru') out.add(verbForm(dict, group === 'u' ? 'ru' : 'u', form, false));
+    if (group === 'kuru') out.add({ pot: 'きられる', vol: 'きよう', pass: 'くられる', caus: 'きさせる', ba: 'きれば' }[form]);
+    if (group === 'suru') out.add(dict.slice(0, -2) + { pot: 'すられる', vol: 'すろう', pass: 'さられる', caus: 'すらせる', ba: 'しれば' }[form]);
+    out.add(dict + { pot: 'られる', vol: 'よう', pass: 'れる', caus: 'せる', ba: 'ば' }[form]);
+  }
+  // Never offer another right answer: a る-verb's potential and passive are the same word.
+  const alsoRight = new Set(VERB_FORMS_N4.filter((f) => f !== form && conjugate(word, f).jp === right));
+  return [...out].filter((x) => x && x !== right && !alsoRight.has(x) && x.length >= 2);
+}
+
+/** Wrong answers for the N3 forms: the word's causative and passive, the other group's rule, and the usual slips. */
+function n3Distractors(word, form) {
+  const right = conjugate(word, form).jp;
+  const dict = word.group === 'kuru' ? word.kana : word.jp;
+  const group = word.group === 'aru' ? 'u' : word.group;
+  const out = new Set();
+  // The long causative-passive of an う-verb (行かせられる) is right too, so it's never offered as wrong.
+  const alsoRight = new Set();
+  if (form === 'cpass') {
+    out.add(verbForm(dict, group, 'caus'));
+    out.add(verbForm(dict, group, 'pass'));
+    if (group === 'u') { alsoRight.add(head(dict) + ROW[last(dict)][0] + 'せられる'); out.add(head(dict) + ROW[last(dict)][1] + 'させられる'); }
+    if (group === 'ru') { out.add(head(dict) + 'させれる'); out.add(head(dict) + 'られさせる'); }
+    if (group === 'suru') { out.add(dict.slice(0, -2) + 'されさせる'); out.add(dict.slice(0, -2) + 'すられる'); }
+    if (group === 'kuru') { out.add('きさせられる'); out.add('くさせられる'); }
+    out.add(dict + 'させられる');
+  } else {
+    out.add(verbForm(dict, group, 'nai').replace(/ない$/, 'ないに'));
+    if (group === 'u') { out.add(head(dict) + ROW[last(dict)][1] + 'ずに'); out.add(dict + 'ずに'); }
+    if (group === 'ru') { out.add(head(dict) + 'らずに'); out.add(dict + 'ずに'); }
+    if (group === 'suru') { out.add(dict.slice(0, -2) + 'しずに'); out.add(dict.slice(0, -2) + 'さずに'); out.add(dict.slice(0, -2) + 'すらずに'); }
+    if (group === 'kuru') { out.add('きずに'); out.add('くずに'); out.add('こらずに'); }
+  }
+  return [...out].filter((x) => x && x !== right && !alsoRight.has(x) && x.length >= 2);
+}
+
+/** Why an N3 form is right, shown after a miss. */
+function n3Why(word, form, r) {
+  const w = word.jp;
+  if (form === 'zu') {
+    if (word.group === 'suru') return `する becomes せずに ("without doing"), so ${r}.`;
+    if (word.group === 'kuru') return `来る becomes こずに, so ${r}.`;
+    return `ずに is the ない form without ない, plus ずに: ${conjugate(word, 'nai').jp} → ${r} ("without doing it"; a bit more written than ないで).`;
+  }
+  if (word.group === 'suru') return `する becomes させられる ("be made to do"), so ${r}.`;
+  if (word.group === 'kuru') return `来る becomes こさせられる, so ${r}.`;
+  if (word.group === 'ru') return `${w} is a る-verb: causative させる + passive られる → ${r}.`;
+  if (last(word.kana) === 'す') return `${w} ends in す, so only the long form is used: させる-style せ + られる → ${r}.`;
+  return `${w} is an う-verb: its あ-sound + される is the everyday causative-passive → ${r} (the longer ${head(w) + ROW[last(w)][0]}せられる is right too).`;
+}
+
+/** Why an N4 form is right, shown after a miss. */
+function n4Why(word, form, r) {
+  const w = word.jp;
+  if (word.type === 'adj') {
+    if (word.group === 'ii') return `いい builds on よい: ${form === 'ba' ? 'よければ (if it\'s good)' : 'よく なる (get better)'}.`;
+    if (word.group === 'i') return `${w} is an い-adjective: drop the last い and add ${form === 'ba' ? 'ければ' : 'く なる'} → ${r}.`;
+    return `${w} is a な-adjective: add ${form === 'ba' ? 'なら' : 'に なる'} → ${r}.`;
+  }
+  if (word.group === 'suru') return `する is irregular: できる (can), しよう (let's), される (passive), させる (make do), すれば (if). So ${r}.`;
+  if (word.group === 'kuru') return `来る (くる) is irregular: こられる (can / passive), こよう, こさせる, くれば. So ${r}.`;
+  if (word.group === 'ru') {
+    const add = { pot: 'られる', vol: 'よう', pass: 'られる', caus: 'させる', ba: 'れば' }[form];
+    const same = form === 'pot' || form === 'pass' ? ' (a る-verb\'s potential and passive look the same; context tells them apart)' : '';
+    return `${w} is a る-verb: drop る and add ${add} → ${r}${same}.`;
+  }
+  const how = { pot: 'its え-sound and add る', vol: 'its お-sound and add う', pass: 'its あ-sound and add れる', caus: 'its あ-sound and add せる', ba: 'its え-sound and add ば' }[form];
+  const wa = (form === 'pass' || form === 'caus') && last(word.kana) === 'う' ? ' (う becomes わ)' : '';
+  return `${w} is an う-verb: change the last sound to ${how} → ${r}${wa}.`;
+}
+
 const I_OR_E = /[いきしちにひみりぎじびえけせてねへめれげぜべ]る$/;
 
 /** Why the right answer is right, shown after a miss. */
 export function conjWhy(word, form) {
   const r = conjugate(word, form).jp;
   const w = word.jp;
+  if (FORM_LEVEL[form] === 'N4') return n4Why(word, form, r);
+  if (FORM_LEVEL[form] === 'N3') return n3Why(word, form, r);
   if (word.type === 'adj') {
     if (word.group === 'ii') return `いい is the one irregular adjective: its forms are built on よい → ${r}.`;
     if (word.group === 'i') return `${w} is an い-adjective: drop the last い and add ${{ nai: 'くない', ta: 'かった', te: 'くて' }[form]} → ${r}.`;
@@ -357,7 +529,58 @@ export function conjWhy(word, form) {
 
 // ---------- Sentence Builder ----------
 
-const SCENES = ['🍜', '🎓', '🏃', '🥋', '🗣️', '📕', '💪', '💧', '⏰', '🏆', '⚔️', '🗾'];
+// Which catalog words a sentence's tiles use, so Sentence Builder can teach a new one first (see build.js).
+const PARTICLE_TILES = new Set(['は', 'が', 'を', 'に', 'で', 'へ', 'と', 'の', 'も', 'から', 'だ', 'ですか', 'ください', 'ことも']);
+const PICK = new Set(['優しい', '箸', '雨']);
+const NAMES = new Set(Object.values(CAST).map((c) => c.jpName));
+const GODAN = { き: 'く', ぎ: 'ぐ', し: 'す', ち: 'つ', に: 'ぬ', び: 'ぶ', み: 'む', り: 'る', い: 'う' };
+const BY_FORM = new Map();
+for (const it of Object.values(GARDEN_CATALOG)) {
+  for (const f of new Set([it.jp, it.reading].filter(Boolean))) {
+    if (!BY_FORM.has(f)) BY_FORM.set(f, []);
+    BY_FORM.get(f).push(it);
+  }
+}
+/** Dictionary forms a tile could be: the tile itself, without です, and ～ます verbs turned back into ～る/～う. */
+function forms(tile) {
+  const t = tile.replace(/[。、！？!?]/g, '');
+  const out = [t];
+  const bare = t.replace(/(ですか|です|だ)$/, '');
+  if (bare !== t && bare) out.push(bare);
+  const m = /^(.+?)(ませんか|ましたか|ました|ません|ますか|ます|ましょう)$/.exec(t);
+  if (m) {
+    const stem = m[1];
+    if (stem === 'し' || stem.endsWith('し') && stem.length > 2) out.push(stem.slice(0, -1) + 'する');
+    if (stem === 'き') out.push('くる', '来る');
+    if (stem.length > 2 && stem.endsWith('し')) out.push(stem.slice(0, -1));   // しょうぶします: the noun しょうぶ + する
+    out.push(stem + 'る');
+    const last = stem.slice(-1);
+    if (GODAN[last]) out.push(stem.slice(0, -1) + GODAN[last]);
+  }
+  const te = /^(.+?)(っています|んでいます|いています|ています)$/.exec(t);
+  if (te) out.push(te[1] + 'る', te[1] + 'う', te[1] + 'つ');
+  const nai = /^(.+)ない$/.exec(t);
+  if (nai) out.push(nai[1] + 'る');
+  if (/^.+い$/.test(bare)) out.push(bare);
+  return out;
+}
+/** The catalog words in a sentence: [{ tile, ids, jp, reading, en, say }] (say: the text that has a voice clip). Particles, names and unknown tiles are left out. */
+export function wordsInTiles(tiles) {
+  const out = [];
+  for (const tile of tiles) {
+    if (PARTICLE_TILES.has(tile) || NAMES.has(tile)) continue;
+    const hit = forms(tile).map((f) => BY_FORM.get(f)).find(Boolean);
+    if (!hit) continue;
+    // Same sound, different word: pick the meaning these sentences use.
+    const main = hit.find((it) => PICK.has(it.jp)) || hit[0];
+    out.push({ tile, ids: hit.map((it) => it.id), jp: main.jp, reading: main.reading || main.jp, en: main.en, say: main.say || main.reading || main.jp });
+  }
+  return out;
+}
+
+const SCENES = ['🍜', '🎓', '🏃', '🥋', '🗣️', '📕', '💪', '💧', '⏰', '🏆', '⚔️', '🗾',
+  '🐱', '☀️', '🧑‍🏫', '📝', '☔', '👟', '📖', '📺', '🍞', '🌳', '🥢', '📕', '🏫', '🏘️', '🥋', '🕒', '🛏️', '🎬', '🥚',
+  '🧑‍🎓', '🐶', '🐱', '🔍', '🌧️', '🗣️'];
 /** Other word orders that are just as natural (the learner gets credit for these too). */
 const TRAIN_ALTS = { 2: ['町で毎日はしります'], 10: ['カイトとレンはしょうぶします'], 11: ['ともだちに日本であいます'] };
 const bare = (s) => s.replace(/[\s。、！？!?]/g, '');
@@ -379,7 +602,7 @@ const fromN5 = (word, tiles, scene, alts = []) => {
 
 /** English (and a scene) to build in Japanese from shuffled tiles: Particle Train sentences, story lines, N5 examples. */
 export const BUILD_SENTENCES = [
-  ...TRAINS.map((t, i) => {
+  ...TRAINS.filter((t) => t.level === 'N5').map((t, i) => {
     const filled = Object.fromEntries(t.gaps.map((g, j) => [j, g ? g.correct[0] : null]).filter(([, p]) => p));
     const tiles = [];
     t.cars.forEach((car, j) => { tiles.push(car); if (j < t.gaps.length && t.gaps[j]) tiles.push(t.gaps[j].correct[0]); });
@@ -404,3 +627,7 @@ export const BUILD_SENTENCES = [
   fromN5('駅', ['駅', 'は', 'どこ', 'ですか'], '🚉'),
   fromN5('毎日', ['毎日', 'れんしゅう', 'します'], '💪'),
 ];
+tagLevel(BUILD_SENTENCES, 'N5');
+// N4 sentences (js/n4-practice.js), each tagged with the course unit whose grammar it uses.
+BUILD_SENTENCES.push(...tagLevel(N4_BUILD.map((x) => ({ ...x, alts: x.alts || [], garden: gardenIdsIn(x.say) })), 'N4'));
+BUILD_SENTENCES.push(...tagLevel(N3_BUILD.map((x) => ({ ...x, alts: x.alts || [], garden: gardenIdsIn(x.say) })), 'N3'));

@@ -29,22 +29,41 @@ for (const f of files) {
   if (!existsSync(p) || !statSync(p).isFile()) errors.push(`sw.js precaches ${f}, but that file does not exist`);
 }
 
+// LATER: voice clips only a later JLPT level uses, cached once that level is unlocked (js/levels.js warmLevels).
+const laterSrc = /const LATER = \{([\s\S]*?)\n\};/.exec(sw);
+if (!laterSrc) errors.push('sw.js: could not find the LATER list');
+const later = new Set();
+for (const m of laterSrc ? laterSrc[1].matchAll(/'([^']+)'/g) : []) {
+  const f = m[1];
+  if (later.has(f) || seen.has(f)) errors.push(`sw.js lists ${f} twice (FILES and LATER, or twice in LATER)`);
+  later.add(f);
+  if (!f.startsWith('./audio/')) errors.push(`sw.js LATER holds ${f}: only voice clips may wait for a level`);
+  if (!existsSync(join(ROOT, f))) errors.push(`sw.js LATER lists ${f}, but that file does not exist`);
+}
+
 // ---- clips ----
 const clipsSrc = readFileSync(join(ROOT, 'js/clips.js'), 'utf8');
 const clipFiles = [...clipsSrc.matchAll(/":\s*"([^"]+\.mp3)"/g)].map((m) => m[1]);
 if (!clipFiles.length) errors.push('js/clips.js: no clips found (did the format change?)');
 for (const f of new Set(clipFiles)) {
   if (!existsSync(join(ROOT, 'audio', f))) errors.push(`js/clips.js references audio/${f}, but that file does not exist`);
-  if (!seen.has('./audio/' + f)) errors.push(`audio/${f} is used by js/clips.js but is not in the sw.js precache list`);
+  if (!seen.has('./audio/' + f) && !later.has('./audio/' + f)) errors.push(`audio/${f} is used by js/clips.js but is not in the sw.js precache list`);
 }
 
 // ---- every spoken line has its clips ----
 const clipKeys = new Set([...clipsSrc.matchAll(/^"(.*)":\s*"[^"]+\.mp3"/gm)].map((m) => JSON.parse(`"${m[1]}"`)));
-const collected = JSON.parse(execFileSync(process.execPath, [join(ROOT, 'tools/collect.mjs')], { encoding: 'utf8' }));
+const collected = JSON.parse(execFileSync(process.execPath, [join(ROOT, 'tools/collect.mjs')], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }));
 const noClip = [];
-for (const [text, voice, , speeds = ['', 'slow']] of collected.clips) {
-  for (const key of speeds.map((sp) => `${text}#${voice}` + (sp ? `#${sp}` : ''))) if (!clipKeys.has(key)) noClip.push(key);
+// Clip key -> file, to check that every clip N5 content uses is precached (only later levels' clips may wait).
+const clipFile = Object.fromEntries([...clipsSrc.matchAll(/^"(.*)":\s*"([^"]+\.mp3)"/gm)].map((m) => [JSON.parse(`"${m[1]}"`), m[2]]));
+const notPrecached = [];
+for (const [text, voice, , speeds, level = 'N5'] of collected.clips) {
+  for (const key of (speeds || ['', 'slow']).map((sp) => `${text}#${voice}` + (sp ? `#${sp}` : ''))) {
+    if (!clipKeys.has(key)) noClip.push(key);
+    else if (level === 'N5' && !seen.has('./audio/' + clipFile[key])) notPrecached.push(key);
+  }
 }
+if (notPrecached.length) errors.push(`${notPrecached.length} N5 clips are not precached: ${notPrecached.slice(0, 5).join(' | ')}`);
 // The Japanese voices can't read English, so no line without Japanese should be spoken.
 const english = collected.clips.filter(([text]) => !/[ぁ-ゖァ-ヺ一-鿿]/.test(text)).map(([text]) => text);
 if (english.length) errors.push(`${english.length} spoken lines have no Japanese in them: ${english.slice(0, 5).join(' | ')}`);
@@ -56,15 +75,26 @@ if (noClip.length) {
 // ---- everything the site needs offline is precached ----
 const walk = (dir) => readdirSync(join(ROOT, dir), { withFileTypes: true })
   .flatMap((d) => (d.isDirectory() ? walk(join(dir, d.name)) : [join(dir, d.name)]));
-const required = ['index.html', 'styles.css', 'manifest.webmanifest', 'audio/silence.mp3', ...walk('js'), ...walk('icons')];
+const required = ['index.html', 'styles.css', 'manifest.webmanifest', 'audio/silence.mp3', ...walk('js'), ...walk('icons'), ...walk('img')];
 for (const f of required) {
   const rel = './' + relative(ROOT, join(ROOT, f)).split('\\').join('/');
   if (!seen.has(rel)) errors.push(`${rel} is part of the site but missing from the sw.js precache list`);
+}
+
+// ---- furigana: no kanji gets a reading that swallowed its neighbours (帰 → ちろくじにかえ) ----
+const { SEGMENTS } = await import(new URL('../js/readings.js', import.meta.url));
+for (const [seg, parts] of Object.entries(SEGMENTS)) {
+  for (const [text, reading] of parts) {
+    const n = [...text].length;
+    if (reading && /[一-鿿々]/.test(text) && (reading.length < n || reading.length > n * 3)) {
+      errors.push(`js/readings.js: ${seg} gives ${text} the reading ${reading}`);
+    }
+  }
 }
 
 if (errors.length) {
   console.error(`Static checks failed (${errors.length}):\n- ` + errors.join('\n- '));
   process.exit(1);
 }
-console.log(`Static checks passed: ${files.length} precached files exist, ${new Set(clipFiles).size} clips exist in audio/, `
+console.log(`Static checks passed: ${files.length} precached files (+ ${later.size} N4 clips after unlock) exist, ${new Set(clipFiles).size} clips exist in audio/, `
   + `all ${collected.clips.length} spoken lines have clips, ${version[1]}.`);

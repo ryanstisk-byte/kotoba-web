@@ -78,7 +78,8 @@ for (const u of STUDY_UNITS) for (const p of u.points) POINTS.set(`g:${u.id}:${p
 
 /** The blank for one example of a point, or null if this example doesn't show it. */
 function clozeFor(p, ex) {
-  const specs = CLOZE[p.id] || (POINT_PARTICLES[p.id] ? POINT_PARTICLES[p.id][0].map((ans) => ({ ans, particle: true, wrong: POINT_PARTICLES[p.id][1] })) : []);
+  // N4 points carry their own blank spec (course-data.js `cloze`); N5 points use CLOZE or POINT_PARTICLES here.
+  const specs = p.cloze || CLOZE[p.id] || (POINT_PARTICLES[p.id] ? POINT_PARTICLES[p.id][0].map((ans) => ({ ans, particle: true, wrong: POINT_PARTICLES[p.id][1] })) : []);
   for (const s of specs) {
     const from = s.after ? ex.jp.indexOf(s.after) : 0;
     if (from < 0) continue;

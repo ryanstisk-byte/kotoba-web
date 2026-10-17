@@ -10,9 +10,39 @@ import { esc, delegate, shuffle } from '../ui.js';
 import * as fx from '../fx.js';
 import { romaji } from '../romaji.js';
 import { mountMine } from './story-mine.js';
+import { content, itemOpen, lockLine, levelOf, levelBar } from '../levels.js';
 import { pronButton, pronAvailable, wordTarget } from '../pron.js';
+import { lookupHTML, mountLookup } from '../lookup.js';
 
 const HAS_JP = /[ぁ-ゖァ-ヺ一-鿿]/;
+
+// Reading-passage beats (N3): a beat with `doc: { kind, title }` is a written text the characters read, shown as a
+// paper document instead of a speech line. Each kind gets a Japanese + English label.
+const DOC_KINDS = {
+  article: ['新聞', 'Newspaper'],
+  notice: ['お知らせ', 'Notice'],
+  letter: ['手紙', 'Letter'],
+  rules: ['規則', 'Rules'],
+  essay: ['作文', 'Essay'],
+  diary: ['日記', 'Diary'],
+};
+const docKind = (kind) => DOC_KINDS[kind] || ['文書', kind ? kind[0].toUpperCase() + kind.slice(1) : 'Document'];
+
+/** Splits a passage into sentences after each 。 (not inside 「」 quotes), keeping any text after the last 。 (a
+ *  signature like a notice's sender) as its own piece. */
+export function docSentences(text) {
+  const out = [];
+  let cur = '';
+  let depth = 0;
+  for (const ch of String(text)) {
+    cur += ch;
+    if (ch === '「' || ch === '『') depth++;
+    else if ((ch === '」' || ch === '』') && depth > 0) depth--;
+    else if (ch === '。' && depth === 0) { out.push(cur.trim()); cur = ''; }
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out.filter(Boolean);
+}
 
 export function mount(el, ctx) {
   let chapter = null;
@@ -30,6 +60,7 @@ export function mount(el, ctx) {
   let mineOff = null;
   let pre = null;          // words taught before a first read: { words, phase: 'learn' | 'check', i, picked, opts, ok }
   let recapOff = null;     // a scene recap while it's showing
+  let enteredDoc = null;   // the document beat last drawn, so its sheet animates in only once
 
   const beat = () => chapter.beats[Math.min(index, chapter.beats.length - 1)];
   const byId = (id) => CHAPTERS.find((c) => c.id === id);
@@ -46,12 +77,14 @@ export function mount(el, ctx) {
   // ---------- chapter map ----------
   function renderList() {
     const cleared = store.clearedChapters;
-    const nextId = CHAPTERS.find((c) => !cleared.has(c.id))?.id;
-    const done = CHAPTERS.filter((c) => cleared.has(c.id)).length;
+    // Chapters of locked levels show (locked, with one line saying how they open) but don't count yet.
+    const open = content('story');
+    const nextId = open.find((c) => !cleared.has(c.id))?.id;
+    const done = open.filter((c) => cleared.has(c.id)).length;
     const mined = store.mined.length;
     const node = (ch) => {
       const isCleared = cleared.has(ch.id);
-      const unlocked = ch.number === 1 || cleared.has('ch' + (ch.number - 1));
+      const unlocked = itemOpen(ch) && (ch.number === 1 || cleared.has('ch' + (ch.number - 1)));
       const state = isCleared ? 'cleared' : ch.id === nextId && unlocked ? 'next' : unlocked ? 'open' : 'locked';
       const head = `<span class="ch-num ${state === 'locked' ? 'locked' : ''}">${ch.number}</span>
         <span class="grow"><span class="strong big" lang="ja">${esc(ch.title)}</span><br><span class="small dim">${esc(ch.en)}</span></span>`;
@@ -73,7 +106,7 @@ export function mount(el, ctx) {
           ${results ? `<p class="tiny dim saga-results">${esc(results)}</p>` : ''}
           <div class="saga-actions">
             <button class="btn small-btn" data-act="open" data-id="${ch.id}" aria-label="Replay chapter ${ch.number}">↻ Replay</button>
-            <button class="btn small-btn" data-act="challenge" data-id="${ch.id}" aria-label="No-furigana challenge, chapter ${ch.number}">🙈 No-furigana challenge</button>
+            <button class="btn small-btn" data-act="challenge" data-id="${ch.id}" aria-label="No-furigana challenge, chapter ${ch.number}">🙈 No furigana</button>
           </div>
         </div></li>`;
     };
@@ -81,15 +114,19 @@ export function mount(el, ctx) {
       <div class="stack saga">
         <h2 class="title-jp">言葉の道場</h2>
         <p class="dim">Kotoba Dojo: Ren wants to get stronger. Each line uses words you know plus about one new one, and every word you meet is planted in your garden. Questions after each chapter check what you understood.</p>
-        <div class="saga-progress"><div class="bar" role="img" aria-label="${done} of ${CHAPTERS.length} chapters cleared"><span style="width:${(done / CHAPTERS.length) * 100}%"></span></div>
-          <span class="small mono dim">${done}/${CHAPTERS.length}</span></div>
+        ${levelBar('story')}
+        <div class="saga-progress"><div class="bar" role="img" aria-label="${done} of ${open.length} chapters cleared"><span style="width:${(done / open.length) * 100}%"></span></div>
+          <span class="small mono dim">${done}/${open.length}</span></div>
         <button class="panel link-panel saga-mine" data-act="mine">
           <span class="grow"><span class="strong">✍️ Paste a line</span><br><span class="small dim">Heard a great line in a show? Turn it into a Garden card.${mined ? ` ${mined} mined so far.` : ''}</span></span>
           <span class="dim chev" aria-hidden="true">›</span></button>
         ${ARCS.map((arc) => `
           <section class="stack-sm" aria-label="${esc(arc.en)}">
-            <h3 class="section-label"><span lang="ja">${esc(arc.title)}</span> ${esc(arc.en.toUpperCase())} · ${esc(arc.level)}</h3>
-            <ol class="saga-path">${arc.chapters.map((id) => node(byId(id))).join('')}</ol>
+            <h3 class="section-label"><span lang="ja">${esc(arc.title)}</span> ${esc(arc.en.toUpperCase())} · ${esc(arc.label || arc.level)}</h3>
+            ${itemOpen(arc) ? '' : `<p class="small dim">🔒 ${esc(lockLine(levelOf(arc)))}</p>`}
+            ${itemOpen(arc) ? `<ol class="saga-path">${arc.chapters.map((id) => node(byId(id))).join('')}</ol>`
+              : `<details class="fold"><summary class="small strong">${arc.chapters.length} chapters, locked</summary>
+                <ol class="saga-path">${arc.chapters.map((id) => node(byId(id))).join('')}</ol></details>`}
           </section>`).join('')}
         <p class="small dim">Cleared chapters: replay them, or take the no-furigana challenge to read them from memory.</p>
       </div>`;
@@ -189,6 +226,7 @@ export function mount(el, ctx) {
   }
 
   function enterBeat() {
+    enteredDoc = null;
     showEnglish = !!beat().choice && earlyHint(store.engine, 'grammar');   // meaning up front on choices while grammar is hard
     selectedWord = null;
     wrongReply = null;
@@ -271,6 +309,7 @@ export function mount(el, ctx) {
     if (finished) return renderFinished();
     if (quiz) return renderQuiz();
     const b = beat();
+    if (b.doc) return renderDoc(b);
     const c = b.speaker;
     const pct = (sceneAt() / sceneLen()) * 100;
     el.innerHTML = `
@@ -285,16 +324,25 @@ export function mount(el, ctx) {
             ? '<span class="tag saga-challenge-tag" title="Reading help is off for this replay">🙈 Challenge</span>'
             : `<button class="chip-toggle ${showReading ? 'on' : ''}" data-act="furi" aria-pressed="${showReading}">ふりがな</button>`}
         </div>
-        <button class="panel line-card" data-act="meaning" aria-label="Tap to show meaning">
+        <div class="panel line-card">
           ${showReading && !challenge ? `<span class="reading dim">${esc(b.reading)}</span>` : ''}
-          <span class="line-jp" lang="ja">${esc(b.jp)}</span>
-          ${showEnglish ? `<span class="trace-c">${esc(b.en)}</span>` : '<span class="small dim">Tap for meaning</span>'}
-        </button>
+          <span class="line-jp" lang="ja">${lookupHTML(b.jp)}</span>
+          ${showEnglish ? `<span class="trace-c">${esc(b.en)}</span>` : '<button class="linkbtn small" data-act="meaning">Tap for meaning</button>'}
+        </div>
+        <p class="tiny dim lk-hint">Tap any word to look it up.</p>
+        ${beatTail(b)}
+      </div>`;
+  }
+
+  /** Under a line or a document: the beat's word chips, the picked word, the note, then the choice or the controls. */
+  function beatTail(b) {
+    return `
         ${b.words.length ? `<div class="chips">${b.words.map((w, i) => `<button class="chip" data-act="word" data-i="${i}" lang="ja">${esc(w.jp)}</button>`).join('')}</div>` : ''}
         ${selectedWord ? `<p>${esc(selectedWord.jp)}${challenge ? '' : ` (${esc(selectedWord.reading)})`}: ${esc(selectedWord.en)}</p>` : ''}
         ${b.note ? `<div class="panel note">💡 ${esc(b.note)}</div>` : ''}
         ${b.choice && !choiceSolved ? `
-          <div class="stack-sm">
+          <div class="stack-sm story-choice">
+            <p class="section-label">YOUR TURN · pick Ren's reply</p>
             <p class="strong">${esc(b.choice.prompt)}</p>
             ${wrongReply ? `<p class="miss-c">${esc(wrongReply)}</p>` : ''}
             ${b.choice.options.map((o, i) => `<button class="btn left" data-act="choice" data-i="${i}" lang="ja">${esc(o)}</button>`).join('')}
@@ -303,7 +351,51 @@ export function mount(el, ctx) {
             <button class="btn" data-act="replay" aria-label="Replay">🔊 Replay</button>
             <button class="btn" data-act="meaning" aria-label="Meaning">📖 Meaning</button>
             <button class="btn primary" data-act="next" aria-label="Next">Next ▶</button>
-          </div>`}
+          </div>`}`;
+  }
+
+  /** A reading-passage beat: the text as a paper document (kind label, title, one sentence per line), the kana
+   *  reading over each sentence while ふりがな is on, and the English under the text when Meaning is on. */
+  function renderDoc(b) {
+    const { kind, title } = b.doc;
+    const [kindJp, kindEn] = docKind(kind);
+    const pct = (sceneAt() / sceneLen()) * 100;
+    const lines = docSentences(b.jp);
+    const readings = docSentences(b.reading);
+    const perLine = readings.length === lines.length;   // otherwise the reading shows as one block above the text
+    const help = showReading && !challenge;
+    const docEnter = enteredDoc !== b;   // animate the sheet in only the first time this beat draws
+    enteredDoc = b;
+    const para = (jp, i) => {
+      const last = i === lines.length - 1;
+      const cls = /へ。$/.test(jp) && i === 0 ? 'doc-salute' : !/[。」』]$/.test(jp) && last && i > 0 ? 'doc-sign' : /^[一二三四五六七八九十]+、/.test(jp) ? 'doc-item' : '';
+      return `<p class="doc-p ${cls}">${help && perLine ? `<span class="reading doc-reading dim" lang="ja" data-noruby>${esc(readings[i])}</span>` : ''}<span class="doc-jp">${lookupHTML(jp)}</span></p>`;
+    };
+    el.innerHTML = `
+      <div class="stack doc-beat"${noRuby()}>
+        <div class="row-between"><span class="small dim">${chapter.number}. ${esc(chapter.title)}</span>
+          ${ctx.today ? '' : '<button class="btn ghost small-btn" data-act="list">Chapters</button>'}</div>
+        <div class="bar"><span style="width:${pct}%"></span></div>
+        <div class="speaker-row">
+          <span class="grow small dim">${esc(b.speaker.name === 'Narrator' ? 'You read:' : `${b.speaker.name} reads:`)}</span>
+          ${challenge
+            ? '<span class="tag saga-challenge-tag" title="Reading help is off for this replay">🙈 Challenge</span>'
+            : `<button class="chip-toggle ${showReading ? 'on' : ''}" data-act="furi" aria-pressed="${showReading}">ふりがな</button>`}
+        </div>
+        <article class="doc-card doc-${esc(kind || 'text')}${docEnter ? ' doc-enter' : ''}" aria-labelledby="doc-title">
+          <header class="doc-head">
+            <span class="doc-kind"><span lang="ja">${esc(kindJp)}</span><span class="doc-kind-en">${esc(kindEn)}</span></span>
+            <h2 class="doc-title" id="doc-title" lang="ja">${esc(title)}</h2>
+          </header>
+          ${help && !perLine ? `<p class="reading doc-reading dim" lang="ja" data-noruby>${esc(b.reading)}</p>` : ''}
+          <div class="doc-body line-jp" lang="ja">${lines.map(para).join('')}</div>
+          <footer class="doc-foot">
+            ${showEnglish
+              ? `<p class="doc-en trace-c">${esc(b.en)}</p>`
+              : '<button class="btn ghost small-btn doc-meaning" data-act="meaning">Tap for meaning</button>'}
+          </footer>
+        </article>
+        ${beatTail(b)}
       </div>`;
   }
 
@@ -378,7 +470,7 @@ export function mount(el, ctx) {
     const words = chapter.beats.flatMap((b) => b.words);
     const n = quiz ? quiz.qs.length : 0;
     const ok = quiz ? quiz.ok : 0;
-    const next = CHAPTERS.find((c) => c.number === chapter.number + 1);
+    const next = CHAPTERS.find((c) => c.number === chapter.number + 1 && itemOpen(c));
     const verdict = !n ? '' : ok === n ? 'Every question right. You understood it all.'
       : ok >= n - 1 ? 'Nearly all right: that is right where learning happens.'
         : 'The answers you saw will stick next time. Replay it whenever you like.';
@@ -458,11 +550,12 @@ export function mount(el, ctx) {
     },
   });
 
+  const offLookup = mountLookup(el);
   if (ctx.chapterId) {
     open(byId(ctx.chapterId) || CHAPTERS[0]);
     if (ctx.today) ctx.today.report(`1/${sceneLen()}`);
   } else {
     render();
   }
-  return () => { off(); closeMine(); if (recapOff) recapOff(); speaker.stop(); };
+  return () => { off(); offLookup(); closeMine(); if (recapOff) recapOff(); speaker.stop(); };
 }

@@ -22,11 +22,11 @@ function itemsOf(lesson) {
 /** The card on Today that offers the check once, on first launch. Empty when it shouldn't show. */
 export function placementCard() {
   const e = store.engine;
-  if (e.placement || e.placementSkip || store.trackDone('hiragana')) return '';
+  if (e.placement || e.placementSkip || store.trackDone('hiragana') || store.clearedLessons.size) return '';   // only before any reading lesson
   return `<section class="panel engine-card" aria-labelledby="place-h">
     <h2 class="section-title" id="place-h">Know some kana already?</h2>
     <p class="small">An optional quick check (about 3 minutes) skips the Reading Dojo lessons you already know. Misses just show the answer.</p>
-    <div class="row2"><a class="btn primary" href="#/placement">Take the quick check</a><button class="btn ghost" data-act="placement-skip">Not now</button></div>
+    <div class="row2"><a class="btn primary" href="#/placement">Quick check</a><button class="btn ghost" data-act="placement-skip">Not now</button></div>
     <p class="tiny dim">You can always take it later from Settings.</p>
   </section>`;
 }
